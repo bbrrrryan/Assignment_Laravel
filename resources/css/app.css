@@ -1,0 +1,745 @@
+/* public/css/app.css */
+
+/* 1. 基础样式与重置 */
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+    font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+}
+
+body { 
+    background-color: #ffffff; 
+    color: #2d3436; 
+    line-height: 1.6; 
+}
+
+/* 2. 导航栏样式 */
+header { 
+    background: #ffffff; 
+    padding: 1.2rem 10%; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.logo h1 { 
+    color: #a31f37; 
+    font-size: 1.3rem; 
+    font-weight: 800; 
+}
+
+nav ul { 
+    list-style: none; 
+    display: flex; 
+    align-items: center; 
+}
+
+nav ul li { 
+    margin-left: 25px; 
+}
+
+nav ul li a { 
+    color: #636e72; 
+    text-decoration: none; 
+    font-weight: 500; 
+    font-size: 0.9rem; 
+    transition: 0.2s; 
+}
+
+nav ul li a:hover { 
+    color: #a31f37; 
+}
+
+.btn-login { 
+    background: #a31f37; 
+    color: white !important; 
+    padding: 10px 22px; 
+    border-radius: 8px; 
+}
+
+/* 3. Hero 区域 (白底) */
+.hero { 
+    padding: 100px 10% 80px; 
+    text-align: center; 
+    background: #ffffff;
+}
+
+.hero h2 { 
+    font-size: 3.2rem; 
+    font-weight: 800; 
+    color: #2d3436; 
+    margin-bottom: 20px; 
+    letter-spacing: -1.5px; 
+}
+
+.hero p { 
+    font-size: 1.15rem; 
+    color: #636e72; 
+    max-width: 650px; 
+    margin: 0 auto; 
+}
+
+/* 4. 功能展示区 (色差间隔 - 浅灰) */
+.feature-section {
+    background-color: #f8f9fa; 
+    padding: 80px 10%;
+    border-top: 1px solid #f1f2f6;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.section-title { 
+    text-align: center; 
+    margin-bottom: 50px; 
+}
+
+.section-title h4 { 
+    font-size: 0.85rem; 
+    text-transform: uppercase; 
+    color: #a31f37; 
+    letter-spacing: 2px; 
+    margin-bottom: 10px; 
+}
+
+.features { 
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+}
+
+/* 5. 白色功能卡片 */
+.card { 
+    background: #ffffff; 
+    padding: 40px; 
+    border-radius: 15px; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.02); 
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.card:hover { 
+    transform: translateY(-8px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.06);
+    border-color: #a31f371a;
+}
+
+.card i { 
+    font-size: 2.2rem; 
+    color: #a31f37; 
+    margin-bottom: 25px; 
+    display: inline-block; 
+}
+
+.card h3 { 
+    font-size: 1.2rem; 
+    margin-bottom: 15px; 
+    color: #2d3436; 
+}
+
+.card p { 
+    font-size: 0.95rem; 
+    color: #636e72; 
+    line-height: 1.8; 
+}
+
+/* 6. 页脚 */
+footer { 
+    text-align: center; 
+    padding: 50px 20px; 
+    background: #ffffff; 
+    color: #b2bec3; 
+    font-size: 0.85rem;
+}
+
+/* 7. 认证页面样式 */
+.auth-container {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+}
+
+.auth-card {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 450px;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.auth-header h2 {
+    color: #2d3436;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+}
+
+.auth-header p {
+    color: #636e72;
+    font-size: 0.95rem;
+}
+
+.auth-form {
+    margin-top: 30px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #2d3436;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #a31f37;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: auto;
+    margin-right: 8px;
+}
+
+.btn-primary {
+    background: #a31f37;
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.3s;
+}
+
+.btn-primary:hover {
+    background: #8a1a2d;
+}
+
+.error-message {
+    background: #fee;
+    color: #c33;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 15px;
+    font-size: 0.9rem;
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 20px;
+    color: #636e72;
+    font-size: 0.9rem;
+}
+
+.auth-footer a {
+    color: #a31f37;
+    text-decoration: none;
+}
+
+/* 8. 仪表板样式 */
+.dashboard-container {
+    padding: 40px 10%;
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    color: #2d3436;
+    margin-bottom: 10px;
+}
+
+.dashboard-header p {
+    color: #636e72;
+    font-size: 1.1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin: 40px 0;
+}
+
+.stat-card {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    background: #fee;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-icon i {
+    font-size: 1.8rem;
+    color: #a31f37;
+}
+
+.stat-info h3 {
+    font-size: 2rem;
+    color: #2d3436;
+    margin-bottom: 5px;
+}
+
+.stat-info p {
+    color: #636e72;
+    font-size: 0.9rem;
+}
+
+.dashboard-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.dashboard-section {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+}
+
+.dashboard-section h2 {
+    color: #2d3436;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+/* 9. 页面容器和表格 */
+.page-container {
+    padding: 40px 10%;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.page-header h1 {
+    font-size: 2rem;
+    color: #2d3436;
+}
+
+.filters {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.filters input,
+.filters select {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.filters input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.data-table thead {
+    background: #f8f9fa;
+}
+
+.data-table th,
+.data-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.data-table th {
+    font-weight: 600;
+    color: #2d3436;
+}
+
+.status-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.status-pending { background: #fff3cd; color: #856404; }
+.status-approved { background: #d4edda; color: #155724; }
+.status-rejected { background: #f8d7da; color: #721c24; }
+.status-cancelled { background: #e2e3e5; color: #383d41; }
+.status-available { background: #d4edda; color: #155724; }
+.status-maintenance { background: #fff3cd; color: #856404; }
+.status-unavailable { background: #f8d7da; color: #721c24; }
+
+.btn-sm {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-right: 5px;
+    background: #a31f37;
+    color: white;
+}
+
+.btn-sm:hover {
+    background: #8a1a2d;
+}
+
+.btn-danger {
+    background: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+/* 10. 模态框 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    overflow: auto;
+}
+
+.modal-content {
+    background: #ffffff;
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 600px;
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #636e72;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #2d3436;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* 11. 卡片网格 */
+.facilities-grid,
+.rewards-grid,
+.certificates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.facility-card,
+.reward-card,
+.certificate-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    transition: transform 0.3s;
+}
+
+.facility-card:hover,
+.reward-card:hover,
+.certificate-card:hover {
+    transform: translateY(-5px);
+}
+
+.facility-header,
+.feedback-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.facility-body p,
+.feedback-message {
+    color: #636e72;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.facility-actions,
+.feedback-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+/* 12. 通知和反馈样式 */
+.notifications-container,
+.feedbacks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.notification-card,
+.feedback-card {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    display: flex;
+    gap: 15px;
+}
+
+.notification-card.unread {
+    border-left: 4px solid #a31f37;
+}
+
+.notification-icon {
+    width: 40px;
+    height: 40px;
+    background: #fee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.notification-icon i {
+    color: #a31f37;
+}
+
+.notification-content,
+.feedback-content {
+    flex: 1;
+}
+
+.notification-content h3,
+.feedback-header h3 {
+    color: #2d3436;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+}
+
+.notification-meta,
+.feedback-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: #636e72;
+}
+
+.notification-type,
+.feedback-type {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-right: 10px;
+}
+
+.type-info { background: #d1ecf1; color: #0c5460; }
+.type-warning { background: #fff3cd; color: #856404; }
+.type-success { background: #d4edda; color: #155724; }
+.type-error { background: #f8d7da; color: #721c24; }
+.type-reminder { background: #e7d4f8; color: #5a2d7a; }
+
+/* 13. 标签页 */
+.tabs,
+.loyalty-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #f1f2f6;
+}
+
+.tab-btn {
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    color: #636e72;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.tab-btn.active {
+    color: #a31f37;
+    border-bottom-color: #a31f37;
+}
+
+.tab-btn:hover {
+    color: #a31f37;
+}
+
+/* 14. 忠诚度页面 */
+.loyalty-dashboard {
+    margin-top: 30px;
+}
+
+.points-card {
+    background: linear-gradient(135deg, #a31f37 0%, #8a1a2d 100%);
+    color: white;
+    padding: 40px;
+    border-radius: 15px;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.points-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+}
+
+.points-display {
+    margin-top: 20px;
+}
+
+.points-value {
+    font-size: 4rem;
+    font-weight: 800;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.text-success { color: #28a745; }
+.text-danger { color: #dc3545; }
+
+.table-container {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    overflow-x: auto;
+}
+
+/* 16. Loading Spinner */
+.loading-spinner {
+    text-align: center;
+    padding: 40px;
+    color: #636e72;
+}
+
+.loading-spinner i {
+    font-size: 2rem;
+    color: #a31f37;
+    margin-right: 10px;
+}
+
+/* 15. 响应式设计 */
+@media (max-width: 768px) {
+    .page-container,
+    .dashboard-container {
+        padding: 20px 5%;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .stats-grid,
+    .dashboard-content {
+        grid-template-columns: 1fr;
+    }
+
+    .facilities-grid,
+    .rewards-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    nav ul {
+        flex-wrap: wrap;
+    }
+    
+    nav ul li {
+        margin-left: 10px;
+        margin-top: 5px;
+    }
+}

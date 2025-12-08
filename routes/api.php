@@ -1,0 +1,136 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\API\RoleController;
+use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\LoyaltyController;
+use App\Http\Controllers\API\FeedbackController;
+use App\Http\Controllers\API\FacilityController;
+use App\Http\Controllers\API\BookingController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "api" middleware group. Make something great!
+|
+*/
+
+// Public routes
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+// Protected routes (require authentication)
+Route::middleware('auth:sanctum')->group(function () {
+    // Authentication routes
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
+
+    // User Management Routes (Admin only)
+    Route::prefix('users')->middleware('admin')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::get('/{id}', [UserController::class, 'show']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+        Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs']);
+        Route::post('/upload-csv', [UserController::class, 'uploadCsv']);
+    });
+    
+    // User profile update (All authenticated users)
+    Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
+
+    // Role Management Routes (Admin only)
+    Route::apiResource('roles', RoleController::class)->middleware('admin');
+
+    // Notification Management Routes
+    Route::prefix('notifications')->group(function () {
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::post('/', [NotificationController::class, 'store']);
+            Route::put('/{id}', [NotificationController::class, 'update']);
+            Route::delete('/{id}', [NotificationController::class, 'destroy']);
+            Route::post('/{id}/send', [NotificationController::class, 'send']);
+        });
+        // All authenticated users
+        Route::get('/{id}', [NotificationController::class, 'show']);
+        Route::get('/user/my-notifications', [NotificationController::class, 'myNotifications']);
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
+    });
+
+    // Loyalty Management Routes
+    Route::prefix('loyalty')->group(function () {
+        // User routes
+        Route::get('/points', [LoyaltyController::class, 'getPoints']);
+        Route::get('/points/history', [LoyaltyController::class, 'pointsHistory']);
+        Route::get('/rewards', [LoyaltyController::class, 'getRewards']);
+        Route::post('/rewards/redeem', [LoyaltyController::class, 'redeemReward']);
+        Route::get('/certificates', [LoyaltyController::class, 'getCertificates']);
+        
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::post('/points/award', [LoyaltyController::class, 'awardPoints']);
+            Route::post('/certificates/issue', [LoyaltyController::class, 'issueCertificate']);
+        });
+    });
+
+    // Feedback Management Routes
+    Route::prefix('feedbacks')->group(function () {
+        // User routes
+        Route::post('/', [FeedbackController::class, 'store']);
+        Route::get('/user/my-feedbacks', [FeedbackController::class, 'myFeedbacks']);
+        Route::get('/{id}', [FeedbackController::class, 'show']);
+        
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::get('/', [FeedbackController::class, 'index']);
+            Route::put('/{id}', [FeedbackController::class, 'update']);
+            Route::delete('/{id}', [FeedbackController::class, 'destroy']);
+            Route::put('/{id}/respond', [FeedbackController::class, 'respond']);
+            Route::put('/{id}/block', [FeedbackController::class, 'block']);
+        });
+    });
+
+    // Facility Management Routes
+    Route::prefix('facilities')->group(function () {
+        // All users can view
+        Route::get('/', [FacilityController::class, 'index']);
+        Route::get('/{id}', [FacilityController::class, 'show']);
+        Route::get('/{id}/availability', [FacilityController::class, 'availability']);
+        
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::post('/', [FacilityController::class, 'store']);
+            Route::put('/{id}', [FacilityController::class, 'update']);
+            Route::delete('/{id}', [FacilityController::class, 'destroy']);
+            Route::get('/{id}/utilization', [FacilityController::class, 'utilization']);
+        });
+    });
+
+    // Booking & Scheduling Routes
+    Route::prefix('bookings')->group(function () {
+        // User routes
+        Route::post('/', [BookingController::class, 'store']);
+        Route::get('/{id}', [BookingController::class, 'show']);
+        Route::put('/{id}/cancel', [BookingController::class, 'cancel']);
+        Route::get('/user/my-bookings', [BookingController::class, 'myBookings']);
+        Route::get('/facility/{facilityId}/availability', [BookingController::class, 'checkAvailability']);
+        
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::get('/', [BookingController::class, 'index']);
+            Route::put('/{id}', [BookingController::class, 'update']);
+            Route::delete('/{id}', [BookingController::class, 'destroy']);
+            Route::put('/{id}/approve', [BookingController::class, 'approve']);
+            Route::put('/{id}/reject', [BookingController::class, 'reject']);
+        });
+    });
+});
