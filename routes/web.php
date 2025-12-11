@@ -5,6 +5,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserCRUDManagementController;
+use App\Http\Controllers\Admin\FacilityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,6 +36,9 @@ Route::middleware('auth')->group(function () {
         // User Management
         Route::resource('users', UserCRUDManagementController::class);
         Route::post('users/upload-csv', [UserCRUDManagementController::class, 'uploadCsv'])->name('users.upload-csv');
+        
+        // Facility Management
+        Route::resource('facilities', FacilityController::class);
     });
     
     // Profile Routes (All authenticated users)
