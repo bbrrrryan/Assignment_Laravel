@@ -24,6 +24,7 @@ class User extends Authenticatable
         'phone_number',
         'address',
         'last_login_at',
+        'settings',
     ];
 
     protected $hidden = [
@@ -35,6 +36,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'last_login_at' => 'datetime',
         'password' => 'hashed',
+        'settings' => 'array',
     ];
 
     // Relationships
@@ -123,5 +125,73 @@ class User extends Authenticatable
         } else {
             return false;
         }
+    }
+
+    /**
+     * Get default user settings
+     */
+    public function getDefaultSettings()
+    {
+        return [
+            'notifications' => [
+                'email' => true,
+                'system' => true,
+                'booking_reminders' => true,
+                'facility_maintenance' => true,
+                'loyalty_rewards' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Get a specific setting value
+     */
+    public function getSetting($key, $default = null)
+    {
+        $settings = $this->settings ?? [];
+        $keys = explode('.', $key);
+        $value = $settings;
+
+        foreach ($keys as $k) {
+            if (is_array($value) && isset($value[$k])) {
+                $value = $value[$k];
+            } else {
+                return $default;
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * Set a specific setting value
+     */
+    public function setSetting($key, $value)
+    {
+        $settings = $this->settings ?? [];
+        $keys = explode('.', $key);
+        $current = &$settings;
+
+        foreach ($keys as $k) {
+            if (!isset($current[$k]) || !is_array($current[$k])) {
+                $current[$k] = [];
+            }
+            $current = &$current[$k];
+        }
+
+        $current = $value;
+        $this->settings = $settings;
+        return $this;
+    }
+
+    /**
+     * Get merged settings (user settings merged with defaults)
+     */
+    public function getMergedSettings()
+    {
+        $defaults = $this->getDefaultSettings();
+        $userSettings = $this->settings ?? [];
+        
+        return array_merge_recursive($defaults, $userSettings);
     }
 }

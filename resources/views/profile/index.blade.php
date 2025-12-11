@@ -186,6 +186,138 @@ async function updateProfile() {
     }
 }
 
+async function loadActivityLogs(page = 1) {
+    const activityLogsContainer = document.getElementById('activityLogs');
+    if (!activityLogsContainer) return;
+
+    try {
+        activityLogsContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading activity history...</div>';
+
+        const result = await API.get(`/users/profile/activity-logs?page=${page}`);
+
+        if (result.success) {
+            displayActivityLogs(result.data.data, result.data);
+        } else {
+            activityLogsContainer.innerHTML = `<div class="error-message">Error loading activity history: ${result.error || 'Unknown error'}</div>`;
+        }
+    } catch (error) {
+        activityLogsContainer.innerHTML = `<div class="error-message">Error loading activity history: ${error.message}</div>`;
+    }
+}
+
+function displayActivityLogs(logs, paginationData) {
+    const activityLogsContainer = document.getElementById('activityLogs');
+    if (!activityLogsContainer) return;
+
+    if (!logs || logs.length === 0) {
+        activityLogsContainer.innerHTML = '<div class="empty-message">No activity history found</div>';
+        return;
+    }
+
+    let html = '<div class="activity-logs-list">';
+    
+    logs.forEach(log => {
+        const actionClass = getActionBadgeClass(log.action);
+        const dateTime = formatDateTime(log.created_at);
+        
+        html += `
+            <div class="activity-log-item">
+                <div class="activity-log-icon">
+                    <i class="fas fa-${getActionIcon(log.action)}"></i>
+                </div>
+                <div class="activity-log-content">
+                    <div class="activity-log-action">
+                        <span class="badge badge-${actionClass}">${log.action}</span>
+                    </div>
+                    <div class="activity-log-description">${log.description || '-'}</div>
+                    <div class="activity-log-time">${dateTime}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+
+    // Add pagination if needed
+    if (paginationData && paginationData.last_page > 1) {
+        html += '<div class="activity-logs-pagination">';
+        
+        // Previous button
+        if (paginationData.current_page > 1) {
+            html += `<button onclick="loadActivityLogs(${paginationData.current_page - 1})" class="pagination-btn">Previous</button>`;
+        }
+        
+        // Page numbers
+        for (let i = 1; i <= paginationData.last_page; i++) {
+            if (i === paginationData.current_page) {
+                html += `<span class="pagination-current">${i}</span>`;
+            } else {
+                html += `<button onclick="loadActivityLogs(${i})" class="pagination-btn">${i}</button>`;
+            }
+        }
+        
+        // Next button
+        if (paginationData.current_page < paginationData.last_page) {
+            html += `<button onclick="loadActivityLogs(${paginationData.current_page + 1})" class="pagination-btn">Next</button>`;
+        }
+        
+        html += '</div>';
+        html += `<div class="pagination-info">Showing ${paginationData.from}-${paginationData.to} of ${paginationData.total} records (last 30 only)</div>`;
+    } else if (paginationData && paginationData.total > 0) {
+        html += `<div class="pagination-info">Showing ${paginationData.total} record(s) (last 30 only)</div>`;
+    }
+
+    activityLogsContainer.innerHTML = html;
+}
+
+function getActionBadgeClass(action) {
+    if (!action) return 'secondary';
+    
+    const actionLower = action.toLowerCase();
+    if (actionLower.includes('create') || actionLower.includes('login')) return 'success';
+    if (actionLower.includes('update') || actionLower.includes('edit')) return 'info';
+    if (actionLower.includes('delete') || actionLower.includes('logout')) return 'danger';
+    return 'secondary';
+}
+
+function getActionIcon(action) {
+    if (!action) return 'circle';
+    
+    const actionLower = action.toLowerCase();
+    if (actionLower.includes('login')) return 'sign-in-alt';
+    if (actionLower.includes('logout')) return 'sign-out-alt';
+    if (actionLower.includes('create')) return 'plus';
+    if (actionLower.includes('update') || actionLower.includes('edit')) return 'edit';
+    if (actionLower.includes('delete')) return 'trash';
+    if (actionLower.includes('password')) return 'key';
+    if (actionLower.includes('settings')) return 'cog';
+    return 'circle';
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return '-';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute(s) ago`;
+    if (diffHours < 24) return `${diffHours} hour(s) ago`;
+    if (diffDays < 7) return `${diffDays} day(s) ago`;
+    
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 </script>
 
 <style>
@@ -308,6 +440,130 @@ async function updateProfile() {
     .profile-actions {
         flex-direction: column;
     }
+}
+
+/* Activity Logs Styles */
+.activity-logs {
+    min-height: 200px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.error-message, .empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.activity-logs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.activity-log-item {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
+}
+
+.activity-log-icon {
+    font-size: 20px;
+    color: #667eea;
+    display: flex;
+    align-items: center;
+}
+
+.activity-log-content {
+    flex: 1;
+}
+
+.activity-log-action {
+    margin-bottom: 5px;
+}
+
+.activity-log-description {
+    color: #333;
+    margin-bottom: 5px;
+    font-size: 0.95em;
+}
+
+.activity-log-time {
+    color: #999;
+    font-size: 0.85em;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.badge-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.badge-secondary {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.activity-logs-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.pagination-btn {
+    padding: 8px 15px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover {
+    background: #f0f0f0;
+    border-color: #667eea;
+}
+
+.pagination-current {
+    padding: 8px 15px;
+    background: #667eea;
+    color: white;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.pagination-info {
+    text-align: center;
+    margin-top: 10px;
+    color: #666;
+    font-size: 0.9em;
 }
 </style>
 @endsection
