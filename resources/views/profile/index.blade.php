@@ -74,6 +74,20 @@
                 </div>
             </div>
         </div>
+
+        <!-- Activity History Section -->
+        <div class="profile-card" style="margin-top: 20px;">
+            <div class="profile-content">
+                <div class="profile-section">
+                    <h3>Account Activity History</h3>
+                    <div id="activityLogs" class="activity-logs">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading activity history...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -88,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!API.requireAuth()) return;
 
     loadProfile();
+    loadActivityLogs();
 });
 
 async function loadProfile() {
@@ -170,6 +185,7 @@ async function updateProfile() {
         alert('Error updating profile: ' + (result.error || 'Unknown error'));
     }
 }
+
 </script>
 
 <style>

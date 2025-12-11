@@ -3,8 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\UserCRUDManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,8 +33,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
         
         // User Management
-        Route::resource('users', AdminUserController::class);
-        Route::post('users/upload-csv', [AdminUserController::class, 'uploadCsv'])->name('users.upload-csv');
+        Route::resource('users', UserCRUDManagementController::class);
+        Route::post('users/upload-csv', [UserCRUDManagementController::class, 'uploadCsv'])->name('users.upload-csv');
     });
     
     // Profile Routes (All authenticated users)

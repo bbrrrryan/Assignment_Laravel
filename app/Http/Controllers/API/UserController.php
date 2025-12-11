@@ -79,7 +79,9 @@ class UserController extends Controller
         ]);
 
         // Log activity
-        auth()->user()->activityLogs()->create([
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $currentUser->activityLogs()->create([
             'action' => 'create_user',
             'description' => "Created user: {$user->name}",
             'metadata' => ['user_id' => $user->id],
@@ -139,7 +141,9 @@ class UserController extends Controller
         $user->update($updateData);
 
         // Log activity
-        auth()->user()->activityLogs()->create([
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $currentUser->activityLogs()->create([
             'action' => 'update_user',
             'description' => "Updated user: {$user->name}",
             'metadata' => ['user_id' => $user->id, 'changes' => $updateData],
@@ -159,7 +163,9 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         
         // Log activity before deletion
-        auth()->user()->activityLogs()->create([
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $currentUser->activityLogs()->create([
             'action' => 'delete_user',
             'description' => "Deleted user: {$user->name}",
             'metadata' => ['user_id' => $user->id],
@@ -287,7 +293,9 @@ class UserController extends Controller
             DB::commit();
 
             // Log activity
-            auth()->user()->activityLogs()->create([
+            /** @var User $currentUser */
+            $currentUser = auth()->user();
+            $currentUser->activityLogs()->create([
                 'action' => 'bulk_upload_users',
                 'description' => "Uploaded CSV: {$created} users created, {$failed} failed",
                 'metadata' => ['created' => $created, 'failed' => $failed],
@@ -317,6 +325,7 @@ class UserController extends Controller
      */
     public function updateProfile(Request $request)
     {
+        /** @var User $user */
         $user = auth()->user();
 
         $validator = Validator::make($request->all(), [
@@ -349,7 +358,118 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Profile updated successfully',
-            'data' => $user->load('role'),
+            'data' => $user->fresh(),
+        ]);
+    }
+
+    /**
+     * Get current user's activity logs
+     * Limited to last 30 records only, paginated with 10 per page
+     */
+    public function myActivityLogs(Request $request)
+    {
+        /** @var User $user */
+        $user = auth()->user();
+        
+        // Get total count
+        $totalLogs = $user->activityLogs()->count();
+        $maxRecords = 30;
+        $perPage = 10;
+        
+        // Calculate how many records to show (max 30)
+        $totalToShow = min($totalLogs, $maxRecords);
+        
+        // Calculate offset based on page
+        $page = $request->get('page', 1);
+        $offset = ($page - 1) * $perPage;
+        
+        // If offset exceeds max records, adjust
+        if ($offset >= $maxRecords) {
+            $offset = 0;
+            $page = 1;
+        }
+        
+        // Get the records (latest first, limit to 30, then paginate)
+        $logs = $user->activityLogs()
+            ->latest()
+            ->limit($maxRecords)
+            ->skip($offset)
+            ->take($perPage)
+            ->get();
+        
+        // Create pagination response manually
+        $lastPage = ceil($totalToShow / $perPage);
+        
+        return response()->json([
+            'message' => 'Activity logs retrieved successfully',
+            'data' => [
+                'data' => $logs,
+                'current_page' => (int)$page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $totalToShow,
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, $totalToShow),
+            ],
+        ]);
+    }
+
+    /**
+     * Get user settings
+     */
+    public function getSettings(Request $request)
+    {
+        /** @var User $user */
+        $user = auth()->user();
+        $settings = $user->getMergedSettings();
+
+        return response()->json([
+            'message' => 'Settings retrieved successfully',
+            'data' => $settings,
+        ]);
+    }
+
+    /**
+     * Update user settings
+     */
+    public function updateSettings(Request $request)
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        $validator = Validator::make($request->all(), [
+            'notifications.email' => 'sometimes|boolean',
+            'notifications.system' => 'sometimes|boolean',
+            'notifications.booking_reminders' => 'sometimes|boolean',
+            'notifications.facility_maintenance' => 'sometimes|boolean',
+            'notifications.loyalty_rewards' => 'sometimes|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $currentSettings = $user->settings ?? [];
+        $newSettings = $request->all();
+        
+        // Merge new settings with existing settings
+        $mergedSettings = array_merge($currentSettings, $newSettings);
+        
+        $user->settings = $mergedSettings;
+        $user->save();
+
+        // Log activity
+        $user->activityLogs()->create([
+            'action' => 'update_settings',
+            'description' => 'Updated user settings',
+        ]);
+
+        return response()->json([
+            'message' => 'Settings updated successfully',
+            'data' => $user->getMergedSettings(),
         ]);
     }
 }
