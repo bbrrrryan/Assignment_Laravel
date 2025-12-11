@@ -39,7 +39,7 @@
                     <label>Role</label>
                     <p>
                         <span class="badge badge-info">
-                            {{ $user->role->display_name ?? $user->role->name ?? '-' }}
+                            {{ ucfirst($user->role ?? '-') }}
                         </span>
                     </p>
                 </div>

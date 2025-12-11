@@ -46,13 +46,11 @@
             </div>
             
             <div class="filter-group">
-                <select name="role_id" class="form-select">
+                <select name="role" class="form-select">
                     <option value="">All Roles</option>
-                    @foreach($roles as $role)
-                        <option value="{{ $role->id }}" {{ request('role_id') == $role->id ? 'selected' : '' }}>
-                            {{ $role->display_name }}
-                        </option>
-                    @endforeach
+                    <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
+                    <option value="student" {{ request('role') === 'student' ? 'selected' : '' }}>Student</option>
+                    <option value="staff" {{ request('role') === 'staff' ? 'selected' : '' }}>Staff</option>
                 </select>
             </div>
             
@@ -60,7 +58,7 @@
                 <i class="fas fa-search"></i> Filter
             </button>
             
-            @if(request()->hasAny(['search', 'status', 'role_id']))
+            @if(request()->hasAny(['search', 'status', 'role']))
                 <a href="{{ route('admin.users.index') }}" class="btn-secondary">
                     <i class="fas fa-times"></i> Clear
                 </a>
@@ -75,7 +73,7 @@
             <div class="form-group">
                 <label>Bulk Upload Users (CSV)</label>
                 <input type="file" name="csv_file" accept=".csv,.txt" required>
-                <small>Format: name,email,password,role_id,phone_number,address,status</small>
+                <small>Format: name,email,password,role,phone_number,address,status</small>
             </div>
             <button type="submit" class="btn-secondary">
                 <i class="fas fa-upload"></i> Upload CSV
@@ -106,7 +104,7 @@
                         <td>{{ $user->email }}</td>
                         <td>
                             <span class="badge badge-info">
-                                {{ $user->role->display_name ?? $user->role->name ?? '-' }}
+                                {{ ucfirst($user->role ?? '-') }}
                             </span>
                         </td>
                         <td>

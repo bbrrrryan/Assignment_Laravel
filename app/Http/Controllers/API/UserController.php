@@ -17,7 +17,7 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with('role');
+        $query = User::query();
 
         // Filter by status
         if ($request->has('status')) {
@@ -25,8 +25,8 @@ class UserController extends Controller
         }
 
         // Filter by role
-        if ($request->has('role_id')) {
-            $query->where('role_id', $request->role_id);
+        if ($request->has('role')) {
+            $query->where('role', $request->role);
         }
 
         // Search
@@ -55,7 +55,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6',
-            'role_id' => 'required|exists:roles,id',
+            'role' => 'required|in:admin,student,staff',
             'phone_number' => 'nullable|string',
             'address' => 'nullable|string',
             'status' => 'nullable|in:active,suspended,deactivated',
@@ -72,7 +72,7 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => $request->role_id,
+            'role' => $request->role,
             'phone_number' => $request->phone_number,
             'address' => $request->address,
             'status' => $request->status ?? 'active',
@@ -87,7 +87,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User created successfully',
-            'data' => $user->load('role'),
+            'data' => $user,
         ], 201);
     }
 
@@ -96,7 +96,7 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        $user = User::with(['role', 'activityLogs' => function($query) {
+        $user = User::with(['activityLogs' => function($query) {
             $query->latest()->limit(10);
         }])->findOrFail($id);
 
@@ -117,7 +117,7 @@ class UserController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|string|min:6',
-            'role_id' => 'sometimes|exists:roles,id',
+            'role' => 'sometimes|required|in:admin,student,staff',
             'phone_number' => 'nullable|string',
             'address' => 'nullable|string',
             'status' => 'nullable|in:active,suspended,deactivated',
@@ -130,7 +130,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        $updateData = $request->only(['name', 'email', 'role_id', 'phone_number', 'address', 'status']);
+        $updateData = $request->only(['name', 'email', 'role', 'phone_number', 'address', 'status']);
         
         if ($request->has('password')) {
             $updateData['password'] = Hash::make($request->password);
@@ -147,7 +147,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully',
-            'data' => $user->load('role'),
+            'data' => $user,
         ]);
     }
 
@@ -204,8 +204,8 @@ class UserController extends Controller
         $data = array_map('str_getcsv', file($path));
         $header = array_shift($data); // Remove header row
 
-        // Expected CSV format: name,email,password,role_id,phone_number,address,status
-        $expectedHeaders = ['name', 'email', 'password', 'role_id'];
+        // Expected CSV format: name,email,password,role,phone_number,address,status
+        $expectedHeaders = ['name', 'email', 'password', 'role'];
         $headerMap = [];
         
         foreach ($expectedHeaders as $expected) {
@@ -246,18 +246,24 @@ class UserController extends Controller
                         'name' => trim($row[$headerMap['name']]),
                         'email' => trim($row[$headerMap['email']]),
                         'password' => Hash::make(trim($row[$headerMap['password']])),
-                        'role_id' => trim($row[$headerMap['role_id']]),
+                        'role' => strtolower(trim($row[$headerMap['role']])),
                         'phone_number' => isset($headerMap['phone_number']) ? trim($row[$headerMap['phone_number']]) : null,
                         'address' => isset($headerMap['address']) ? trim($row[$headerMap['address']]) : null,
                         'status' => isset($headerMap['status']) ? trim($row[$headerMap['status']]) : 'active',
                     ];
+
+                    // Validate role - using simple if-else
+                    $role = $userData['role'];
+                    if ($role !== 'admin' && $role !== 'student' && $role !== 'staff') {
+                        $userData['role'] = 'student'; // Default to student
+                    }
 
                     // Validate user data
                     $validator = Validator::make($userData, [
                         'name' => 'required|string|max:255',
                         'email' => 'required|string|email|max:255|unique:users',
                         'password' => 'required',
-                        'role_id' => 'required|exists:roles,id',
+                        'role' => 'required|in:admin,student,staff',
                         'phone_number' => 'nullable|string',
                         'address' => 'nullable|string',
                         'status' => 'nullable|in:active,suspended,deactivated',

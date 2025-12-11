@@ -19,42 +19,21 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
-            'role_id' => 'nullable|exists:roles,id',
+            'role' => 'nullable|in:admin,student,staff',
         ]);
 
-        // Get or create default student role
-        $defaultRole = \App\Models\Role::where('name', 'student')->first();
+        // Use provided role or default to student - using simple if-else
+        $role = $request->role ?? 'student';
         
-        if (!$defaultRole) {
-            // Create student role if it doesn't exist
-            $defaultRole = \App\Models\Role::create([
-                'name' => 'student',
-                'display_name' => 'Student',
-                'description' => 'Student User',
-                'is_active' => true,
-            ]);
-        }
-        
-        // Use provided role_id or default to student
-        $roleId = $request->role_id;
-        
-        // Validate role_id exists if provided
-        if ($roleId) {
-            $role = \App\Models\Role::find($roleId);
-            if (!$role) {
-                return response()->json([
-                    'message' => 'Invalid role_id provided',
-                ], 422);
-            }
-        } else {
-            $roleId = $defaultRole->id;
+        if ($role !== 'admin' && $role !== 'student' && $role !== 'staff') {
+            $role = 'student'; // Default to student if invalid
         }
         
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => $roleId,
+            'role' => $role,
             'status' => 'active',
         ]);
 
@@ -62,7 +41,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'User registered successfully',
-            'user' => $user->load('role'),
+            'user' => $user,
             'token' => $token,
         ], 201);
     }
@@ -103,42 +82,6 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Ensure role is loaded
-        $user->load('role');
-        
-        // If user has no role_id but has role string (from old system), try to match it
-        if (!$user->role_id) {
-            // Check if role string exists in attributes
-            $roleString = $user->getAttribute('role');
-            
-            if ($roleString) {
-                // Find or create role based on string
-                $role = \App\Models\Role::where('name', $roleString)->first();
-                
-                if (!$role) {
-                    // Create role if it doesn't exist
-                    $role = \App\Models\Role::create([
-                        'name' => $roleString,
-                        'display_name' => ucfirst($roleString),
-                        'description' => ucfirst($roleString) . ' role',
-                        'is_active' => true,
-                    ]);
-                }
-                
-                $user->role_id = $role->id;
-                $user->save();
-                $user->load('role');
-            } else {
-                // If no role string either, assign default student role
-                $studentRole = \App\Models\Role::where('name', 'student')->first();
-                if ($studentRole) {
-                    $user->role_id = $studentRole->id;
-                    $user->save();
-                    $user->load('role');
-                }
-            }
-        }
-
         return response()->json([
             'message' => 'Login successful',
             'user' => $user,
@@ -171,42 +114,6 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-        
-        // Ensure role is loaded
-        $user->load('role');
-        
-        // If user has no role_id but has role string (from old system), try to match it
-        if (!$user->role_id) {
-            // Check if role string exists in attributes
-            $roleString = $user->getAttribute('role');
-            
-            if ($roleString) {
-                // Find or create role based on string
-                $role = \App\Models\Role::where('name', $roleString)->first();
-                
-                if (!$role) {
-                    // Create role if it doesn't exist
-                    $role = \App\Models\Role::create([
-                        'name' => $roleString,
-                        'display_name' => ucfirst($roleString),
-                        'description' => ucfirst($roleString) . ' role',
-                        'is_active' => true,
-                    ]);
-                }
-                
-                $user->role_id = $role->id;
-                $user->save();
-                $user->load('role');
-            } else {
-                // If no role string either, assign default student role
-                $studentRole = \App\Models\Role::where('name', 'student')->first();
-                if ($studentRole) {
-                    $user->role_id = $studentRole->id;
-                    $user->save();
-                    $user->load('role');
-                }
-            }
-        }
         
         return response()->json([
             'user' => $user,

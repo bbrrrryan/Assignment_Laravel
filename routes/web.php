@@ -59,14 +59,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/feedbacks', [PageController::class, 'feedbacks'])->name('feedbacks.index');
     Route::get('/feedbacks/{id}', [PageController::class, 'showFeedback'])->name('feedbacks.show');
     
-    // Dashboard route - redirect based on role
+    // Smart dashboard route - redirects based on user role
     Route::get('/dashboard', function () {
-        // If admin, go to admin dashboard
-        if (auth()->user()->isAdmin()) {
+        $user = auth()->user();
+        $role = strtolower($user->role ?? '');
+        
+        if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
-        } else {
-            // If user, go to home page
-            return redirect()->route('home');
         }
+        
+        return redirect()->route('home');
     })->name('dashboard');
 }); 

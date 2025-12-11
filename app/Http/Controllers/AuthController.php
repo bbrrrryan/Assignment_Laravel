@@ -39,28 +39,28 @@ class AuthController extends Controller
             ]);
         }
 
-        // Ensure role is loaded
-        $user->load('role');
-
-        // Update last login
+        // Track last login time
         $user->update(['last_login_at' => now()]);
 
-        // Log activity
+        // Log the login activity
         $user->activityLogs()->create([
             'action' => 'login',
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        // Login user using session
+        // Authenticate user and create session
         Auth::login($user, $request->filled('remember'));
 
-        // Redirect based on role
-        // If admin, go to admin dashboard
-        if ($user->isAdmin()) {
+        // Redirect users based on their role
+        $role = strtolower($user->role ?? '');
+        
+        if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
+        } elseif ($role === 'student') {
+            return redirect()->route('home');
         } else {
-            // If user, go to home page
+            // Fallback to home for any other roles
             return redirect()->route('home');
         }
     }
@@ -70,7 +70,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        // Log activity
+        // Log the logout activity before destroying session
         if (Auth::check()) {
             /** @var User $user */
             $user = Auth::user();

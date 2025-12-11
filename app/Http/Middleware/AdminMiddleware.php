@@ -25,11 +25,6 @@ class AdminMiddleware
         }
 
         $user = auth()->user();
-        
-        // Ensure role is loaded
-        if (!$user->relationLoaded('role')) {
-            $user->load('role');
-        }
 
         if (!$user->isAdmin()) {
             if ($request->expectsJson()) {

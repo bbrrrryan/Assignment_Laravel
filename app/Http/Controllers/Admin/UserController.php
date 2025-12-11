@@ -9,7 +9,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Role;
 use App\Models\UserActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -23,7 +22,7 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with('role');
+        $query = User::query();
 
         // Filter by status
         if ($request->has('status') && $request->status) {
@@ -31,8 +30,8 @@ class UserController extends Controller
         }
 
         // Filter by role
-        if ($request->has('role_id') && $request->role_id) {
-            $query->where('role_id', $request->role_id);
+        if ($request->has('role') && $request->role) {
+            $query->where('role', $request->role);
         }
 
         // Search
@@ -45,9 +44,8 @@ class UserController extends Controller
         }
 
         $users = $query->latest()->paginate(15);
-        $roles = Role::where('is_active', true)->get();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        return view('admin.users.index', compact('users'));
     }
 
     /**
@@ -55,8 +53,7 @@ class UserController extends Controller
      */
     public function create()
     {
-        $roles = Role::where('is_active', true)->get();
-        return view('admin.users.create', compact('roles'));
+        return view('admin.users.create');
     }
 
     /**
@@ -68,7 +65,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
-            'role_id' => 'required|exists:roles,id',
+            'role' => 'required|in:admin,student,staff',
             'phone_number' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'status' => 'nullable|in:active,suspended,deactivated',
@@ -82,7 +79,7 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => $request->role_id,
+            'role' => $request->role,
             'phone_number' => $request->phone_number,
             'address' => $request->address,
             'status' => $request->status ?? 'active',
@@ -104,7 +101,7 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        $user = User::with(['role', 'activityLogs' => function($query) {
+        $user = User::with(['activityLogs' => function($query) {
             $query->latest()->limit(20);
         }])->findOrFail($id);
 
@@ -116,10 +113,9 @@ class UserController extends Controller
      */
     public function edit(string $id)
     {
-        $user = User::with('role')->findOrFail($id);
-        $roles = Role::where('is_active', true)->get();
+        $user = User::findOrFail($id);
 
-        return view('admin.users.edit', compact('user', 'roles'));
+        return view('admin.users.edit', compact('user'));
     }
 
     /**
@@ -133,7 +129,7 @@ class UserController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|nullable|string|min:6|confirmed',
-            'role_id' => 'sometimes|exists:roles,id',
+            'role' => 'sometimes|required|in:admin,student,staff',
             'phone_number' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'status' => 'nullable|in:active,suspended,deactivated',
@@ -143,7 +139,7 @@ class UserController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        $updateData = $request->only(['name', 'email', 'role_id', 'phone_number', 'address', 'status']);
+        $updateData = $request->only(['name', 'email', 'role', 'phone_number', 'address', 'status']);
         
         if ($request->filled('password')) {
             $updateData['password'] = Hash::make($request->password);
@@ -202,8 +198,8 @@ class UserController extends Controller
         $data = array_map('str_getcsv', file($path));
         $header = array_shift($data); // Remove header row
 
-        // Expected CSV format: name,email,password,role_id,phone_number,address,status
-        $expectedHeaders = ['name', 'email', 'password', 'role_id'];
+        // Expected CSV format: name,email,password,role,phone_number,address,status
+        $expectedHeaders = ['name', 'email', 'password', 'role'];
         $headerMap = [];
         
         foreach ($expectedHeaders as $expected) {
@@ -245,18 +241,24 @@ class UserController extends Controller
                         'name' => trim($row[$headerMap['name']]),
                         'email' => trim($row[$headerMap['email']]),
                         'password' => Hash::make(trim($row[$headerMap['password']])),
-                        'role_id' => trim($row[$headerMap['role_id']]),
+                        'role' => strtolower(trim($row[$headerMap['role']])),
                         'phone_number' => isset($headerMap['phone_number']) ? trim($row[$headerMap['phone_number']]) : null,
                         'address' => isset($headerMap['address']) ? trim($row[$headerMap['address']]) : null,
                         'status' => isset($headerMap['status']) ? trim($row[$headerMap['status']]) : 'active',
                     ];
+
+                    // Validate role - using simple if-else
+                    $role = $userData['role'];
+                    if ($role !== 'admin' && $role !== 'student' && $role !== 'staff') {
+                        $userData['role'] = 'student'; // Default to student
+                    }
 
                     // Validate user data
                     $validator = Validator::make($userData, [
                         'name' => 'required|string|max:255',
                         'email' => 'required|string|email|max:255|unique:users',
                         'password' => 'required',
-                        'role_id' => 'required|exists:roles,id',
+                        'role' => 'required|in:admin,student,staff',
                         'phone_number' => 'nullable|string|max:20',
                         'address' => 'nullable|string|max:500',
                         'status' => 'nullable|in:active,suspended,deactivated',

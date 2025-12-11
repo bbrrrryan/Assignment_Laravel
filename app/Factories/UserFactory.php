@@ -8,15 +8,14 @@
 namespace App\Factories;
 
 use App\Models\User;
-use App\Models\Role;
 use Illuminate\Support\Facades\Hash;
 
 class UserFactory
 {
     /**
-     * Create a user with role_id instead of role string
+     * Create a user with role string
      * 
-     * @param string|int $type Role name ('admin', 'student', 'staff') or role_id
+     * @param string $type Role name ('admin', 'student', 'staff')
      * @param string $name
      * @param string $email
      * @param string $password
@@ -24,30 +23,26 @@ class UserFactory
      */
     public static function makeUser($type, $name, $email, $password)
     {
-        // If type is numeric, treat as role_id
-        if (is_numeric($type)) {
-            $roleId = (int) $type;
+        // Normalize role name
+        $role = strtolower(trim($type));
+        
+        // Validate role - using simple if-else
+        if ($role === 'admin' || $role === 'administrator') {
+            $roleName = 'admin';
+        } elseif ($role === 'student') {
+            $roleName = 'student';
+        } elseif ($role === 'staff') {
+            $roleName = 'staff';
         } else {
-            // Otherwise, find role by name
-            $role = Role::where('name', strtolower($type))->first();
-            
-            if (!$role) {
-                // If role doesn't exist, default to student
-                $role = Role::where('name', 'student')->first();
-            }
-            
-            $roleId = $role ? $role->id : null;
-        }
-
-        if (!$roleId) {
-            throw new \Exception("Invalid role type: {$type}");
+            // Default to student if invalid
+            $roleName = 'student';
         }
 
         return User::create([
             'name' => $name,
             'email' => $email,
             'password' => Hash::make($password), 
-            'role_id' => $roleId,
+            'role' => $roleName,
             'status' => 'active' 
         ]);
     }

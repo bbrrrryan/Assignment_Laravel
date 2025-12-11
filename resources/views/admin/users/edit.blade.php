@@ -52,14 +52,11 @@
         </div>
 
         <div class="form-group">
-            <label for="role_id">Role <span class="required">*</span></label>
-            <select id="role_id" name="role_id" required class="form-select">
-                @foreach($roles as $role)
-                    <option value="{{ $role->id }}" 
-                        {{ old('role_id', $user->role_id) == $role->id ? 'selected' : '' }}>
-                        {{ $role->display_name }} - {{ $role->description }}
-                    </option>
-                @endforeach
+            <label for="role">Role <span class="required">*</span></label>
+            <select id="role" name="role" required class="form-select">
+                <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin - Administrator</option>
+                <option value="student" {{ old('role', $user->role) === 'student' ? 'selected' : '' }}>Student - Student User</option>
+                <option value="staff" {{ old('role', $user->role) === 'staff' ? 'selected' : '' }}>Staff - Staff Member</option>
             </select>
         </div>
 

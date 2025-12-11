@@ -240,7 +240,7 @@
                             <tr>
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
-                                <td>{{ $user->role->display_name ?? $user->role->name ?? '-' }}</td>
+                                <td>{{ ucfirst($user->role ?? '-') }}</td>
                                 <td>
                                     <span class="badge badge-{{ $user->status === 'active' ? 'success' : 'warning' }}">
                                         {{ ucfirst($user->status) }}

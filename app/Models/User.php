@@ -19,8 +19,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role_id',
-        'role', // Keep for backward compatibility
+        'role',
         'status',
         'phone_number',
         'address',
@@ -39,11 +38,6 @@ class User extends Authenticatable
     ];
 
     // Relationships
-    public function role()
-    {
-        return $this->belongsTo(Role::class);
-    }
-
     public function activityLogs()
     {
         return $this->hasMany(UserActivityLog::class);
@@ -89,91 +83,45 @@ class User extends Authenticatable
         return $this->loyaltyPoints()->sum('points');
     }
 
-    public function hasPermission($permission)
-    {
-        if (!$this->role) {
-            return false;
-        }
-        return $this->role->permissions()->where('name', $permission)->exists();
-    }
-
     /**
-     * Check if user is admin
+     * Check if user is admin - using simple if-else
      */
     public function isAdmin()
     {
-        // Load role if not loaded
-        if (!$this->relationLoaded('role') && $this->role_id) {
-            $this->load('role');
-        }
+        $role = strtolower($this->role ?? '');
         
-        // Check if role is a relationship object
-        if ($this->role instanceof Role) {
-            $roleName = strtolower($this->role->name);
-            return $roleName === 'admin' || $roleName === 'administrator';
+        if ($role === 'admin' || $role === 'administrator') {
+            return true;
+        } else {
+            return false;
         }
-        
-        // Fallback: check role_id (assuming admin role_id is 1, but we should check by name)
-        if ($this->role_id) {
-            // Try to get role from database
-            $role = Role::find($this->role_id);
-            if ($role) {
-                return strtolower($role->name) === 'admin' || strtolower($role->name) === 'administrator';
-            }
-        }
-        
-        // Check if role is a string (backward compatibility)
-        if (is_string($this->attributes['role'] ?? null)) {
-            $roleName = strtolower($this->attributes['role']);
-            return $roleName === 'admin' || $roleName === 'administrator';
-        }
-        
-        return false;
     }
 
     /**
-     * Check if user is staff
+     * Check if user is staff - using simple if-else
      */
     public function isStaff()
     {
-        // Load role if not loaded
-        if (!$this->relationLoaded('role') && $this->role_id) {
-            $this->load('role');
-        }
+        $role = strtolower($this->role ?? '');
         
-        // Check if role is a relationship object
-        if ($this->role instanceof Role) {
-            return strtolower($this->role->name) === 'staff';
+        if ($role === 'staff') {
+            return true;
+        } else {
+            return false;
         }
-        
-        // Check if role is a string (backward compatibility)
-        if (is_string($this->attributes['role'] ?? null)) {
-            return strtolower($this->attributes['role']) === 'staff';
-        }
-        
-        return false;
     }
 
     /**
-     * Check if user is student
+     * Check if user is student - using simple if-else
      */
     public function isStudent()
     {
-        // Load role if not loaded
-        if (!$this->relationLoaded('role') && $this->role_id) {
-            $this->load('role');
-        }
+        $role = strtolower($this->role ?? '');
         
-        // Check if role is a relationship object
-        if ($this->role instanceof Role) {
-            return strtolower($this->role->name) === 'student';
+        if ($role === 'student') {
+            return true;
+        } else {
+            return false;
         }
-        
-        // Check if role is a string (backward compatibility)
-        if (is_string($this->attributes['role'] ?? null)) {
-            return strtolower($this->attributes['role']) === 'student';
-        }
-        
-        return false;
     }
 }
