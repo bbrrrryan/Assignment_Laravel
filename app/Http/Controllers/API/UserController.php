@@ -371,41 +371,44 @@ class UserController extends Controller
         /** @var User $user */
         $user = auth()->user();
         
+        // Get total count
+        $totalLogs = $user->activityLogs()->count();
         $maxRecords = 30;
         $perPage = 10;
         
-        // Get the latest 30 records first
-        $allLogs = $user->activityLogs()
-            ->latest()
-            ->limit($maxRecords)
-            ->get();
+        // Calculate how many records to show (max 30)
+        $totalToShow = min($totalLogs, $maxRecords);
         
-        $totalToShow = $allLogs->count();
-        
-        // Calculate pagination
-        $page = max(1, (int)$request->get('page', 1));
-        $lastPage = max(1, ceil($totalToShow / $perPage));
-        
-        // Ensure page doesn't exceed last page
-        if ($page > $lastPage) {
-            $page = $lastPage;
-        }
-        
-        // Calculate offset
+        // Calculate offset based on page
+        $page = $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
         
-        // Get paginated slice
-        $logs = $allLogs->slice($offset, $perPage)->values();
+        // If offset exceeds max records, adjust
+        if ($offset >= $maxRecords) {
+            $offset = 0;
+            $page = 1;
+        }
+        
+        // Get the records (latest first, limit to 30, then paginate)
+        $logs = $user->activityLogs()
+            ->latest()
+            ->limit($maxRecords)
+            ->skip($offset)
+            ->take($perPage)
+            ->get();
+        
+        // Create pagination response manually
+        $lastPage = ceil($totalToShow / $perPage);
         
         return response()->json([
             'message' => 'Activity logs retrieved successfully',
             'data' => [
                 'data' => $logs,
-                'current_page' => $page,
+                'current_page' => (int)$page,
                 'last_page' => $lastPage,
                 'per_page' => $perPage,
                 'total' => $totalToShow,
-                'from' => $totalToShow > 0 ? $offset + 1 : 0,
+                'from' => $offset + 1,
                 'to' => min($offset + $perPage, $totalToShow),
             ],
         ]);

@@ -186,129 +186,97 @@ async function updateProfile() {
     }
 }
 
+// Activity Logs Functions
+let currentActivityPage = 1;
+
 async function loadActivityLogs(page = 1) {
-    const activityLogsContainer = document.getElementById('activityLogs');
-    if (!activityLogsContainer) return;
-
-    try {
-        activityLogsContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading activity history...</div>';
-
-        const result = await API.get(`/users/profile/activity-logs?page=${page}`);
-
-        if (result.success) {
-            displayActivityLogs(result.data.data, result.data);
-        } else {
-            activityLogsContainer.innerHTML = `<div class="error-message">Error loading activity history: ${result.error || 'Unknown error'}</div>`;
-        }
-    } catch (error) {
-        activityLogsContainer.innerHTML = `<div class="error-message">Error loading activity history: ${error.message}</div>`;
+    const container = document.getElementById('activityLogs');
+    currentActivityPage = page;
+    
+    const result = await API.get(`/users/profile/activity-logs?page=${page}`);
+    
+    if (result.success) {
+        const paginationData = result.data.data;
+        const logs = paginationData?.data || paginationData || [];
+        displayActivityLogs(logs, paginationData);
+    } else {
+        container.innerHTML = '<p class="error-text">Error loading activity history: ' + (result.error || 'Unknown error') + '</p>';
     }
 }
 
 function displayActivityLogs(logs, paginationData) {
-    const activityLogsContainer = document.getElementById('activityLogs');
-    if (!activityLogsContainer) return;
-
-    if (!logs || logs.length === 0) {
-        activityLogsContainer.innerHTML = '<div class="empty-message">No activity history found</div>';
+    const container = document.getElementById('activityLogs');
+    
+    if (logs.length === 0) {
+        container.innerHTML = '<p>No activity history found.</p>';
         return;
     }
-
-    let html = '<div class="activity-logs-list">';
     
-    logs.forEach(log => {
-        const actionClass = getActionBadgeClass(log.action);
-        const dateTime = formatDateTime(log.created_at);
-        
-        html += `
-            <div class="activity-log-item">
-                <div class="activity-log-icon">
-                    <i class="fas fa-${getActionIcon(log.action)}"></i>
-                </div>
-                <div class="activity-log-content">
-                    <div class="activity-log-action">
-                        <span class="badge badge-${actionClass}">${log.action}</span>
-                    </div>
-                    <div class="activity-log-description">${log.description || '-'}</div>
-                    <div class="activity-log-time">${dateTime}</div>
-                </div>
+    const currentPage = paginationData?.current_page || 1;
+    const lastPage = paginationData?.last_page || 1;
+    const total = paginationData?.total || logs.length;
+    
+    // Show info that only last 30 records are displayed
+    const infoText = total >= 30 
+        ? '<p class="activity-info">Showing last 30 activity records (10 per page)</p>' 
+        : `<p class="activity-info">Showing ${total} activity record${total > 1 ? 's' : ''} (10 per page)</p>`;
+    
+    let paginationHTML = '';
+    if (lastPage > 1) {
+        paginationHTML = `
+            <div class="pagination">
+                <button class="btn-pagination" onclick="loadActivityLogs(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <span class="pagination-info">Page ${currentPage} of ${lastPage}</span>
+                <button class="btn-pagination" onclick="loadActivityLogs(${currentPage + 1})" ${currentPage === lastPage ? 'disabled' : ''}>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         `;
-    });
-
-    html += '</div>';
-
-    // Add pagination if needed
-    if (paginationData && paginationData.last_page > 1) {
-        html += '<div class="activity-logs-pagination">';
-        
-        // Previous button
-        if (paginationData.current_page > 1) {
-            html += `<button onclick="loadActivityLogs(${paginationData.current_page - 1})" class="pagination-btn">Previous</button>`;
-        }
-        
-        // Page numbers
-        for (let i = 1; i <= paginationData.last_page; i++) {
-            if (i === paginationData.current_page) {
-                html += `<span class="pagination-current">${i}</span>`;
-            } else {
-                html += `<button onclick="loadActivityLogs(${i})" class="pagination-btn">${i}</button>`;
-            }
-        }
-        
-        // Next button
-        if (paginationData.current_page < paginationData.last_page) {
-            html += `<button onclick="loadActivityLogs(${paginationData.current_page + 1})" class="pagination-btn">Next</button>`;
-        }
-        
-        html += '</div>';
-        html += `<div class="pagination-info">Showing ${paginationData.from}-${paginationData.to} of ${paginationData.total} records (last 30 only)</div>`;
-    } else if (paginationData && paginationData.total > 0) {
-        html += `<div class="pagination-info">Showing ${paginationData.total} record(s) (last 30 only)</div>`;
     }
-
-    activityLogsContainer.innerHTML = html;
+    
+    container.innerHTML = `
+        ${infoText}
+        <div class="activity-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Description</th>
+                        <th>IP Address</th>
+                        <th>Date & Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${logs.map(log => `
+                        <tr>
+                            <td><span class="badge badge-${getActionBadgeClass(log.action)}">${log.action || 'N/A'}</span></td>
+                            <td>${log.description || '-'}</td>
+                            <td>${log.ip_address || '-'}</td>
+                            <td>${formatDateTime(log.created_at)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        ${paginationHTML}
+    `;
 }
 
 function getActionBadgeClass(action) {
     if (!action) return 'secondary';
-    
     const actionLower = action.toLowerCase();
-    if (actionLower.includes('create') || actionLower.includes('login')) return 'success';
-    if (actionLower.includes('update') || actionLower.includes('edit')) return 'info';
-    if (actionLower.includes('delete') || actionLower.includes('logout')) return 'danger';
+    if (actionLower.includes('login')) return 'success';
+    if (actionLower.includes('logout')) return 'warning';
+    if (actionLower.includes('update') || actionLower.includes('create')) return 'info';
+    if (actionLower.includes('delete')) return 'danger';
     return 'secondary';
-}
-
-function getActionIcon(action) {
-    if (!action) return 'circle';
-    
-    const actionLower = action.toLowerCase();
-    if (actionLower.includes('login')) return 'sign-in-alt';
-    if (actionLower.includes('logout')) return 'sign-out-alt';
-    if (actionLower.includes('create')) return 'plus';
-    if (actionLower.includes('update') || actionLower.includes('edit')) return 'edit';
-    if (actionLower.includes('delete')) return 'trash';
-    if (actionLower.includes('password')) return 'key';
-    if (actionLower.includes('settings')) return 'cog';
-    return 'circle';
 }
 
 function formatDateTime(dateString) {
     if (!dateString) return '-';
-    
     const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute(s) ago`;
-    if (diffHours < 24) return `${diffHours} hour(s) ago`;
-    if (diffDays < 7) return `${diffDays} day(s) ago`;
-    
     return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -432,85 +400,52 @@ function formatDateTime(dateString) {
     margin-top: 30px;
 }
 
-@media (max-width: 768px) {
-    .info-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .profile-actions {
-        flex-direction: column;
-    }
-}
-
-/* Activity Logs Styles */
 .activity-logs {
-    min-height: 200px;
+    margin-top: 20px;
 }
 
-.loading-spinner {
-    text-align: center;
-    padding: 40px;
-    color: #666;
+.activity-table {
+    overflow-x: auto;
 }
 
-.error-message, .empty-message {
-    text-align: center;
-    padding: 40px;
-    color: #999;
+.activity-table table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-.activity-logs-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+.activity-table th,
+.activity-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
 }
 
-.activity-log-item {
-    display: flex;
-    gap: 15px;
-    padding: 15px;
+.activity-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+    color: #555;
+}
+
+.activity-table tr:hover {
     background: #f9f9f9;
-    border-radius: 6px;
-    border-left: 3px solid #667eea;
-}
-
-.activity-log-icon {
-    font-size: 20px;
-    color: #667eea;
-    display: flex;
-    align-items: center;
-}
-
-.activity-log-content {
-    flex: 1;
-}
-
-.activity-log-action {
-    margin-bottom: 5px;
-}
-
-.activity-log-description {
-    color: #333;
-    margin-bottom: 5px;
-    font-size: 0.95em;
-}
-
-.activity-log-time {
-    color: #999;
-    font-size: 0.85em;
 }
 
 .badge {
     display: inline-block;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 12px;
-    font-size: 0.8em;
+    font-size: 0.85em;
     font-weight: 600;
 }
 
 .badge-success {
     background: #d4edda;
     color: #155724;
+}
+
+.badge-warning {
+    background: #fff3cd;
+    color: #856404;
 }
 
 .badge-info {
@@ -528,42 +463,90 @@ function formatDateTime(dateString) {
     color: #383d41;
 }
 
-.activity-logs-pagination {
+.pagination {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
     margin-top: 20px;
-    flex-wrap: wrap;
-}
-
-.pagination-btn {
-    padding: 8px 15px;
-    border: 1px solid #ddd;
-    background: white;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.pagination-btn:hover {
-    background: #f0f0f0;
-    border-color: #667eea;
-}
-
-.pagination-current {
-    padding: 8px 15px;
-    background: #667eea;
-    color: white;
-    border-radius: 4px;
-    font-weight: 600;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
 }
 
 .pagination-info {
+    color: #555;
+    font-size: 0.9em;
+}
+
+.btn-pagination {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.btn-pagination:hover:not(:disabled) {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.btn-pagination:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-pagination i {
+    margin: 0 5px;
+}
+
+.loading-spinner {
     text-align: center;
-    margin-top: 10px;
+    padding: 20px;
+    color: #666;
+}
+
+.error-text {
+    color: #dc3545;
+}
+
+.activity-info {
     color: #666;
     font-size: 0.9em;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .profile-actions {
+        flex-direction: column;
+    }
+    
+    .activity-table {
+        font-size: 0.9em;
+    }
+    
+    .activity-table th,
+    .activity-table td {
+        padding: 8px;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .pagination-info {
+        order: -1;
+    }
 }
 </style>
 @endsection

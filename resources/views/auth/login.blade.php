@@ -53,12 +53,38 @@
 </div>
 
 <script>
+// Load remembered email on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const emailInput = document.getElementById('email');
+    const rememberCheckbox = document.querySelector('input[name="remember"]');
+    
+    // Load saved email from localStorage
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail && !emailInput.value) {
+        emailInput.value = savedEmail;
+        // Auto-check remember me if email was saved
+        if (rememberCheckbox) {
+            rememberCheckbox.checked = true;
+        }
+    }
+});
+
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
     const errorMsg = document.getElementById('errorMessage');
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
+    const emailInput = document.getElementById('email');
+    const rememberCheckbox = document.querySelector('input[name="remember"]');
+    
+    // Save email to localStorage if remember me is checked
+    if (rememberCheckbox && rememberCheckbox.checked) {
+        localStorage.setItem('remembered_email', emailInput.value);
+    } else {
+        // Remove saved email if remember me is unchecked
+        localStorage.removeItem('remembered_email');
+    }
     
     // Show loading
     submitBtn.disabled = true;

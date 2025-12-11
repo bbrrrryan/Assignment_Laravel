@@ -32,6 +32,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+    // User profile routes (All authenticated users) - Must be before /users/{id} routes
+    Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
+    Route::get('/users/profile/activity-logs', [UserController::class, 'myActivityLogs']);
+    Route::get('/users/profile/settings', [UserController::class, 'getSettings']);
+    Route::put('/users/profile/settings', [UserController::class, 'updateSettings']);
+
     // User Management Routes (Admin only)
     Route::prefix('users')->middleware('admin')->group(function () {
         Route::get('/', [UserController::class, 'index']);
@@ -42,9 +48,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs']);
         Route::post('/upload-csv', [UserController::class, 'uploadCsv']);
     });
-    
-    // User profile update (All authenticated users)
-    Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
 
     // Role Management Routes (Admin only)
     Route::apiResource('roles', RoleController::class)->middleware('admin');

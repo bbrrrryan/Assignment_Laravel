@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->json('settings')->nullable()->after('email_verified_at');
+            $table->json('settings')->nullable()->after('last_login_at');
         });
     }
 

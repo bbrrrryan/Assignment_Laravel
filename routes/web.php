@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function () {
     
     // Profile Routes (All authenticated users)
     Route::get('/profile', [PageController::class, 'profile'])->name('profile.index');
+    Route::get('/settings', [PageController::class, 'settings'])->name('settings.index');
     
     // Facilities Routes
     Route::get('/facilities', [PageController::class, 'facilities'])->name('facilities.index');

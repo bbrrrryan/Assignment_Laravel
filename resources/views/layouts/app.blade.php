@@ -191,7 +191,7 @@
                                 <a href="{{ route('profile.index') }}">
                                     <i class="fas fa-user"></i> Profile
                                 </a>
-                                <a href="{{ route('profile.index') }}">
+                                <a href="{{ route('settings.index') }}">
                                     <i class="fas fa-cog"></i> Settings
                                 </a>
                                 <form method="POST" action="{{ route('logout') }}" style="margin: 0;">

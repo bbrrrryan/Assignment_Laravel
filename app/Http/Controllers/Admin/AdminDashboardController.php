@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Booking;
-use App\Models\Notification;
 use App\Models\Facility;
+use App\Models\Notification;
 use App\Models\Feedback;
 use App\Models\LoyaltyPoint;
 use App\Models\Reward;
 use App\Models\Certificate;
-use Illuminate\Http\Request;
 
 class AdminDashboardController extends Controller
 {
@@ -20,34 +20,36 @@ class AdminDashboardController extends Controller
      */
     public function index()
     {
-        // Gather all dashboard statistics
-        $stats = [
-            'total_users' => User::count(),
-            'active_users' => User::where('status', 'active')->count(),
-            'suspended_users' => User::where('status', 'suspended')->count(),
-            
-            'total_bookings' => Booking::count(),
-            'pending_bookings' => Booking::where('status', 'pending')->count(),
-            'approved_bookings' => Booking::where('status', 'approved')->count(),
-            
-            'total_facilities' => Facility::count(),
-            'active_facilities' => Facility::where('status', 'available')->count(),
-            'maintenance_facilities' => Facility::where('status', 'maintenance')->count(),
-            
-            'total_notifications' => Notification::count(),
-            'active_notifications' => Notification::where('is_active', true)->count(),
-            
-            'total_feedbacks' => Feedback::count(),
-            'pending_feedbacks' => Feedback::where('status', 'pending')->count(),
-            'blocked_feedbacks' => Feedback::where('is_blocked', true)->count(),
-            
-            'total_loyalty_points' => LoyaltyPoint::sum('points'),
-            'total_rewards' => Reward::count(),
-            'active_rewards' => Reward::where('is_active', true)->count(),
-            'total_certificates' => Certificate::count(),
-        ];
+        // User Management Stats
+        $stats['total_users'] = User::count();
+        $stats['active_users'] = User::where('status', 'active')->count();
+        $stats['suspended_users'] = User::where('status', 'suspended')->count();
 
-        // Get recent activity for dashboard display
+        // Booking Stats
+        $stats['total_bookings'] = Booking::count();
+        $stats['pending_bookings'] = Booking::where('status', 'pending')->count();
+        $stats['approved_bookings'] = Booking::where('status', 'approved')->count();
+
+        // Facility Stats
+        $stats['total_facilities'] = Facility::count();
+        $stats['active_facilities'] = Facility::where('status', 'available')->count();
+        $stats['maintenance_facilities'] = Facility::where('status', 'maintenance')->count();
+
+        // Notification Stats
+        $stats['total_notifications'] = Notification::count();
+        $stats['active_notifications'] = Notification::where('is_active', true)->count();
+
+        // Feedback Stats
+        $stats['total_feedbacks'] = Feedback::count();
+        $stats['pending_feedbacks'] = Feedback::where('status', 'pending')->count();
+        $stats['blocked_feedbacks'] = Feedback::where('is_blocked', true)->count();
+
+        // Loyalty Stats
+        $stats['total_loyalty_points'] = LoyaltyPoint::sum('points') ?? 0;
+        $stats['total_rewards'] = Reward::count();
+        $stats['total_certificates'] = Certificate::count();
+
+        // Recent Data
         $recentUsers = User::latest()->limit(5)->get();
         $recentBookings = Booking::with(['user', 'facility'])->latest()->limit(5)->get();
         $recentFeedbacks = Feedback::with('user')->latest()->limit(5)->get();

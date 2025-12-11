@@ -2,6 +2,33 @@
 /**
  * Author: Liew Zi Li
  * Module: User Management Module
+ * 
+ * @property int $id
+ * @property string $name
+ * @property string $email
+ * @property string $password
+ * @property string $role
+ * @property string $status
+ * @property string|null $phone_number
+ * @property string|null $address
+ * @property \Illuminate\Support\Carbon|null $last_login_at
+ * @property array|null $settings
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * 
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, UserActivityLog> $activityLogs
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Notification> $notifications
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoyaltyPoint> $loyaltyPoints
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Certificate> $certificates
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Reward> $rewards
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Feedback> $feedbacks
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Booking> $bookings
+ * 
+ * @method \Illuminate\Database\Eloquent\Relations\HasMany activityLogs()
+ * @method bool update(array $attributes = [])
+ * @method bool save(array $options = [])
+ * @method static self fresh(array|string $with = [])
+ * @method array getMergedSettings()
  */
 
 namespace App\Models;
@@ -128,9 +155,29 @@ class User extends Authenticatable
     }
 
     /**
-     * Get default user settings
+     * Get user setting value
      */
-    public function getDefaultSettings()
+    public function getSetting($key, $default = null)
+    {
+        $settings = $this->settings ?? [];
+        return $settings[$key] ?? $default;
+    }
+
+    /**
+     * Set user setting value
+     */
+    public function setSetting($key, $value)
+    {
+        $settings = $this->settings ?? [];
+        $settings[$key] = $value;
+        $this->settings = $settings;
+        return $this;
+    }
+
+    /**
+     * Get default settings
+     */
+    public static function getDefaultSettings()
     {
         return [
             'notifications' => [
@@ -144,54 +191,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Get a specific setting value
-     */
-    public function getSetting($key, $default = null)
-    {
-        $settings = $this->settings ?? [];
-        $keys = explode('.', $key);
-        $value = $settings;
-
-        foreach ($keys as $k) {
-            if (is_array($value) && isset($value[$k])) {
-                $value = $value[$k];
-            } else {
-                return $default;
-            }
-        }
-
-        return $value;
-    }
-
-    /**
-     * Set a specific setting value
-     */
-    public function setSetting($key, $value)
-    {
-        $settings = $this->settings ?? [];
-        $keys = explode('.', $key);
-        $current = &$settings;
-
-        foreach ($keys as $k) {
-            if (!isset($current[$k]) || !is_array($current[$k])) {
-                $current[$k] = [];
-            }
-            $current = &$current[$k];
-        }
-
-        $current = $value;
-        $this->settings = $settings;
-        return $this;
-    }
-
-    /**
-     * Get merged settings (user settings merged with defaults)
+     * Get merged settings with defaults
      */
     public function getMergedSettings()
     {
-        $defaults = $this->getDefaultSettings();
+        $defaults = self::getDefaultSettings();
         $userSettings = $this->settings ?? [];
         
-        return array_merge_recursive($defaults, $userSettings);
+        return array_merge($defaults, $userSettings);
     }
 }
