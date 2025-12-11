@@ -15,16 +15,31 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user()) {
-            return response()->json([
-                'message' => 'Unauthenticated',
-            ], 401);
+        if (!auth()->check()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+            return redirect()->route('login');
         }
 
-        if (!$request->user()->isAdmin()) {
-            return response()->json([
-                'message' => 'Unauthorized. Admin access required.',
-            ], 403);
+        $user = auth()->user();
+        
+        // Ensure role is loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        if (!$user->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin access required.',
+                ], 403);
+            }
+            // Redirect to home page if user is not admin
+            return redirect()->route('home')
+                ->with('error', 'You do not have permission to access this page.');
         }
 
         return $next($request);

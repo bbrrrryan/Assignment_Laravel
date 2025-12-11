@@ -102,15 +102,24 @@ class User extends Authenticatable
      */
     public function isAdmin()
     {
-        // Check if role is a relationship object
-        if ($this->relationLoaded('role') && $this->role instanceof Role) {
-            return $this->role->name === 'admin' || 
-                   strtolower($this->role->name) === 'administrator';
+        // Load role if not loaded
+        if (!$this->relationLoaded('role') && $this->role_id) {
+            $this->load('role');
         }
         
-        // Fallback: check role_id or role string attribute
-        if ($this->role_id === 1) {
-            return true;
+        // Check if role is a relationship object
+        if ($this->role instanceof Role) {
+            $roleName = strtolower($this->role->name);
+            return $roleName === 'admin' || $roleName === 'administrator';
+        }
+        
+        // Fallback: check role_id (assuming admin role_id is 1, but we should check by name)
+        if ($this->role_id) {
+            // Try to get role from database
+            $role = Role::find($this->role_id);
+            if ($role) {
+                return strtolower($role->name) === 'admin' || strtolower($role->name) === 'administrator';
+            }
         }
         
         // Check if role is a string (backward compatibility)
@@ -127,8 +136,13 @@ class User extends Authenticatable
      */
     public function isStaff()
     {
+        // Load role if not loaded
+        if (!$this->relationLoaded('role') && $this->role_id) {
+            $this->load('role');
+        }
+        
         // Check if role is a relationship object
-        if ($this->relationLoaded('role') && $this->role instanceof Role) {
+        if ($this->role instanceof Role) {
             return strtolower($this->role->name) === 'staff';
         }
         
@@ -145,8 +159,13 @@ class User extends Authenticatable
      */
     public function isStudent()
     {
+        // Load role if not loaded
+        if (!$this->relationLoaded('role') && $this->role_id) {
+            $this->load('role');
+        }
+        
         // Check if role is a relationship object
-        if ($this->relationLoaded('role') && $this->role instanceof Role) {
+        if ($this->role instanceof Role) {
             return strtolower($this->role->name) === 'student';
         }
         

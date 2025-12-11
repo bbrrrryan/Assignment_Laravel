@@ -10,16 +10,22 @@
             <p>Sign in to your account</p>
         </div>
 
-        <form id="loginForm" class="auth-form">
+        <form id="loginForm" method="POST" action="{{ route('login.post') }}" class="auth-form">
             @csrf
             <div class="form-group">
                 <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" value="{{ old('email') }}" required autofocus>
+                @error('email')
+                    <span class="error-text">{{ $message }}</span>
+                @enderror
             </div>
 
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
+                @error('password')
+                    <span class="error-text">{{ $message }}</span>
+                @enderror
             </div>
 
             <div class="form-group">
@@ -31,6 +37,12 @@
 
             <button type="submit" class="btn-primary">Sign In</button>
         </form>
+        
+        @if (session('error'))
+            <div class="error-message" style="display: block; margin-top: 10px;">
+                {{ session('error') }}
+            </div>
+        @endif
 
         <div class="auth-footer">
             <p>Don't have an account? <a href="{{ route('register') }}">Sign up</a></p>
@@ -41,7 +53,7 @@
 </div>
 
 <script>
-document.getElementById('loginForm').addEventListener('submit', async function(e) {
+document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
     const errorMsg = document.getElementById('errorMessage');
@@ -53,19 +65,8 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
     submitBtn.textContent = 'Signing in...';
     errorMsg.style.display = 'none';
     
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    const result = await API.login(email, password);
-    
-    if (result.success) {
-        window.location.href = '/dashboard';
-    } else {
-        errorMsg.textContent = result.error || 'Login failed. Please check your credentials.';
-        errorMsg.style.display = 'block';
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
-    }
+    // Submit form normally (will redirect based on role on server side)
+    e.target.submit();
 });
 </script>
 @endsection
