@@ -60,6 +60,12 @@ class AuthController extends Controller
         // Authenticate user and create session
         Auth::login($user, $request->filled('remember'));
 
+        // Create Sanctum token for API calls (profile/settings pages need this)
+        $token = $user->createToken('web_session')->plainTextToken;
+        
+        // Store token in session so frontend can access it
+        $request->session()->put('api_token', $token);
+
         // Set toast message for welcome
         $request->session()->flash('toast_message', 'Welcome ' . $user->name);
         $request->session()->flash('toast_type', 'success');
@@ -90,6 +96,9 @@ class AuthController extends Controller
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+            
+            // Delete all Sanctum tokens for this user
+            $user->tokens()->delete();
         }
 
         Auth::logout();

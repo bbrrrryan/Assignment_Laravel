@@ -303,6 +303,26 @@
             @if(session('error'))
                 showToast('{{ session('error') }}', 'error');
             @endif
+            
+            // Store API token from session to localStorage for API calls
+            @auth
+                @if(session('api_token'))
+                    // Save token to localStorage
+                    localStorage.setItem('auth_token', '{{ session('api_token') }}');
+                    
+                    // Save user data to localStorage
+                    localStorage.setItem('user', JSON.stringify({
+                        id: {{ auth()->user()->id }},
+                        name: '{{ auth()->user()->name }}',
+                        email: '{{ auth()->user()->email }}',
+                        role: '{{ auth()->user()->role }}',
+                        role_id: {{ auth()->user()->role_id ?? 'null' }},
+                        phone_number: '{{ auth()->user()->phone_number ?? '' }}',
+                        address: '{{ auth()->user()->address ?? '' }}',
+                        status: '{{ auth()->user()->status }}'
+                    }));
+                @endif
+            @endauth
         });
     </script>
 </head>
