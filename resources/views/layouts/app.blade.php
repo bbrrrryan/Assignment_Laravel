@@ -341,7 +341,13 @@
                 <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                 <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
                 <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
-                <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
+                @auth
+                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
+                        <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
+                    @else
+                        <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
+                    @endif
+                @endauth
                 <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                 @auth
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())

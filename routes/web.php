@@ -43,6 +43,9 @@ Route::middleware('auth')->group(function () {
         
         // Facility Management
         Route::resource('facilities', FacilityController::class);
+        
+        // Loyalty Management
+        Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
     });
     
     // Profile Routes (All authenticated users)

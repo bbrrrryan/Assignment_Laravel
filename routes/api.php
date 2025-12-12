@@ -80,8 +80,36 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Admin only routes
         Route::middleware('admin')->group(function () {
+            // Points Management
             Route::post('/points/award', [LoyaltyController::class, 'awardPoints']);
+            Route::get('/points/all', [LoyaltyController::class, 'getAllUsersPoints']);
+            Route::get('/points/user/{userId}', [LoyaltyController::class, 'getUserPoints']);
+            
+            // Loyalty Rules Management
+            Route::get('/rules', [LoyaltyController::class, 'getRules']);
+            Route::post('/rules', [LoyaltyController::class, 'createRule']);
+            Route::put('/rules/{id}', [LoyaltyController::class, 'updateRule']);
+            Route::delete('/rules/{id}', [LoyaltyController::class, 'deleteRule']);
+            
+            // Rewards Management
+            Route::get('/rewards/all', [LoyaltyController::class, 'getAllRewards']);
+            Route::post('/rewards', [LoyaltyController::class, 'createReward']);
+            Route::put('/rewards/{id}', [LoyaltyController::class, 'updateReward']);
+            Route::delete('/rewards/{id}', [LoyaltyController::class, 'deleteReward']);
+            
+            // Redemption Approval
+            Route::get('/redemptions', [LoyaltyController::class, 'getRedemptions']);
+            Route::put('/redemptions/{id}/approve', [LoyaltyController::class, 'approveRedemption']);
+            Route::put('/redemptions/{id}/reject', [LoyaltyController::class, 'rejectRedemption']);
+            
+            // Certificates Management
+            Route::get('/certificates/all', [LoyaltyController::class, 'getAllCertificates']);
             Route::post('/certificates/issue', [LoyaltyController::class, 'issueCertificate']);
+            
+            // Reports
+            Route::get('/reports/participation', [LoyaltyController::class, 'getParticipationReport']);
+            Route::get('/reports/points-distribution', [LoyaltyController::class, 'getPointsDistribution']);
+            Route::get('/reports/rewards-stats', [LoyaltyController::class, 'getRewardsStats']);
         });
     });
 

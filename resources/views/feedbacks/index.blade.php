@@ -73,6 +73,48 @@
     </div>
 </div>
 
+<!-- Reply Feedback Modal -->
+<div id="replyModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeReplyModal()">&times;</span>
+        <h2>Reply to Feedback</h2>
+        <div id="replyFeedbackInfo" class="reply-feedback-info"></div>
+        <form id="replyForm">
+            <div class="form-group">
+                <label>Your Response *</label>
+                <textarea id="replyMessage" required rows="6" placeholder="Enter your response to this feedback..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeReplyModal()">Cancel</button>
+                <button type="submit" class="btn-primary">
+                    Send Response
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Block Feedback Modal -->
+<div id="blockModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeBlockModal()">&times;</span>
+        <h2>Block Feedback</h2>
+        <div id="blockFeedbackInfo" class="reply-feedback-info"></div>
+        <form id="blockForm">
+            <div class="form-group">
+                <label>Reason for Blocking *</label>
+                <textarea id="blockReason" required rows="4" placeholder="Enter the reason for blocking this feedback (e.g., spam, inappropriate content, false information...)"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeBlockModal()">Cancel</button>
+                <button type="submit" class="btn-primary">
+                    Block Feedback
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 // Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -163,6 +205,12 @@ function displayFeedbacks(feedbacksToShow) {
             <p class="feedback-message">${feedback.message}</p>
             ${feedback.rating ? `<div class="feedback-rating">Rating: ${'★'.repeat(feedback.rating)}${'☆'.repeat(5 - feedback.rating)}</div>` : ''}
             ${feedback.facility ? `<p class="feedback-facility"><i class="fas fa-building"></i> ${feedback.facility.name}</p>` : ''}
+            ${feedback.is_blocked ? `
+            <div class="blocked-notice">
+                <strong>This feedback has been blocked</strong>
+                ${feedback.block_reason ? `<p>Reason: ${feedback.block_reason}</p>` : ''}
+            </div>
+            ` : ''}
             ${feedback.admin_response ? `<div class="admin-response">
                 <strong>Admin Response:</strong>
                 <p>${feedback.admin_response}</p>
@@ -171,8 +219,13 @@ function displayFeedbacks(feedbacksToShow) {
                 <span class="feedback-time">${formatDateTime(feedback.created_at)}</span>
                 <div class="feedback-actions">
                     <button class="btn-sm" onclick="viewFeedback(${feedback.id})">View</button>
-                    ${typeof API !== 'undefined' && API.isAdmin() && !feedback.admin_response ? `
-                        <button class="btn-sm btn-success" onclick="replyToFeedback(${feedback.id})">Reply</button>
+                    ${typeof API !== 'undefined' && API.isAdmin() ? `
+                        ${!feedback.admin_response && !feedback.is_blocked ? `
+                            <button class="btn-sm btn-success" onclick="replyToFeedback(${feedback.id})">Reply</button>
+                        ` : ''}
+                        ${!feedback.is_blocked ? `
+                            <button class="btn-sm btn-success" onclick="blockFeedback(${feedback.id})">Block</button>
+                        ` : ''}
                     ` : ''}
                 </div>
             </div>
@@ -209,28 +262,222 @@ window.viewFeedback = function(id) {
 };
 
 // Admin function to reply to feedback
-window.replyToFeedback = async function(id) {
-    const response = prompt('Enter your response to this feedback:');
-    if (response === null || response.trim() === '') {
-        return; // User cancelled or entered empty response
-    }
-    
-    if (typeof API === 'undefined') {
-        alert('API not loaded');
+window.replyToFeedback = function(id) {
+    // Find the feedback data
+    const feedback = feedbacks.find(f => f.id == id);
+    if (!feedback) {
+        alert('Feedback not found');
         return;
     }
     
-    const result = await API.put(`/feedbacks/${id}/respond`, { response: response.trim() });
+    // Display feedback info in modal
+    const infoDiv = document.getElementById('replyFeedbackInfo');
+    infoDiv.innerHTML = `
+        <div class="reply-feedback-preview">
+            <div class="preview-header">
+                <strong>Subject:</strong> ${feedback.subject || 'N/A'}
+            </div>
+            <div class="preview-type">
+                <span class="status-badge status-${feedback.type}">${feedback.type}</span>
+            </div>
+            <div class="preview-message">
+                <strong>Original Message:</strong>
+                <p>${feedback.message || 'No message'}</p>
+            </div>
+        </div>
+    `;
     
-    if (result.success) {
-        if (typeof loadFeedbacks === 'function') {
-            loadFeedbacks();
-        }
-        alert('Response submitted successfully!');
-    } else {
-        alert(result.error || 'Error submitting response');
-    }
+    // Reset form
+    document.getElementById('replyForm').reset();
+    document.getElementById('replyMessage').value = '';
+    
+    // Store feedback ID for form submission
+    document.getElementById('replyForm').dataset.feedbackId = id;
+    
+    // Show modal
+    document.getElementById('replyModal').style.display = 'block';
 };
+
+window.closeReplyModal = function() {
+    document.getElementById('replyModal').style.display = 'none';
+    document.getElementById('replyForm').reset();
+    delete document.getElementById('replyForm').dataset.feedbackId;
+};
+
+// Admin function to block feedback
+window.blockFeedback = function(id) {
+    // Find the feedback data
+    const feedback = feedbacks.find(f => f.id == id);
+    if (!feedback) {
+        alert('Feedback not found');
+        return;
+    }
+    
+    // Display feedback info in modal
+    const infoDiv = document.getElementById('blockFeedbackInfo');
+    infoDiv.innerHTML = `
+        <div class="reply-feedback-preview">
+            <div class="preview-header">
+                <strong>Subject:</strong> ${feedback.subject || 'N/A'}
+            </div>
+            <div class="preview-type">
+                <span class="status-badge status-${feedback.type}">${feedback.type}</span>
+            </div>
+            <div class="preview-message">
+                <strong>Original Message:</strong>
+                <p>${feedback.message || 'No message'}</p>
+            </div>
+        </div>
+    `;
+    
+    // Reset form
+    document.getElementById('blockForm').reset();
+    document.getElementById('blockReason').value = '';
+    
+    // Store feedback ID for form submission
+    document.getElementById('blockForm').dataset.feedbackId = id;
+    
+    // Show modal
+    document.getElementById('blockModal').style.display = 'block';
+};
+
+window.closeBlockModal = function() {
+    document.getElementById('blockModal').style.display = 'none';
+    document.getElementById('blockForm').reset();
+    delete document.getElementById('blockForm').dataset.feedbackId;
+};
+
+// Handle reply form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const replyForm = document.getElementById('replyForm');
+    if (replyForm) {
+        replyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const feedbackId = this.dataset.feedbackId;
+            const response = document.getElementById('replyMessage').value.trim();
+            
+            if (!response) {
+                alert('Please enter a response');
+                return;
+            }
+            
+            if (typeof API === 'undefined') {
+                alert('API not loaded');
+                return;
+            }
+            
+            // Disable submit button
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            try {
+                const result = await API.put(`/feedbacks/${feedbackId}/respond`, { response: response });
+                
+                if (result.success) {
+                    closeReplyModal();
+                    if (typeof loadFeedbacks === 'function') {
+                        loadFeedbacks();
+                    }
+                    // Show success message
+                    if (typeof showToast === 'function') {
+                        showToast('Response submitted successfully!', 'success');
+                    } else {
+                        alert('Response submitted successfully!');
+                    }
+                } else {
+                    alert(result.error || 'Error submitting response');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                alert('An error occurred while submitting the response');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+    
+    // Close modal when clicking outside
+    const replyModal = document.getElementById('replyModal');
+    if (replyModal) {
+        replyModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeReplyModal();
+            }
+        });
+    }
+    
+    // Handle block form submission
+    const blockForm = document.getElementById('blockForm');
+    if (blockForm) {
+        blockForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const feedbackId = this.dataset.feedbackId;
+            const reason = document.getElementById('blockReason').value.trim();
+            
+            if (!reason) {
+                alert('Please enter a reason for blocking');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to block this feedback? This action cannot be easily undone.')) {
+                return;
+            }
+            
+            if (typeof API === 'undefined') {
+                alert('API not loaded');
+                return;
+            }
+            
+            // Disable submit button
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Blocking...';
+            
+            try {
+                const result = await API.put(`/feedbacks/${feedbackId}/block`, { reason: reason });
+                
+                if (result.success) {
+                    closeBlockModal();
+                    if (typeof loadFeedbacks === 'function') {
+                        loadFeedbacks();
+                    }
+                    // Show success message
+                    if (typeof showToast === 'function') {
+                        showToast('Feedback blocked successfully!', 'success');
+                    } else {
+                        alert('Feedback blocked successfully!');
+                    }
+                } else {
+                    alert(result.error || 'Error blocking feedback');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Error blocking feedback:', error);
+                alert('An error occurred while blocking the feedback');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+    
+    // Close block modal when clicking outside
+    const blockModal = document.getElementById('blockModal');
+    if (blockModal) {
+        blockModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeBlockModal();
+            }
+        });
+    }
+});
 
 // Bind form submit event
 document.addEventListener('DOMContentLoaded', function() {
@@ -260,5 +507,93 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<style>
+/* Reply Modal Styles */
+.reply-feedback-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #2196F3;
+}
+
+.reply-feedback-preview {
+    font-size: 0.9rem;
+}
+
+.reply-feedback-preview .preview-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.reply-feedback-preview .preview-type {
+    margin-bottom: 10px;
+}
+
+.reply-feedback-preview .preview-message {
+    margin-top: 10px;
+}
+
+.reply-feedback-preview .preview-message strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.reply-feedback-preview .preview-message p {
+    margin: 0;
+    padding: 10px;
+    background: white;
+    border-radius: 4px;
+    color: #333;
+    line-height: 1.5;
+}
+
+#replyMessage {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    transition: border-color 0.3s;
+}
+
+#replyMessage:focus {
+    outline: none;
+    border-color: #2196F3;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.form-group textarea {
+    min-height: 120px;
+}
+
+.blocked-notice {
+    background: #dc3545;
+    border: 2px solid #c82333;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    color: white;
+}
+
+.blocked-notice strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.blocked-notice p {
+    margin: 5px 0 0 0;
+    font-size: 0.9rem;
+    color: white;
+}
+</style>
 @endsection
 
