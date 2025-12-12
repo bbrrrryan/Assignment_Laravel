@@ -38,7 +38,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('admin.facilities.update', $facility->id) }}" method="POST">
+            <form action="{{ route('admin.facilities.update', $facility->id) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
 
@@ -103,9 +103,25 @@
                         </div>
 
                         <div class="col-12">
-                            <label for="image_url" class="form-label">Image URL</label>
-                            <input type="url" class="form-control" id="image_url" name="image_url" 
-                                   value="{{ old('image_url', $facility->image_url) }}">
+                            <label for="image" class="form-label">Facility Image</label>
+                            @if($facility->image_url)
+                                <div class="mb-2">
+                                    <label class="form-label text-muted">Current Image:</label>
+                                    <div>
+                                        <img src="{{ $facility->image_url }}" alt="Current facility image" 
+                                             class="img-thumbnail" style="max-width: 300px; max-height: 300px;">
+                                    </div>
+                                </div>
+                            @endif
+                            <input type="file" class="form-control" id="image" name="image" 
+                                   accept="image/jpeg,image/png,image/jpg,image/gif,image/webp">
+                            <small class="form-text text-muted">Upload a new image to replace the current one (JPEG, PNG, JPG, GIF, WEBP). Max size: 2MB</small>
+                            <div id="imagePreview" class="mt-2" style="display: none;">
+                                <label class="form-label text-muted">New Image Preview:</label>
+                                <div>
+                                    <img id="previewImg" src="" alt="Preview" class="img-thumbnail" style="max-width: 300px; max-height: 300px;">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -128,17 +144,66 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label for="booking_advance_days" class="form-label">Booking Advance Days</label>
-                            <input type="number" class="form-control" id="booking_advance_days" 
-                                   name="booking_advance_days" value="{{ old('booking_advance_days', $facility->booking_advance_days ?? 30) }}" 
-                                   min="1" max="365">
-                        </div>
-
-                        <div class="col-md-6">
                             <label for="max_booking_hours" class="form-label">Max Booking Hours</label>
                             <input type="number" class="form-control" id="max_booking_hours" 
                                    name="max_booking_hours" value="{{ old('max_booking_hours', $facility->max_booking_hours ?? 4) }}" 
                                    min="1" max="24">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Available Days & Times</label>
+                            <small class="form-text text-muted d-block mb-3">Select the available days and set the time range</small>
+                            
+                            @php
+                                $days = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
+                                         'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
+                                         'sunday' => 'Sunday'];
+                                $currentDays = old('available_day') ?: ($facility->available_day ?? []);
+                                $currentTime = old('available_time') ?: ($facility->available_time ?? ['start' => '08:00', 'end' => '18:00']);
+                                $startTime = $currentTime['start'] ?? '08:00';
+                                $endTime = $currentTime['end'] ?? '18:00';
+                            @endphp
+                            
+                            <!-- Available Days (Checkboxes) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold mb-2">Select Available Days</label>
+                                <div class="row g-2">
+                                    @foreach($days as $dayKey => $dayName)
+                                    <div class="col-md-3 col-sm-4 col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="day_{{ $dayKey }}" 
+                                                   name="available_day[]" 
+                                                   value="{{ $dayKey }}" 
+                                                   {{ in_array($dayKey, $currentDays) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="day_{{ $dayKey }}">
+                                                {{ $dayName }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                            
+                            <!-- Available Time Range -->
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="start_time" class="form-label">Start Time</label>
+                                    <input type="time" class="form-control" 
+                                           id="start_time" 
+                                           name="available_time[start]" 
+                                           value="{{ old('available_time.start', $startTime) }}" 
+                                           required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="end_time" class="form-label">End Time</label>
+                                    <input type="time" class="form-control" 
+                                           id="end_time" 
+                                           name="available_time[end]" 
+                                           value="{{ old('available_time.end', $endTime) }}" 
+                                           required>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -156,4 +221,44 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    // Image preview
+    document.getElementById('image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const preview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            preview.style.display = 'none';
+        }
+    });
+
+    // Time validation - ensure end time is after start time
+    const startTimeInput = document.getElementById('start_time');
+    const endTimeInput = document.getElementById('end_time');
+    
+    function validateTimeRange() {
+        const startTime = startTimeInput.value;
+        const endTime = endTimeInput.value;
+        
+        if (startTime && endTime && startTime >= endTime) {
+            endTimeInput.setCustomValidity('结束时间必须晚于开始时间');
+        } else {
+            endTimeInput.setCustomValidity('');
+        }
+    }
+    
+    startTimeInput.addEventListener('change', validateTimeRange);
+    endTimeInput.addEventListener('change', validateTimeRange);
+</script>
+@endpush
 @endsection

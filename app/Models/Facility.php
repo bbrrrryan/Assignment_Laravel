@@ -16,18 +16,19 @@ class Facility extends Model
         'type',
         'location',
         'capacity',
-        'available_times',
+        'available_day',
+        'available_time',
         'equipment',
         'rules',
         'status',
         'image_url',
         'requires_approval',
-        'booking_advance_days',
         'max_booking_hours',
     ];
 
     protected $casts = [
-        'available_times' => 'array',
+        'available_day' => 'array',
+        'available_time' => 'array',
         'equipment' => 'array',
         'requires_approval' => 'boolean',
     ];
