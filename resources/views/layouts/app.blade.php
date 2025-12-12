@@ -338,6 +338,7 @@
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
+                        <li><a href="{{ route('bookings.index') }}">Booking Management</a></li>
                         <li><a href="{{ route('admin.notifications.index') }}">Notification Management</a></li>
                     @else
                         <li><a href="{{ route('home') }}">Home</a></li>
@@ -346,22 +347,6 @@
                         <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
                         <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
-                    @endif
-                    @if(!auth()->user()->isAdmin())
-                        <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
-                    @endif
-                @endauth
-                @guest
-                    <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
-                @endguest
-                <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
-                <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
-                <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
-                <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
-                @auth
-                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
-                        <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
-                        <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
                     @endif
                 @endauth
                 @guest
