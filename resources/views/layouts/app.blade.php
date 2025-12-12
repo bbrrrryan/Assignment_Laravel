@@ -337,8 +337,13 @@
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                     @endif
+                    @if(!auth()->user()->isAdmin())
+                        <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                    @endif
                 @endauth
-                <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                @guest
+                    <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                @endguest
                 <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
                 <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
                 <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
