@@ -25,7 +25,7 @@ class BookingController extends Controller
         try {
             $validated = $request->validate([
             'facility_id' => 'required|exists:facilities,id',
-                'booking_date' => 'required|date|after_or_equal:today',
+                'booking_date' => 'required|date|after:today', // Users can only book from tomorrow onwards
                 'start_time' => 'required|string',
                 'end_time' => 'required|string',
                 'purpose' => 'required|string|max:500',
@@ -51,6 +51,24 @@ class BookingController extends Controller
             if ($endTime->lte($startTime)) {
                 return response()->json([
                     'message' => 'End time must be after start time',
+                ], 422);
+            }
+            
+            // Validate time range: must be between 8:00 AM and 8:00 PM
+            $startHour = $startTime->format('H:i');
+            $endHour = $endTime->format('H:i');
+            $minTime = '08:00';
+            $maxTime = '20:00';
+            
+            if ($startHour < $minTime || $startHour > $maxTime) {
+                return response()->json([
+                    'message' => 'Start time must be between 8:00 AM and 8:00 PM',
+                ], 422);
+            }
+            
+            if ($endHour < $minTime || $endHour > $maxTime) {
+                return response()->json([
+                    'message' => 'End time must be between 8:00 AM and 8:00 PM',
                 ], 422);
             }
 
@@ -176,7 +194,21 @@ class BookingController extends Controller
 
     public function show(string $id)
     {
-        return response()->json(['data' => Booking::with(['user', 'facility', 'statusHistory'])->findOrFail($id)]);
+        try {
+            $booking = Booking::with(['user', 'facility', 'statusHistory'])->findOrFail($id);
+            return response()->json(['data' => $booking]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Booking not found',
+                'error' => 'No query results for model [App\Models\Booking] ' . $id
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching booking: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error loading booking details',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -204,7 +236,7 @@ class BookingController extends Controller
 
             $validated = $request->validate([
                 'facility_id' => 'sometimes|required|exists:facilities,id',
-                'booking_date' => 'sometimes|required|date|after_or_equal:today',
+                'booking_date' => 'sometimes|required|date|after:today', // Users can only book from tomorrow onwards
                 'start_time' => 'sometimes|required|string',
                 'end_time' => 'sometimes|required|string',
                 'purpose' => 'sometimes|required|string|max:500',
@@ -245,8 +277,54 @@ class BookingController extends Controller
                         'message' => 'End time must be after start time',
                     ], 422);
                 }
+                
+                // Validate time range: must be between 8:00 AM and 8:00 PM
+                $startHour = $startTime->format('H:i');
+                $endHour = $endTime->format('H:i');
+                $minTime = '08:00';
+                $maxTime = '20:00';
+                
+                if ($startHour < $minTime || $startHour > $maxTime) {
+                    return response()->json([
+                        'message' => 'Start time must be between 8:00 AM and 8:00 PM',
+                    ], 422);
+                }
+                
+                if ($endHour < $minTime || $endHour > $maxTime) {
+                    return response()->json([
+                        'message' => 'End time must be between 8:00 AM and 8:00 PM',
+                    ], 422);
+                }
 
                 $validated['duration_hours'] = $startTime->diffInHours($endTime);
+            }
+            
+            // Validate time range if only start_time is provided
+            if (isset($validated['start_time']) && !isset($validated['end_time'])) {
+                $startTime = \Carbon\Carbon::parse($validated['start_time']);
+                $startHour = $startTime->format('H:i');
+                $minTime = '08:00';
+                $maxTime = '20:00';
+                
+                if ($startHour < $minTime || $startHour > $maxTime) {
+                    return response()->json([
+                        'message' => 'Start time must be between 8:00 AM and 8:00 PM',
+                    ], 422);
+                }
+            }
+            
+            // Validate time range if only end_time is provided
+            if (isset($validated['end_time']) && !isset($validated['start_time'])) {
+                $endTime = \Carbon\Carbon::parse($validated['end_time']);
+                $endHour = $endTime->format('H:i');
+                $minTime = '08:00';
+                $maxTime = '20:00';
+                
+                if ($endHour < $minTime || $endHour > $maxTime) {
+                    return response()->json([
+                        'message' => 'End time must be between 8:00 AM and 8:00 PM',
+                    ], 422);
+                }
             }
 
             // Get facility (use existing or new one)
@@ -445,7 +523,7 @@ class BookingController extends Controller
     public function checkAvailability(string $facilityId, Request $request)
     {
         $request->validate([
-            'date' => 'required|date|after_or_equal:today',
+            'date' => 'required|date|after:today', // Users can only book from tomorrow onwards
             'start_time' => 'required|date_format:Y-m-d H:i:s',
             'end_time' => 'required|date_format:Y-m-d H:i:s|after:start_time',
         ]);

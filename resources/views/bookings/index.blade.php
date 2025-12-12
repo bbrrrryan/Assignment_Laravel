@@ -50,6 +50,54 @@
     </div>
 </div>
 
+<!-- Cancel Booking Confirmation Modal -->
+<div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
+    <div class="cancel-modal-content" onclick="event.stopPropagation()">
+        <div class="cancel-modal-header">
+            <div class="cancel-modal-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>Cancel Booking Confirmation</h3>
+            <span class="cancel-modal-close" onclick="closeCancelModal()">&times;</span>
+        </div>
+        <div class="cancel-modal-body">
+            <p class="cancel-warning-text">
+                Are you sure you want to cancel this booking? This action cannot be undone.
+            </p>
+            <div class="cancel-reason-section">
+                <label for="cancelReason" class="cancel-reason-label">
+                    <i class="fas fa-comment-alt"></i> Reason for Cancellation <span class="text-danger">*</span>
+                </label>
+                <select id="cancelReason" class="cancel-reason-select" onchange="handleReasonChange()">
+                    <option value="">Select a reason...</option>
+                    <option value="schedule_conflict">Schedule Conflict</option>
+                    <option value="no_longer_needed">No Longer Needed</option>
+                    <option value="found_alternative">Found Alternative Facility</option>
+                    <option value="event_cancelled">Event Cancelled</option>
+                    <option value="insufficient_attendees">Insufficient Attendees</option>
+                    <option value="facility_issue">Facility Issue</option>
+                    <option value="other">Other (Please specify)</option>
+                </select>
+                <textarea 
+                    id="customCancelReason" 
+                    class="cancel-custom-reason" 
+                    placeholder="Please provide additional details..."
+                    style="display: none;"
+                    rows="3"
+                ></textarea>
+            </div>
+        </div>
+        <div class="cancel-modal-footer">
+            <button class="btn-cancel-modal" onclick="closeCancelModal()">
+                <i class="fas fa-times"></i> Keep Booking
+            </button>
+            <button class="btn-confirm-cancel" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled>
+                <i class="fas fa-check"></i> Confirm Cancellation
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Create/Edit Booking Modal -->
 <div id="bookingModal" class="modal" style="display: none;">
     <div class="modal-content modal-large">
@@ -80,7 +128,9 @@
 
                             <div class="col-md-6">
                                 <label for="bookingDate" class="form-label">Booking Date <span class="text-danger">*</span></label>
-                                <input type="date" id="bookingDate" class="form-control" required onchange="updateFacilitiesByDate()">
+                                <input type="date" id="bookingDate" class="form-control" required onchange="validateBookingDate()">
+                                <small class="form-text text-muted">You can only book from tomorrow onwards</small>
+                                <div id="bookingDateError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
                             </div>
                         </div>
                     </div>
@@ -94,14 +144,16 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="bookingStartTime" class="form-label">Start Time <span class="text-danger">*</span></label>
-                                <input type="time" id="bookingStartTime" class="form-control" required onchange="validateTimeRange()">
+                                <input type="time" id="bookingStartTime" class="form-control" required min="08:00" max="20:00" onchange="validateTimeRange()">
                                 <div id="startTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
+                                <small class="form-text text-muted">Available time: 8:00 AM - 8:00 PM</small>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="bookingEndTime" class="form-label">End Time <span class="text-danger">*</span></label>
-                                <input type="time" id="bookingEndTime" class="form-control" required onchange="validateTimeRange()">
+                                <input type="time" id="bookingEndTime" class="form-control" required min="08:00" max="20:00" onchange="validateTimeRange()">
                                 <div id="endTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
+                                <small class="form-text text-muted">Available time: 8:00 AM - 8:00 PM</small>
                             </div>
                         </div>
                     </div>
@@ -165,10 +217,40 @@ window.showCreateModal = function() {
     if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
     if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
     
-    // Set minimum date to today
+    // Set minimum date to tomorrow (users can only book from tomorrow onwards)
     const dateInput = document.getElementById('bookingDate');
     if (dateInput) {
-        dateInput.min = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        dateInput.min = tomorrowStr;
+        dateInput.value = ''; // Clear any previous value
+        // Also set max attribute to prevent selecting dates too far in the future (optional, can remove if not needed)
+    }
+    
+    // Set time input constraints (8:00 AM - 8:00 PM)
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    if (startTimeInput) {
+        startTimeInput.min = '08:00';
+        startTimeInput.max = '20:00';
+        startTimeInput.value = '';
+    }
+    if (endTimeInput) {
+        endTimeInput.min = '08:00';
+        endTimeInput.max = '20:00';
+        endTimeInput.value = '';
+    }
+    
+    // Clear date validation errors
+    const dateErrorDiv = document.getElementById('bookingDateError');
+    if (dateErrorDiv) {
+        dateErrorDiv.style.display = 'none';
+        dateErrorDiv.textContent = '';
+    }
+    if (dateInput) {
+        dateInput.classList.remove('is-invalid');
+        dateInput.setCustomValidity('');
     }
     
     const modal = document.getElementById('bookingModal');
@@ -184,7 +266,8 @@ window.showCreateModal = function() {
 window.validateTimeRange = function() {
     const startTimeInput = document.getElementById('bookingStartTime');
     const endTimeInput = document.getElementById('bookingEndTime');
-    const dateInput = document.getElementById('bookingDate');
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
     
     // Clear previous errors
     clearTimeValidationErrors();
@@ -194,8 +277,35 @@ window.validateTimeRange = function() {
         return true; // Allow empty values during input
     }
     
-    // Compare times
-    if (startTimeInput.value >= endTimeInput.value) {
+    const startTime = startTimeInput.value;
+    const endTime = endTimeInput.value;
+    const minTime = '08:00';
+    const maxTime = '20:00';
+    
+    // Validate start time is within allowed range (8:00 - 20:00)
+    if (startTime < minTime || startTime > maxTime) {
+        if (startTimeError) {
+            startTimeError.textContent = 'Start time must be between 8:00 AM and 8:00 PM';
+            startTimeError.style.display = 'block';
+        }
+        startTimeInput.classList.add('is-invalid');
+        startTimeInput.setCustomValidity('Start time must be between 8:00 AM and 8:00 PM');
+        return false;
+    }
+    
+    // Validate end time is within allowed range (8:00 - 20:00)
+    if (endTime < minTime || endTime > maxTime) {
+        if (endTimeError) {
+            endTimeError.textContent = 'End time must be between 8:00 AM and 8:00 PM';
+            endTimeError.style.display = 'block';
+        }
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity('End time must be between 8:00 AM and 8:00 PM');
+        return false;
+    }
+    
+    // Compare times - end time must be after start time
+    if (startTime >= endTime) {
         showTimeValidationError('End time must be after start time');
         return false;
     }
@@ -247,6 +357,49 @@ function clearTimeValidationErrors() {
     }
 }
 
+// Function to validate booking date (must be tomorrow or later)
+window.validateBookingDate = function() {
+    const dateInput = document.getElementById('bookingDate');
+    const errorDiv = document.getElementById('bookingDateError');
+    
+    if (!dateInput || !dateInput.value) {
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+        dateInput?.classList.remove('is-invalid');
+        return true;
+    }
+    
+    const selectedDate = new Date(dateInput.value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    // Check if selected date is today or earlier
+    if (selectedDate <= today) {
+        if (errorDiv) {
+            errorDiv.textContent = 'You can only book from tomorrow onwards. Please select a future date.';
+            errorDiv.style.display = 'block';
+        }
+        dateInput.classList.add('is-invalid');
+        dateInput.setCustomValidity('You can only book from tomorrow onwards');
+        return false;
+    }
+    
+    // Date is valid
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+    }
+    dateInput.classList.remove('is-invalid');
+    dateInput.setCustomValidity('');
+    
+    // Update facilities when date is valid
+    updateFacilitiesByDate();
+    return true;
+};
+
 window.closeModal = function() {
     const modal = document.getElementById('bookingModal');
     if (modal) {
@@ -278,25 +431,155 @@ window.viewBooking = function(id) {
     window.location.href = `/bookings/${id}`;
 };
 
-window.cancelBooking = async function(id) {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
+let currentBookingId = null;
+
+window.cancelBooking = function(id) {
+    currentBookingId = id;
+    
+    // Initialize listeners if not already done
+    initCancelModalListeners();
+    
+    // Reset modal
+    document.getElementById('cancelReason').value = '';
+    document.getElementById('customCancelReason').value = '';
+    document.getElementById('customCancelReason').style.display = 'none';
+    document.getElementById('confirmCancelBtn').disabled = true;
+    
+    // Show modal
+    document.getElementById('cancelBookingModal').style.display = 'flex';
+};
+
+function closeCancelModal() {
+    document.getElementById('cancelBookingModal').style.display = 'none';
+    currentBookingId = null;
+}
+
+function handleReasonChange() {
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    
+    if (reasonSelect.value === 'other') {
+        customReason.style.display = 'block';
+        customReason.required = true;
+    } else {
+        customReason.style.display = 'none';
+        customReason.required = false;
+    }
+    
+    // Enable confirm button if reason is selected
+    confirmBtn.disabled = !reasonSelect.value || (reasonSelect.value === 'other' && !customReason.value.trim());
+}
+
+// Enable confirm button when custom reason is typed
+function initCancelModalListeners() {
+    const customReason = document.getElementById('customCancelReason');
+    if (customReason && !customReason.hasAttribute('data-listener-added')) {
+        customReason.setAttribute('data-listener-added', 'true');
+        customReason.addEventListener('input', function() {
+            const reasonSelect = document.getElementById('cancelReason');
+            const confirmBtn = document.getElementById('confirmCancelBtn');
+            if (reasonSelect && reasonSelect.value === 'other') {
+                confirmBtn.disabled = !this.value.trim();
+            }
+        });
+    }
+}
+
+async function confirmCancelBooking() {
+    // Save booking ID before closing modal
+    const bookingId = currentBookingId;
+    
+    if (!bookingId) {
+        alert('Error: Booking ID is missing. Please try again.');
+        return;
+    }
+    
     if (typeof API === 'undefined') {
         alert('API not loaded');
         return;
     }
-    const result = await API.put(`/bookings/${id}/cancel`, { reason: 'Cancelled by user' });
-    if (result.success) {
-        if (typeof loadBookings === 'function') {
-            loadBookings();
-        }
-        alert('Booking cancelled successfully!');
-    } else {
-        alert(result.error || 'Error cancelling booking');
+    
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    
+    if (!reasonSelect.value) {
+        alert('Please select a reason for cancellation.');
+        return;
     }
-};
+    
+    if (reasonSelect.value === 'other' && !customReason.value.trim()) {
+        alert('Please provide a reason for cancellation.');
+        return;
+    }
+    
+    // Build reason text
+    const reasonText = reasonSelect.value === 'other' 
+        ? customReason.value.trim()
+        : reasonSelect.options[reasonSelect.selectedIndex].text;
+    
+    // Disable confirm button
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+    
+    // Close modal
+    closeCancelModal();
+    
+    try {
+        const result = await API.put(`/bookings/${bookingId}/cancel`, { reason: reasonText });
+        
+        if (result.success) {
+            // Reload bookings list
+            if (typeof loadBookings === 'function') {
+                loadBookings();
+            }
+            // Show success message
+            alert('✅ Booking cancelled successfully!');
+        } else {
+            alert('❌ Error: ' + (result.error || 'Failed to cancel booking. Please try again.'));
+        }
+    } catch (error) {
+        alert('❌ Error: ' + (error.message || 'An unexpected error occurred. Please try again.'));
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm Cancellation';
+        }
+    }
+}
 
 // Admin functions for managing bookings - defined at top level for onclick handlers
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.dropdown-menu-container')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+        });
+    }
+});
+
+window.toggleDropdown = function(id) {
+    event.stopPropagation();
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    const allDropdowns = document.querySelectorAll('.dropdown-menu');
+    
+    // Close all other dropdowns
+    allDropdowns.forEach(menu => {
+        if (menu.id !== `dropdown-${id}`) {
+            menu.classList.remove('show');
+        }
+    });
+    
+    // Toggle current dropdown
+    dropdown.classList.toggle('show');
+};
+
 window.approveBooking = async function(id) {
+    // Close dropdown
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
     if (!confirm('Are you sure you want to approve this booking?')) return;
     if (typeof API === 'undefined') {
         alert('API not loaded');
@@ -314,6 +597,10 @@ window.approveBooking = async function(id) {
 };
 
 window.rejectBooking = async function(id) {
+    // Close dropdown
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
     const reason = prompt('Please provide a reason for rejection:');
     if (reason === null) return; // User cancelled
     if (reason.trim() === '') {
@@ -352,7 +639,19 @@ window.editBooking = async function(id) {
     
     // Populate date first (needed for facility loading)
     const bookingDate = booking.booking_date || '';
-    document.getElementById('bookingDate').value = bookingDate;
+    const dateInput = document.getElementById('bookingDate');
+    
+    // Set minimum date to tomorrow (users can only book from tomorrow onwards)
+    if (dateInput) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.min = tomorrow.toISOString().split('T')[0];
+        dateInput.value = bookingDate;
+        // Validate the date after setting it
+        if (typeof validateBookingDate === 'function') {
+            validateBookingDate();
+        }
+    }
     
     // Load facilities with the booking date to check capacity
     if (typeof loadFacilities === 'function') {
@@ -439,6 +738,26 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initBookings() {
+    // Set minimum date to tomorrow for booking date input (users can only book from tomorrow onwards)
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.min = tomorrow.toISOString().split('T')[0];
+    }
+    
+    // Set time input constraints (8:00 AM - 8:00 PM)
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    if (startTimeInput) {
+        startTimeInput.min = '08:00';
+        startTimeInput.max = '20:00';
+    }
+    if (endTimeInput) {
+        endTimeInput.min = '08:00';
+        endTimeInput.max = '20:00';
+    }
+    
     // Update title based on user role
     if (API.isAdmin()) {
         document.getElementById('bookingsTitle').textContent = 'Booking Management';
@@ -571,17 +890,24 @@ function displayBookings(bookingsToShow) {
                                 <i class="fas fa-eye"></i>
                             </button>
                             ${API.isAdmin() ? `
-                                ${booking.status === 'pending' ? `
-                                    <button class="btn-sm btn-success" onclick="approveBooking(${booking.id})" title="Approve">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    <button class="btn-sm btn-danger" onclick="rejectBooking(${booking.id})" title="Reject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                ` : ''}
                                 <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                ${booking.status === 'pending' ? `
+                                    <div class="dropdown-menu-container">
+                                        <button class="btn-sm btn-secondary" onclick="toggleDropdown(${booking.id})" title="More Actions" style="position: relative;">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="dropdown-${booking.id}">
+                                            <button class="dropdown-item" onclick="approveBooking(${booking.id})">
+                                                <i class="fas fa-check text-success"></i> Approve
+                                            </button>
+                                            <button class="dropdown-item" onclick="rejectBooking(${booking.id})">
+                                                <i class="fas fa-times text-danger"></i> Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
                             ` : `
                                 ${booking.status === 'pending' ? `
                                     <button class="btn-sm btn-danger" onclick="cancelBooking(${booking.id})" title="Cancel">
@@ -638,10 +964,25 @@ function bindBookingForm() {
         // Combine booking date with end time
         endTime = `${date} ${endTimeInput}:00`;
     }
+    
+    // Double-check: Ensure start time is before end time
+    if (startTime && endTime) {
+        const startDateTime = new Date(startTime);
+        const endDateTime = new Date(endTime);
+        
+        if (startDateTime >= endDateTime) {
+            alert('Error: Start time must be before end time. Please check your time selection.');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+            return;
+        }
+    }
 
-    // Validate time range before submission
-    if (!validateTimeRange()) {
-        alert('Please fix the time range error before submitting');
+    // Validate booking date (must be tomorrow or later)
+    if (!validateBookingDate()) {
+        alert('You can only book from tomorrow onwards. Please select a future date.');
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
@@ -649,9 +990,9 @@ function bindBookingForm() {
         return;
     }
     
-    // Validate time range before submission
+    // Validate time range before submission (including time constraints 8:00-20:00)
     if (!validateTimeRange()) {
-        alert('Please fix the time range error before submitting');
+        alert('Please fix the time range error. Start and end times must be between 8:00 AM and 8:00 PM, and end time must be after start time.');
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
@@ -689,6 +1030,19 @@ function bindBookingForm() {
         return;
     }
 
+    // Final validation: Ensure start time is before end time
+    const startDateTime = new Date(startTime);
+    const endDateTime = new Date(endTime);
+    
+    if (startDateTime >= endDateTime) {
+        alert('Error: Start time must be before end time. Please check your time selection.\n\nStart: ' + startTime + '\nEnd: ' + endTime);
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+        return;
+    }
+
     const data = {
         facility_id: parseInt(facilityId),
         booking_date: date,
@@ -699,8 +1053,13 @@ function bindBookingForm() {
     };
 
     console.log('Submitting booking:', data); // Debug
-    console.log('Start time:', startTime);
-    console.log('End time:', endTime);
+    console.log('Start time input:', startTimeInput);
+    console.log('End time input:', endTimeInput);
+    console.log('Combined start time:', startTime);
+    console.log('Combined end time:', endTime);
+    console.log('Start DateTime object:', startDateTime);
+    console.log('End DateTime object:', endDateTime);
+    console.log('Is start < end?', startDateTime < endDateTime);
 
     try {
         let result;
@@ -933,6 +1292,83 @@ function bindBookingForm() {
     display: flex;
     gap: 5px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Dropdown Menu Styles */
+.dropdown-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    margin-top: 5px;
+    overflow: hidden;
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: white;
+    color: #333;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.dropdown-item:hover {
+    background: #f8f9fa;
+    color: #333;
+}
+
+.dropdown-item i {
+    width: 18px;
+    text-align: center;
+}
+
+.dropdown-item .text-success {
+    color: #28a745;
+}
+
+.dropdown-item .text-danger {
+    color: #dc3545;
 }
 
 .data-table .text-center {
@@ -1059,6 +1495,265 @@ function bindBookingForm() {
 
     .data-table .actions {
         flex-direction: column;
+    }
+    
+    .dropdown-menu {
+        right: auto;
+        left: 0;
+    }
+}
+
+/* Cancel Booking Modal Styles */
+.cancel-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.cancel-modal-content {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.cancel-modal-header {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+    padding: 25px;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+    border-bottom: 2px solid #ffcccc;
+}
+
+.cancel-modal-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(245, 124, 0, 0.3);
+}
+
+.cancel-modal-header h3 {
+    margin: 0;
+    color: #d32f2f;
+    font-size: 1.5rem;
+    font-weight: 700;
+    flex: 1;
+}
+
+.cancel-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #999;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.cancel-modal-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.cancel-modal-body {
+    padding: 30px;
+}
+
+.cancel-warning-text {
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.cancel-reason-section {
+    margin-top: 20px;
+}
+
+.cancel-reason-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+}
+
+.cancel-reason-label i {
+    color: #dc3545;
+}
+
+.cancel-reason-select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+.cancel-reason-select:focus {
+    outline: none;
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.cancel-reason-select:hover {
+    border-color: #dc3545;
+}
+
+.cancel-custom-reason {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    margin-top: 12px;
+    resize: vertical;
+    transition: all 0.3s ease;
+}
+
+.cancel-custom-reason:focus {
+    outline: none;
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.cancel-modal-footer {
+    padding: 20px 30px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    background: #f8f9fa;
+    border-radius: 0 0 16px 16px;
+}
+
+.btn-cancel-modal {
+    padding: 12px 24px;
+    border: 2px solid #6c757d;
+    background: white;
+    color: #6c757d;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-cancel-modal:hover {
+    background: #6c757d;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.btn-confirm-cancel {
+    padding: 12px 24px;
+    border: none;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.btn-confirm-cancel:hover:not(:disabled) {
+    background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+.btn-confirm-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 600px) {
+    .cancel-modal-content {
+        width: 95%;
+        margin: 20px;
+    }
+    
+    .cancel-modal-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .cancel-modal-footer {
+        flex-direction: column;
+    }
+    
+    .btn-cancel-modal,
+    .btn-confirm-cancel {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
