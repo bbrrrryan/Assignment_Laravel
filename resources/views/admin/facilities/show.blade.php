@@ -65,8 +65,12 @@
                 <div class="detail-row">
                     <span class="detail-label">Image:</span>
                     <span class="detail-value">
-                        <a href="{{ $facility->image_url }}" target="_blank" class="btn-sm btn-info">
-                            <i class="fas fa-external-link-alt"></i> View Image
+                        <img src="{{ $facility->image_url }}" alt="{{ $facility->name }}" 
+                             class="img-thumbnail facility-image" style="max-width: 400px; max-height: 400px; cursor: pointer;"
+                             onclick="window.open('{{ $facility->image_url }}', '_blank')">
+                        <br>
+                        <a href="{{ $facility->image_url }}" target="_blank" class="btn-sm btn-info mt-2" style="display: inline-block;">
+                            <i class="fas fa-external-link-alt"></i> View Full Image
                         </a>
                     </span>
                 </div>
@@ -80,13 +84,40 @@
                     <span class="detail-value">{{ $facility->requires_approval ? 'Yes' : 'No' }}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Booking Advance Days:</span>
-                    <span class="detail-value">{{ $facility->booking_advance_days ?? 30 }} days</span>
-                </div>
-                <div class="detail-row">
                     <span class="detail-label">Max Booking Hours:</span>
                     <span class="detail-value">{{ $facility->max_booking_hours ?? 4 }} hours</span>
                 </div>
+                @if($facility->available_day && !empty($facility->available_day) && $facility->available_time)
+                <div class="detail-row">
+                    <span class="detail-label">Available Days & Times:</span>
+                    <span class="detail-value">
+                        <div class="mb-2">
+                            <strong>Available Days:</strong>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @php
+                                    $dayNames = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
+                                                 'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
+                                                 'sunday' => 'Sunday'];
+                                @endphp
+                                @foreach($facility->available_day as $dayKey)
+                                    <span class="badge bg-primary">{{ $dayNames[$dayKey] ?? ucfirst($dayKey) }}</span>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div>
+                            <strong>Time Range:</strong>
+                            <span class="badge bg-success">
+                                {{ $facility->available_time['start'] ?? 'N/A' }} - {{ $facility->available_time['end'] ?? 'N/A' }}
+                            </span>
+                        </div>
+                    </span>
+                </div>
+                @else
+                <div class="detail-row">
+                    <span class="detail-label">Available Days & Times:</span>
+                    <span class="detail-value text-muted">Not set</span>
+                </div>
+                @endif
             </div>
 
             <div class="details-section">

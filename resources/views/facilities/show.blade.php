@@ -96,10 +96,36 @@ function displayFacilityDetails(facility) {
                     <span class="detail-label">Max Booking Hours:</span>
                     <span class="detail-value">${facility.max_booking_hours || 'N/A'} hours</span>
                 </div>
+                ${facility.available_day && facility.available_day.length > 0 && facility.available_time ? `
                 <div class="detail-row">
-                    <span class="detail-label">Advance Booking Days:</span>
-                    <span class="detail-value">${facility.booking_advance_days || 'N/A'} days</span>
+                    <span class="detail-label">Available Days & Times:</span>
+                    <span class="detail-value">
+                        <div style="margin-bottom: 10px;">
+                            <strong>Available Days:</strong>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                                ${facility.available_day.map(dayKey => {
+                                    const dayNames = {
+                                        'monday': 'Monday',
+                                        'tuesday': 'Tuesday',
+                                        'wednesday': 'Wednesday',
+                                        'thursday': 'Thursday',
+                                        'friday': 'Friday',
+                                        'saturday': 'Saturday',
+                                        'sunday': 'Sunday'
+                                    };
+                                    return \`<span style="background: #007bff; color: white; padding: 4px 12px; border-radius: 4px; font-size: 0.9em;">\${dayNames[dayKey] || dayKey.charAt(0).toUpperCase() + dayKey.slice(1)}</span>\`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        <div>
+                            <strong>Time Range:</strong>
+                            <span style="background: #28a745; color: white; padding: 4px 12px; border-radius: 4px; font-size: 0.9em; margin-left: 8px;">
+                                \${facility.available_time.start || 'N/A'} - \${facility.available_time.end || 'N/A'}
+                            </span>
+                        </div>
+                    </span>
                 </div>
+                ` : ''}
             </div>
             ` : ''}
         </div>

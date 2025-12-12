@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Facility;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 
 class FacilityController extends Controller
 {
@@ -65,19 +66,50 @@ class FacilityController extends Controller
             'capacity' => 'required|integer|min:1',
             'description' => 'nullable|string',
             'status' => 'nullable|in:available,maintenance,unavailable,reserved',
-            'image_url' => 'nullable|url|max:255',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'requires_approval' => 'nullable|boolean',
-            'booking_advance_days' => 'nullable|integer|min:1|max:365',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
-            'available_times' => 'nullable|string',
+            'available_day' => 'nullable|array',
+            'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'available_time' => 'nullable|array',
+            'available_time.start' => 'nullable|string|date_format:H:i',
+            'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
             'rules' => 'nullable|string',
         ]);
 
-        // Handle JSON fields
-        if (isset($validated['available_times']) && is_string($validated['available_times'])) {
-            $validated['available_times'] = json_decode($validated['available_times'], true);
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+            $destinationPath = public_path('images/facilities');
+            
+            // Ensure directory exists
+            if (!File::exists($destinationPath)) {
+                File::makeDirectory($destinationPath, 0755, true);
+            }
+            
+            // Move uploaded file
+            $image->move($destinationPath, $imageName);
+            $validated['image_url'] = '/images/facilities/' . $imageName;
         }
+
+        // Handle available_day - ensure it's an array or null
+        if (isset($validated['available_day']) && is_array($validated['available_day'])) {
+            $validated['available_day'] = !empty($validated['available_day']) ? array_values(array_filter($validated['available_day'])) : null;
+        } else {
+            $validated['available_day'] = null;
+        }
+
+        // Handle available_time - ensure it has start and end
+        if (isset($validated['available_time']) && is_array($validated['available_time'])) {
+            if (empty($validated['available_time']['start']) || empty($validated['available_time']['end'])) {
+                $validated['available_time'] = null;
+            }
+        } else {
+            $validated['available_time'] = null;
+        }
+
         if (isset($validated['equipment']) && is_string($validated['equipment'])) {
             $validated['equipment'] = json_decode($validated['equipment'], true);
         }
@@ -85,7 +117,6 @@ class FacilityController extends Controller
         // Set default values
         $validated['status'] = $validated['status'] ?? 'available';
         $validated['requires_approval'] = $validated['requires_approval'] ?? false;
-        $validated['booking_advance_days'] = $validated['booking_advance_days'] ?? 30;
         $validated['max_booking_hours'] = $validated['max_booking_hours'] ?? 4;
 
         Facility::create($validated);
@@ -127,19 +158,59 @@ class FacilityController extends Controller
             'capacity' => 'required|integer|min:1',
             'description' => 'nullable|string',
             'status' => 'nullable|in:available,maintenance,unavailable,reserved',
-            'image_url' => 'nullable|url|max:255',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'requires_approval' => 'nullable|boolean',
-            'booking_advance_days' => 'nullable|integer|min:1|max:365',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
-            'available_times' => 'nullable|string',
+            'available_day' => 'nullable|array',
+            'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'available_time' => 'nullable|array',
+            'available_time.start' => 'nullable|string|date_format:H:i',
+            'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
             'rules' => 'nullable|string',
         ]);
 
-        // Handle JSON fields
-        if (isset($validated['available_times']) && is_string($validated['available_times'])) {
-            $validated['available_times'] = json_decode($validated['available_times'], true);
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($facility->image_url) {
+                $oldImagePath = public_path($facility->image_url);
+                if (File::exists($oldImagePath)) {
+                    File::delete($oldImagePath);
+                }
+            }
+
+            // Upload new image
+            $image = $request->file('image');
+            $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+            $destinationPath = public_path('images/facilities');
+            
+            // Ensure directory exists
+            if (!File::exists($destinationPath)) {
+                File::makeDirectory($destinationPath, 0755, true);
+            }
+            
+            // Move uploaded file
+            $image->move($destinationPath, $imageName);
+            $validated['image_url'] = '/images/facilities/' . $imageName;
         }
+
+        // Handle available_day - ensure it's an array or null
+        if (isset($validated['available_day']) && is_array($validated['available_day'])) {
+            $validated['available_day'] = !empty($validated['available_day']) ? array_values(array_filter($validated['available_day'])) : null;
+        } else {
+            $validated['available_day'] = null;
+        }
+
+        // Handle available_time - ensure it has start and end
+        if (isset($validated['available_time']) && is_array($validated['available_time'])) {
+            if (empty($validated['available_time']['start']) || empty($validated['available_time']['end'])) {
+                $validated['available_time'] = null;
+            }
+        } else {
+            $validated['available_time'] = null;
+        }
+
         if (isset($validated['equipment']) && is_string($validated['equipment'])) {
             $validated['equipment'] = json_decode($validated['equipment'], true);
         }
@@ -156,6 +227,15 @@ class FacilityController extends Controller
     public function destroy(string $id)
     {
         $facility = Facility::findOrFail($id);
+        
+        // Delete associated image if exists
+        if ($facility->image_url) {
+            $imagePath = public_path($facility->image_url);
+            if (File::exists($imagePath)) {
+                File::delete($imagePath);
+            }
+        }
+        
         $facility->delete();
 
         return redirect()->route('admin.facilities.index')
