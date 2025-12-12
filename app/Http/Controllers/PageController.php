@@ -63,6 +63,11 @@ class PageController extends Controller
         return view('auth.register');
     }
 
+    public function showVerifyOtp()
+    {
+        return view('auth.verify-otp');
+    }
+
     // Dashboard
     public function dashboard()
     {
