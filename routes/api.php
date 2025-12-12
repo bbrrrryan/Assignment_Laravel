@@ -131,7 +131,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('/', [BookingController::class, 'index']);
             Route::put('/{id}', [BookingController::class, 'update']);
-            Route::delete('/{id}', [BookingController::class, 'destroy']);
             Route::put('/{id}/approve', [BookingController::class, 'approve']);
             Route::put('/{id}/reject', [BookingController::class, 'reject']);
         });

@@ -179,17 +179,154 @@ class BookingController extends Controller
         return response()->json(['data' => Booking::with(['user', 'facility', 'statusHistory'])->findOrFail($id)]);
     }
 
+    /**
+     * Update a booking (Admin can modify any booking, users can only modify their own pending bookings)
+     */
     public function update(Request $request, string $id)
     {
-        $booking = Booking::findOrFail($id);
-        $booking->update($request->all());
-        return response()->json(['data' => $booking]);
+        try {
+            $booking = Booking::findOrFail($id);
+            $user = auth()->user();
+
+            // Check permissions: Admin can modify any booking, users can only modify their own pending bookings
+            if (!$user->isAdmin() && $booking->user_id !== $user->id) {
+                return response()->json([
+                    'message' => 'You do not have permission to modify this booking',
+                ], 403);
+            }
+
+            // Users can only modify their own pending bookings
+            if (!$user->isAdmin() && $booking->status !== 'pending') {
+                return response()->json([
+                    'message' => 'You can only modify pending bookings',
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'facility_id' => 'sometimes|required|exists:facilities,id',
+                'booking_date' => 'sometimes|required|date|after_or_equal:today',
+                'start_time' => 'sometimes|required|string',
+                'end_time' => 'sometimes|required|string',
+                'purpose' => 'sometimes|required|string|max:500',
+                'expected_attendees' => 'nullable|integer|min:1',
+                'status' => 'sometimes|required|in:pending,approved,rejected,cancelled',
+            ]);
+
+            // Parse datetime if provided
+            if (isset($validated['start_time'])) {
+                try {
+                    $validated['start_time'] = \Carbon\Carbon::parse($validated['start_time'])->format('Y-m-d H:i:s');
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Invalid start_time format',
+                        'error' => $e->getMessage(),
+                    ], 422);
+                }
+            }
+
+            if (isset($validated['end_time'])) {
+                try {
+                    $validated['end_time'] = \Carbon\Carbon::parse($validated['end_time'])->format('Y-m-d H:i:s');
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Invalid end_time format',
+                        'error' => $e->getMessage(),
+                    ], 422);
+                }
+            }
+
+            // Validate time range if both times are provided
+            if (isset($validated['start_time']) && isset($validated['end_time'])) {
+                $startTime = \Carbon\Carbon::parse($validated['start_time']);
+                $endTime = \Carbon\Carbon::parse($validated['end_time']);
+                
+                if ($endTime->lte($startTime)) {
+                    return response()->json([
+                        'message' => 'End time must be after start time',
+                    ], 422);
+                }
+
+                $validated['duration_hours'] = $startTime->diffInHours($endTime);
+            }
+
+            // Get facility (use existing or new one)
+            $facilityId = $validated['facility_id'] ?? $booking->facility_id;
+            $facility = Facility::findOrFail($facilityId);
+
+            // Check capacity if expected_attendees is provided
+            if (isset($validated['expected_attendees']) && $validated['expected_attendees'] > $facility->capacity) {
+                return response()->json([
+                    'message' => 'Expected attendees exceed facility capacity',
+                ], 400);
+            }
+
+            // Check for conflicts (exclude current booking and cancelled bookings)
+            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
+            $startTime = $validated['start_time'] ?? $booking->start_time;
+            $endTime = $validated['end_time'] ?? $booking->end_time;
+
+            $conflicts = Booking::where('facility_id', $facilityId)
+                ->where('id', '!=', $booking->id)
+                ->whereDate('booking_date', $bookingDate)
+                ->where('status', '!=', 'cancelled')
+                ->where(function($query) use ($startTime, $endTime) {
+                    $query->whereBetween('start_time', [$startTime, $endTime])
+                          ->orWhereBetween('end_time', [$startTime, $endTime])
+                          ->orWhere(function($q) use ($startTime, $endTime) {
+                              $q->where('start_time', '<=', $startTime)
+                                ->where('end_time', '>=', $endTime);
+                          });
+                })
+                ->exists();
+
+            if ($conflicts) {
+                return response()->json([
+                    'message' => 'Time slot conflicts with existing booking',
+                ], 409);
+            }
+
+            // Update booking
+            $booking->update($validated);
+
+            // Create status history if status changed
+            if (isset($validated['status']) && $validated['status'] !== $booking->getOriginal('status')) {
+                try {
+                    $booking->statusHistory()->create([
+                        'status' => $validated['status'],
+                        'changed_by' => auth()->id(),
+                        'notes' => $user->isAdmin() ? 'Booking modified by admin' : 'Booking modified by user',
+                    ]);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                'message' => 'Booking updated successfully',
+                'data' => $booking->load(['user', 'facility', 'statusHistory']),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Booking update error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to update booking: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
+    /**
+     * Delete booking - Disabled for admin
+     * Admin should use reject or cancel instead
+     */
     public function destroy(string $id)
     {
-        Booking::findOrFail($id)->delete();
-        return response()->json(['message' => 'Deleted']);
+        return response()->json([
+            'message' => 'Delete functionality is disabled. Please use reject or cancel instead.',
+        ], 403);
     }
 
     /**
@@ -245,14 +382,45 @@ class BookingController extends Controller
         ]);
     }
 
+    /**
+     * Reject a booking (Admin only)
+     */
     public function reject(Request $request, string $id)
     {
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
         $booking = Booking::findOrFail($id);
+
+        if ($booking->status !== 'pending') {
+            return response()->json([
+                'message' => 'Only pending bookings can be rejected',
+            ], 400);
+        }
+
         $booking->update([
             'status' => 'rejected',
             'rejection_reason' => $request->reason,
+            'rejected_by' => auth()->id(),
+            'rejected_at' => now(),
         ]);
-        return response()->json(['data' => $booking]);
+
+        // Create status history
+        try {
+            $booking->statusHistory()->create([
+                'status' => 'rejected',
+                'changed_by' => auth()->id(),
+                'notes' => 'Booking rejected by admin. Reason: ' . $request->reason,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Booking rejected successfully',
+            'data' => $booking->load(['user', 'facility']),
+        ]);
     }
 
     public function cancel(Request $request, string $id)
@@ -268,7 +436,7 @@ class BookingController extends Controller
 
     public function myBookings()
     {
-        return response()->json(['data' => auth()->user()->bookings]);
+        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility'])->get()]);
     }
 
     /**

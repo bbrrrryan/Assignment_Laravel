@@ -80,7 +80,7 @@
 
                             <div class="col-md-6">
                                 <label for="bookingDate" class="form-label">Booking Date <span class="text-danger">*</span></label>
-                                <input type="date" id="bookingDate" class="form-control" required>
+                                <input type="date" id="bookingDate" class="form-control" required onchange="updateFacilitiesByDate()">
                             </div>
                         </div>
                     </div>
@@ -94,12 +94,14 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="bookingStartTime" class="form-label">Start Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" id="bookingStartTime" class="form-control" required min="">
+                                <input type="time" id="bookingStartTime" class="form-control" required onchange="validateTimeRange()">
+                                <div id="startTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="bookingEndTime" class="form-label">End Time <span class="text-danger">*</span></label>
-                                <input type="datetime-local" id="bookingEndTime" class="form-control" required min="">
+                                <input type="time" id="bookingEndTime" class="form-control" required onchange="validateTimeRange()">
+                                <div id="endTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
                             </div>
                         </div>
                     </div>
@@ -155,31 +157,95 @@ window.showCreateModal = function() {
     }
     
     // Reset modal title and button
-    document.getElementById('modalTitle').textContent = 'Create New Booking';
-    document.getElementById('modalIcon').className = 'fas fa-plus-circle me-2 text-primary';
-    document.getElementById('submitButtonText').textContent = 'Submit Booking';
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const submitButtonText = document.getElementById('submitButtonText');
+    
+    if (modalTitle) modalTitle.textContent = 'Create New Booking';
+    if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+    if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
     
     // Set minimum date to today
-    const today = new Date().toISOString().slice(0, 16);
     const dateInput = document.getElementById('bookingDate');
-    const startTimeInput = document.getElementById('bookingStartTime');
-    const endTimeInput = document.getElementById('bookingEndTime');
-    
     if (dateInput) {
         dateInput.min = new Date().toISOString().split('T')[0];
-    }
-    if (startTimeInput) {
-        startTimeInput.min = today;
-    }
-    if (endTimeInput) {
-        endTimeInput.min = today;
     }
     
     const modal = document.getElementById('bookingModal');
     if (modal) {
         modal.style.display = 'block';
     }
+    
+    // Clear any previous validation errors
+    clearTimeValidationErrors();
 };
+
+// Function to validate time range in real-time
+window.validateTimeRange = function() {
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    const dateInput = document.getElementById('bookingDate');
+    
+    // Clear previous errors
+    clearTimeValidationErrors();
+    
+    // Check if both times are filled
+    if (!startTimeInput || !endTimeInput || !startTimeInput.value || !endTimeInput.value) {
+        return true; // Allow empty values during input
+    }
+    
+    // Compare times
+    if (startTimeInput.value >= endTimeInput.value) {
+        showTimeValidationError('End time must be after start time');
+        return false;
+    }
+    
+    return true;
+};
+
+// Function to show time validation error
+function showTimeValidationError(message) {
+    const endTimeError = document.getElementById('endTimeError');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (endTimeError) {
+        endTimeError.textContent = message;
+        endTimeError.style.display = 'block';
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity(message);
+    }
+}
+
+// Function to clear time validation errors
+function clearTimeValidationErrors() {
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (startTimeError) {
+        startTimeError.style.display = 'none';
+        startTimeError.textContent = '';
+    }
+    
+    if (endTimeError) {
+        endTimeError.style.display = 'none';
+        endTimeError.textContent = '';
+    }
+    
+    if (startTimeInput) {
+        startTimeInput.classList.remove('is-invalid');
+        startTimeInput.setCustomValidity('');
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.remove('is-invalid');
+        endTimeInput.setCustomValidity('');
+    }
+}
 
 window.closeModal = function() {
     const modal = document.getElementById('bookingModal');
@@ -284,26 +350,31 @@ window.editBooking = async function(id) {
     
     const booking = result.data.data || result.data;
     
-    // Load facilities first
+    // Populate date first (needed for facility loading)
+    const bookingDate = booking.booking_date || '';
+    document.getElementById('bookingDate').value = bookingDate;
+    
+    // Load facilities with the booking date to check capacity
     if (typeof loadFacilities === 'function') {
-        await loadFacilities();
+        await loadFacilities(bookingDate);
     }
     
     // Populate form with booking data
     document.getElementById('bookingFacility').value = booking.facility_id || '';
-    document.getElementById('bookingDate').value = booking.booking_date || '';
     
-    // Convert datetime strings to datetime-local format
+    // Extract time from datetime strings
     if (booking.start_time) {
         const startDate = new Date(booking.start_time);
-        const startLocal = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        document.getElementById('bookingStartTime').value = startLocal;
+        const hours = String(startDate.getHours()).padStart(2, '0');
+        const minutes = String(startDate.getMinutes()).padStart(2, '0');
+        document.getElementById('bookingStartTime').value = `${hours}:${minutes}`;
     }
     
     if (booking.end_time) {
         const endDate = new Date(booking.end_time);
-        const endLocal = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        document.getElementById('bookingEndTime').value = endLocal;
+        const hours = String(endDate.getHours()).padStart(2, '0');
+        const minutes = String(endDate.getMinutes()).padStart(2, '0');
+        document.getElementById('bookingEndTime').value = `${hours}:${minutes}`;
     }
     
     document.getElementById('bookingPurpose').value = booking.purpose || '';
@@ -313,9 +384,13 @@ window.editBooking = async function(id) {
     document.getElementById('bookingForm').dataset.bookingId = id;
     
     // Change form title and submit button
-    document.getElementById('modalTitle').textContent = 'Edit Booking';
-    document.getElementById('modalIcon').className = 'fas fa-edit me-2 text-primary';
-    document.getElementById('submitButtonText').textContent = 'Update Booking';
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const submitButtonText = document.getElementById('submitButtonText');
+    
+    if (modalTitle) modalTitle.textContent = 'Edit Booking';
+    if (modalIcon) modalIcon.className = 'fas fa-edit me-2 text-primary';
+    if (submitButtonText) submitButtonText.textContent = 'Update Booking';
     
     // Show modal
     const modal = document.getElementById('bookingModal');
@@ -410,8 +485,13 @@ async function loadBookings() {
     }
 }
 
-async function loadFacilities() {
-    const result = await API.get('/facilities');
+async function loadFacilities(bookingDate = null) {
+    let url = '/facilities';
+    if (bookingDate) {
+        url += `?booking_date=${bookingDate}`;
+    }
+    
+    const result = await API.get(url);
     
     if (result.success) {
         facilities = result.data.data?.data || result.data.data || [];
@@ -423,8 +503,17 @@ async function loadFacilities() {
             alert('No facilities available. Please create a facility first.');
         } else {
             select.disabled = false;
+            const currentValue = select.value; // Preserve current selection if any
             select.innerHTML = '<option value="">Select Facility</option>' +
-                facilities.map(f => `<option value="${f.id}">${f.name} (${f.code}) - ${f.status}</option>`).join('');
+                facilities.map(f => {
+                    const isDisabled = f.is_at_capacity || f.status !== 'available';
+                    const disabledAttr = isDisabled ? 'disabled' : '';
+                    const selectedAttr = (currentValue == f.id) ? 'selected' : '';
+                    const capacityInfo = f.is_at_capacity 
+                        ? ` (Full - ${f.total_approved_attendees}/${f.capacity} attendees)` 
+                        : ` (${f.total_approved_attendees || 0}/${f.capacity} attendees)`;
+                    return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}${capacityInfo}</option>`;
+                }).join('');
         }
     } else {
         const select = document.getElementById('bookingFacility');
@@ -433,6 +522,14 @@ async function loadFacilities() {
         console.error('Error loading facilities:', result);
     }
 }
+
+// Function to update facilities when date is selected
+window.updateFacilitiesByDate = function() {
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput && dateInput.value) {
+        loadFacilities(dateInput.value);
+    }
+};
 
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
@@ -485,9 +582,6 @@ function displayBookings(bookingsToShow) {
                                 <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-sm btn-danger" onclick="deleteBooking(${booking.id})" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
                             ` : `
                                 ${booking.status === 'pending' ? `
                                     <button class="btn-sm btn-danger" onclick="cancelBooking(${booking.id})" title="Cancel">
@@ -519,6 +613,10 @@ function bindBookingForm() {
             const bookingId = this.dataset.bookingId; // Check if editing
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+        alert('Submit button not found');
+        return;
+    }
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
@@ -527,53 +625,67 @@ function bindBookingForm() {
     const startTimeInput = document.getElementById('bookingStartTime').value;
     const endTimeInput = document.getElementById('bookingEndTime').value;
 
-    // Convert datetime-local to Y-m-d H:i:s format (use local time, not UTC)
+    // Combine date and time to create datetime string
     let startTime = null;
     let endTime = null;
     
-    if (startTimeInput) {
-        const startDate = new Date(startTimeInput);
-        // Use local time, not UTC
-        const year = startDate.getFullYear();
-        const month = String(startDate.getMonth() + 1).padStart(2, '0');
-        const day = String(startDate.getDate()).padStart(2, '0');
-        const hours = String(startDate.getHours()).padStart(2, '0');
-        const minutes = String(startDate.getMinutes()).padStart(2, '0');
-        startTime = `${year}-${month}-${day} ${hours}:${minutes}:00`;
+    if (date && startTimeInput) {
+        // Combine booking date with start time
+        startTime = `${date} ${startTimeInput}:00`;
     }
     
-    if (endTimeInput) {
-        const endDate = new Date(endTimeInput);
-        // Use local time, not UTC
-        const year = endDate.getFullYear();
-        const month = String(endDate.getMonth() + 1).padStart(2, '0');
-        const day = String(endDate.getDate()).padStart(2, '0');
-        const hours = String(endDate.getHours()).padStart(2, '0');
-        const minutes = String(endDate.getMinutes()).padStart(2, '0');
-        endTime = `${year}-${month}-${day} ${hours}:${minutes}:00`;
+    if (date && endTimeInput) {
+        // Combine booking date with end time
+        endTime = `${date} ${endTimeInput}:00`;
     }
 
+    // Validate time range before submission
+    if (!validateTimeRange()) {
+        alert('Please fix the time range error before submitting');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+        return;
+    }
+    
+    // Validate time range before submission
+    if (!validateTimeRange()) {
+        alert('Please fix the time range error before submitting');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+        return;
+    }
+    
     // Validation
     if (!date || !startTime || !endTime) {
         alert('Please fill in all required fields');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
     const facilityId = document.getElementById('bookingFacility').value;
     if (!facilityId) {
         alert('Please select a facility');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
     const purpose = document.getElementById('bookingPurpose').value;
     if (!purpose) {
         alert('Please enter a purpose for the booking');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
@@ -600,8 +712,10 @@ function bindBookingForm() {
             result = await API.post('/bookings', data);
         }
 
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
 
         if (result.success) {
             window.closeModal();
@@ -612,9 +726,13 @@ function bindBookingForm() {
             delete document.getElementById('bookingForm').dataset.bookingId;
             
             // Reset modal title and button
-            document.getElementById('modalTitle').textContent = 'Create New Booking';
-            document.getElementById('modalIcon').className = 'fas fa-plus-circle me-2 text-primary';
-            document.getElementById('submitButtonText').textContent = 'Submit Booking';
+            const modalTitle = document.getElementById('modalTitle');
+            const modalIcon = document.getElementById('modalIcon');
+            const submitButtonText = document.getElementById('submitButtonText');
+            
+            if (modalTitle) modalTitle.textContent = 'Create New Booking';
+            if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+            if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
             
             alert(bookingId ? 'Booking updated successfully!' : 'Booking created successfully!');
         } else {
@@ -634,8 +752,10 @@ function bindBookingForm() {
             console.error('Booking error:', result); // Debug
         }
     } catch (error) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         alert('Error creating booking: ' + error.message);
         console.error('Booking submission error:', error);
     }
@@ -895,6 +1015,16 @@ function bindBookingForm() {
     color: #2d3436;
     background: rgba(255, 255, 255, 1);
     transform: scale(1.1);
+}
+
+/* Time Validation Error Styles */
+.is-invalid {
+    border-color: #dc3545 !important;
+}
+
+.is-invalid:focus {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
 }
 
 /* Responsive Design */

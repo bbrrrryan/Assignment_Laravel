@@ -13,6 +13,32 @@ class FacilityController extends Controller
         $facilities = Facility::when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->paginate(15);
+        
+        // Get booking date from request if provided
+        $bookingDate = $request->get('booking_date');
+        
+        // Add approved bookings count and total expected attendees for each facility
+        $facilities->getCollection()->transform(function ($facility) use ($bookingDate) {
+            $approvedBookingsQuery = $facility->bookings()
+                ->where('status', 'approved');
+            
+            // If booking date is provided, filter by date
+            if ($bookingDate) {
+                $approvedBookingsQuery->whereDate('booking_date', $bookingDate);
+            }
+            
+            $approvedBookings = $approvedBookingsQuery->get();
+            
+            $facility->approved_bookings_count = $approvedBookings->count();
+            // Sum expected_attendees, treating null as 0
+            $facility->total_approved_attendees = $approvedBookings->sum(function($booking) {
+                return $booking->expected_attendees ?? 0;
+            });
+            $facility->is_at_capacity = ($facility->total_approved_attendees >= $facility->capacity);
+            
+            return $facility;
+        });
+        
         return response()->json(['data' => $facilities]);
     }
 
