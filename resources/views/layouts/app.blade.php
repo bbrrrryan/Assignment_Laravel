@@ -349,11 +349,11 @@
                     @endif
                 @else
                     <li><a href="{{ route('home') }}">Home</a></li>
-                    <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
-                    <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
-                    <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
-                    <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
-                    <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
+                <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
+                <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
+                <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
+                <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                 @endauth
                 <li id="authLinks">
                     @auth
