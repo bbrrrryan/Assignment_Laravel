@@ -36,8 +36,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // User profile routes (All authenticated users) - Must be before /users/{id} routes
     Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
     Route::get('/users/profile/activity-logs', [UserController::class, 'myActivityLogs']);
-    Route::get('/users/profile/settings', [UserController::class, 'getSettings']);
-    Route::put('/users/profile/settings', [UserController::class, 'updateSettings']);
 
     // User Management Routes (Admin only)
     Route::prefix('users')->middleware('admin')->group(function () {
@@ -67,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [NotificationController::class, 'show']);
         Route::get('/user/my-notifications', [NotificationController::class, 'myNotifications']);
         Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/{id}/unread', [NotificationController::class, 'markAsUnread']);
         Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
     });
 

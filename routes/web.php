@@ -43,11 +43,17 @@ Route::middleware('auth')->group(function () {
         
         // Facility Management
         Route::resource('facilities', FacilityController::class);
+        
+        // Notification Management
+        Route::get('/notifications', [\App\Http\Controllers\Admin\NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('/notifications/{id}/edit', [\App\Http\Controllers\Admin\NotificationController::class, 'edit'])->name('notifications.edit');
+        Route::get('/notifications/{id}', [\App\Http\Controllers\Admin\NotificationController::class, 'show'])->name('notifications.show');
+        Route::put('/notifications/{id}', [\App\Http\Controllers\Admin\NotificationController::class, 'update'])->name('notifications.update');
+        Route::delete('/notifications/{id}', [\App\Http\Controllers\Admin\NotificationController::class, 'destroy'])->name('notifications.destroy');
     });
     
     // Profile Routes (All authenticated users)
     Route::get('/profile', [PageController::class, 'profile'])->name('profile.index');
-    Route::get('/settings', [PageController::class, 'settings'])->name('settings.index');
     
     // Facilities Routes
     Route::get('/facilities', [PageController::class, 'facilities'])->name('facilities.index');

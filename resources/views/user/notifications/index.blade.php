@@ -93,8 +93,7 @@ function initNotifications() {
 }
 
 async function loadNotifications() {
-    const container = document.getElementById('notificationsList');
-    container.innerHTML = '<p>Loading notifications...</p>';
+    showLoading(document.getElementById('notificationsList'));
     
     // Load user's notifications (all users see their own notifications)
     const endpoint = '/notifications/user/my-notifications';
@@ -102,12 +101,10 @@ async function loadNotifications() {
     const result = await API.get(endpoint);
     
     if (result.success) {
-        // Handle paginated response: result.data.data is the pagination object
-        // result.data.data.data is the actual array of notifications
-        const notifications = result.data?.data?.data || result.data?.data || [];
+        const notifications = result.data.data?.data || result.data.data || [];
         displayNotifications(notifications);
     } else {
-        container.innerHTML = `<p style="color: red;">Error: ${result.error || 'Failed to load notifications'}</p>`;
+        showError(document.getElementById('notificationsList'), result.error || 'Failed to load notifications');
         console.error('Error loading notifications:', result);
     }
 }
@@ -165,12 +162,6 @@ function getNotificationIcon(type) {
         'reminder': 'bell'
     };
     return icons[type] || 'bell';
-}
-
-function formatDateTime(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString();
 }
 
 // Make functions global
