@@ -31,6 +31,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadNotificationDetails() {
     const notificationId = {{ $id }};
+    
+    // Mark notification as read when viewing details
+    try {
+        await API.put(`/notifications/${notificationId}/read`, {});
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+    
     const result = await API.get(`/notifications/${notificationId}`);
 
     if (result.success) {

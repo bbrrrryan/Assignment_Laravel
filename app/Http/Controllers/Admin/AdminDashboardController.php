@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Booking;
@@ -13,7 +12,7 @@ use App\Models\LoyaltyPoint;
 use App\Models\Reward;
 use App\Models\Certificate;
 
-class AdminDashboardController extends Controller
+class AdminDashboardController extends AdminBaseController
 {
     /**
      * Display admin dashboard

@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\Facility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
-class FacilityController extends Controller
+class FacilityController extends AdminBaseController
 {
     /**
      * Display a listing of facilities

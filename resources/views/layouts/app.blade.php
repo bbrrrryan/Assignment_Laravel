@@ -287,6 +287,7 @@
             padding: 0 5px;
             word-break: break-word;
         }
+        
     </style>
     
     <script>
@@ -332,10 +333,19 @@
         <div class="logo"><h1><a href="{{ route('home') }}" style="text-decoration: none; color: inherit;">TARUMT FMS</a></h1></div>
         <nav>
             <ul>
-                <li><a href="{{ route('home') }}">Home</a></li>
                 @auth
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
+                        <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
+                        <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
+                        <li><a href="{{ route('admin.notifications.index') }}">Notification Management</a></li>
+                    @else
+                        <li><a href="{{ route('home') }}">Home</a></li>
+                        <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                        <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
+                        <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
+                        <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
+                        <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                     @endif
                     @if(!auth()->user()->isAdmin())
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
@@ -354,6 +364,10 @@
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
                     @endif
                 @endauth
+                @guest
+                    <li><a href="{{ route('home') }}">Home</a></li>
+                    <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                @endguest
                 <li id="authLinks">
                     @auth
                         <div class="user-dropdown">
@@ -365,9 +379,6 @@
                             <div class="dropdown-menu" id="userDropdownMenu">
                                 <a href="{{ route('profile.index') }}">
                                     <i class="fas fa-user"></i> Profile
-                                </a>
-                                <a href="{{ route('settings.index') }}">
-                                    <i class="fas fa-cog"></i> Settings
                                 </a>
                                 <form method="POST" action="{{ route('logout') }}" style="margin: 0;">
                                     @csrf
@@ -393,7 +404,7 @@
     <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000;"></div>
 
     <footer>
-        &copy; 2025 TAR UMT Facilities Management System | Built by Liew Zi Li
+        &copy; 2025 TAR UMT Facilities Management System | Built by Group 5 F4
     </footer>
 
     <!-- Bootstrap JS -->

@@ -75,12 +75,20 @@ document.getElementById('registerForm').addEventListener('submit', async functio
     const result = await API.register(formData);
     
     if (result.success) {
-        // Email sent successfully
-        showToast('Success register. Check email for OTP code', 'success');
-        // Redirect to OTP verification page
-        setTimeout(function() {
-            window.location.href = '/verify-otp?email=' + encodeURIComponent(formData.email);
-        }, 1500);
+        // Check if need to redirect to OTP page (OTP already sent)
+        if (result.data && result.data.redirect_to_otp) {
+            showToast('OTP already sent. Please check your email and verify.', 'info');
+            setTimeout(function() {
+                window.location.href = '/verify-otp?email=' + encodeURIComponent(result.data.email);
+            }, 1500);
+        } else {
+            // New registration, email sent successfully
+            showToast('Success register. Check email for OTP code', 'success');
+            // Redirect to OTP verification page
+            setTimeout(function() {
+                window.location.href = '/verify-otp?email=' + encodeURIComponent(formData.email);
+            }, 1500);
+        }
     } else {
         const errorText = result.error || 'Registration failed. Please try again.';
         errorMsg.textContent = errorText;

@@ -164,6 +164,7 @@ class NotificationController extends Controller
         $user = auth()->user();
 
         $query = $user->notifications()
+            ->with('creator')
             ->where('is_active', true)
             ->when($request->is_read !== null, function($q) use ($request) {
                 $q->wherePivot('is_read', $request->is_read);
@@ -200,6 +201,30 @@ class NotificationController extends Controller
 
         return response()->json([
             'message' => 'Notification marked as read',
+        ]);
+    }
+
+    /**
+     * Mark notification as unread
+     */
+    public function markAsUnread(string $id)
+    {
+        $notification = Notification::findOrFail($id);
+        $user = auth()->user();
+
+        if (!$user->notifications()->where('notifications.id', $id)->exists()) {
+            return response()->json([
+                'message' => 'Notification not found for this user',
+            ], 404);
+        }
+
+        $user->notifications()->updateExistingPivot($id, [
+            'is_read' => false,
+            'read_at' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Notification marked as unread',
         ]);
     }
 
