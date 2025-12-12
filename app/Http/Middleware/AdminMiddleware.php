@@ -26,13 +26,14 @@ class AdminMiddleware
 
         $user = auth()->user();
 
-        if (!$user->isAdmin()) {
+        // Allow admin and staff to access admin dashboard, but not student
+        if ($user->isStudent()) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Unauthorized. Admin access required.',
+                    'message' => 'Unauthorized. Admin or Staff access required.',
                 ], 403);
             }
-            // Redirect to home page if user is not admin
+            // Redirect to home page if user is student
             return redirect()->route('home')
                 ->with('error', 'You do not have permission to access this page.');
         }

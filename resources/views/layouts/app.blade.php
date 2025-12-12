@@ -158,6 +158,153 @@
             }
         });
     </script>
+    
+    <!-- Toast Message System -->
+    <script>
+        // Simple Toast Message Function
+        function showToast(message, type) {
+            // type can be: 'success', 'error', 'warning', 'info'
+            var container = document.getElementById('toastContainer');
+            
+            // Create toast element
+            var toast = document.createElement('div');
+            toast.className = 'toast-message toast-' + type;
+            toast.innerHTML = '<span>' + message + '</span><button onclick="this.parentElement.remove()">&times;</button>';
+            
+            // Add to container
+            container.appendChild(toast);
+            
+            // Auto remove after 4 seconds with fade out
+            setTimeout(function() {
+                if (toast.parentElement) {
+                    toast.style.transition = 'all 0.3s ease-out';
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-20px)';
+                    setTimeout(function() {
+                        if (toast.parentElement) {
+                            toast.remove();
+                        }
+                    }, 300);
+                }
+            }, 4000);
+        }
+    </script>
+    
+    <style>
+        /* Toast Message Styles */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toast-message {
+            min-width: 250px;
+            max-width: 400px;
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideDown 0.4s ease-out;
+            font-weight: 500;
+            font-size: 14px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-80px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .toast-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border-color: rgba(40, 167, 69, 0.2);
+        }
+        
+        .toast-error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border-color: rgba(220, 53, 69, 0.2);
+        }
+        
+        .toast-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            border-color: rgba(255, 193, 7, 0.2);
+        }
+        
+        .toast-info {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            color: #0c5460;
+            border-color: rgba(23, 162, 184, 0.2);
+        }
+        
+        .toast-message button {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 0;
+            margin-left: 12px;
+            opacity: 0.6;
+            line-height: 1;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .toast-message button:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.1);
+        }
+        
+        .toast-message span {
+            flex: 1;
+            padding: 0 5px;
+            word-break: break-word;
+        }
+    </style>
+    
+    <script>
+        // Show toast from session messages on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            @if(session('toast_message'))
+                showToast('{{ session('toast_message') }}', '{{ session('toast_type', 'success') }}');
+            @endif
+            
+            @if(session('success'))
+                showToast('{{ session('success') }}', 'success');
+            @endif
+            
+            @if(session('error'))
+                showToast('{{ session('error') }}', 'error');
+            @endif
+        });
+    </script>
 </head>
 <body>
 
@@ -167,7 +314,7 @@
             <ul>
                 <li><a href="{{ route('home') }}">Home</a></li>
                 @auth
-                    @if(auth()->user()->isAdmin())
+                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                     @endif
                 @endauth
@@ -177,7 +324,7 @@
                 <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
                 <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                 @auth
-                    @if(auth()->user()->isAdmin())
+                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
                     @endif
@@ -216,6 +363,9 @@
     <main>
         @yield('content')
     </main>
+
+    <!-- Toast Message Container -->
+    <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000;"></div>
 
     <footer>
         &copy; 2025 TAR UMT Facilities Management System | Built by Liew Zi Li

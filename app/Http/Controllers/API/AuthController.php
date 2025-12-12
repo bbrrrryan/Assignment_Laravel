@@ -4,8 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Mail\OtpVerificationMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -29,20 +32,45 @@ class AuthController extends Controller
             $role = 'student'; // Default to student if invalid
         }
         
+        // Generate 6-digit OTP
+        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $otpExpiresAt = now()->addMinutes(15);
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $role,
-            'status' => 'active',
+            'status' => 'inactive', // Set to inactive until OTP verified
+            'otp_code' => $otpCode,
+            'otp_expires_at' => $otpExpiresAt,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Send OTP email - must succeed for security
+        try {
+            Mail::to($user->email)->send(new OtpVerificationMail($otpCode, $user->name));
+        } catch (\Exception $e) {
+            // Log detailed error
+            $errorMessage = $e->getMessage();
+            Log::error('Failed to send OTP email: ' . $errorMessage);
+            Log::error('Email error trace: ' . $e->getTraceAsString());
+            
+            // Delete the user since registration failed
+            $user->delete();
+            
+            // Return error response
+            return response()->json([
+                'message' => 'Cannot send OTP email. Please check email configuration.',
+                'error' => 'Email sending failed: ' . $errorMessage,
+            ], 500);
+        }
 
         return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'token' => $token,
+            'message' => 'Registration successful. Please check your email for OTP code.',
+            'data' => [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]
         ], 201);
     }
 
