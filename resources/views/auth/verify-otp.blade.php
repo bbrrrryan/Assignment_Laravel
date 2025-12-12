@@ -34,7 +34,7 @@
         </form>
 
         <div class="auth-footer">
-            <p>Didn't receive the code? <a href="{{ route('register') }}">Register again</a></p>
+            <p>Didn't receive the code? <a href="#" id="resendOtpLink" onclick="resendOtp(event)">Resend OTP</a></p>
             <p>Already verified? <a href="{{ route('login') }}">Sign in</a></p>
         </div>
 
@@ -61,6 +61,46 @@ document.getElementById('verifyOtpForm').addEventListener('submit', function(e) 
 document.getElementById('otp_code').addEventListener('input', function(e) {
     this.value = this.value.replace(/\D/g, '').slice(0, 6);
 });
+
+// Resend OTP function
+async function resendOtp(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    if (!email) {
+        showToast('Please enter your email address first', 'error');
+        return;
+    }
+    
+    const resendLink = document.getElementById('resendOtpLink');
+    const originalText = resendLink.textContent;
+    resendLink.textContent = 'Sending...';
+    resendLink.style.pointerEvents = 'none';
+    
+    try {
+        const response = await fetch('/api/resend-otp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ email: email })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast('OTP code resent successfully. Please check your email.', 'success');
+        } else {
+            showToast(data.message || 'Failed to resend OTP. Please try again.', 'error');
+        }
+    } catch (error) {
+        showToast('Network error. Please try again.', 'error');
+    } finally {
+        resendLink.textContent = originalText;
+        resendLink.style.pointerEvents = 'auto';
+    }
+}
 </script>
 @endsection
 

@@ -140,7 +140,7 @@ class AuthController extends Controller
         // Check if OTP expired
         if ($user->otp_expires_at && $user->otp_expires_at->isPast()) {
             return back()->withErrors([
-                'otp_code' => 'OTP code already expired. Please register again.',
+                'otp_code' => 'OTP code already expired. Please resend OTP.',
             ])->withInput();
         }
 
