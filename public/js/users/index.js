@@ -1,0 +1,411 @@
+// Author: Liew Zi Li (user management)
+// real-time search function
+let searchTimeout;
+let currentPage = 1;
+let currentSortBy = 'created_at';
+let currentSortOrder = 'desc';
+
+// debounce function to make sure not call too many times
+function debounce(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(searchTimeout);
+            func(...args);
+        };
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(later, wait);
+    };
+}
+
+// fetch users from api
+async function fetchUsers(search = '', status = '', role = '', page = 1, sortBy = null, sortOrder = null) {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (status) params.append('status', status);
+    if (role) params.append('role', role);
+    params.append('per_page', 10);
+    params.append('page', page);
+    
+    // add sorting parameters
+    if (sortBy !== null) {
+        currentSortBy = sortBy;
+    }
+    if (sortOrder !== null) {
+        currentSortOrder = sortOrder;
+    }
+    params.append('sort_by', currentSortBy);
+    params.append('sort_order', currentSortOrder);
+    
+    const queryString = params.toString();
+    // api.js already got baseURL='/api' so just need '/users'
+    const endpoint = '/users' + (queryString ? '?' + queryString : '');
+    
+    try {
+        console.log('fetching users from:', endpoint);
+        console.log('api token got or not:', !!API.getToken());
+        
+        const result = await API.get(endpoint);
+        console.log('api result:', result);
+        
+        if (result.success && result.data) {
+            // check if got data or not
+            if (result.data.data) {
+                return result.data.data;
+            } else {
+                console.error('api response structure wrong:', result);
+                return null;
+            }
+        } else {
+            console.error('api request failed:', result);
+            if (result.error) {
+                console.error('error message:', result.error);
+            }
+            // check if authentication error or not
+            if (result.data && (result.data.message && result.data.message.includes('Unauthenticated'))) {
+                console.error('authentication failed. token maybe invalid or expired already.');
+            }
+            return null;
+        }
+    } catch (error) {
+        console.error('error fetching users:', error);
+        return null;
+    }
+}
+
+// render users table
+function renderUsersTable(usersData) {
+    const tbody = document.getElementById('usersTableBody');
+    const paginationWrapper = document.getElementById('paginationWrapper');
+    
+    if (!usersData || !usersData.data || usersData.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">no users found</td></tr>';
+        paginationWrapper.innerHTML = '';
+        return;
+    }
+    
+    // render table rows
+    tbody.innerHTML = usersData.data.map(user => {
+        const statusBadgeClass = (user.status === 'active') ? 'success' : 'secondary';
+        const role = user.role || '-';
+        const phone = user.phone_number || '-';
+        const joinDate = user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : '-';
+        const roleDisplay = escapeHtml(role.charAt(0).toUpperCase() + role.slice(1));
+        const statusDisplay = escapeHtml((user.status || '').charAt(0).toUpperCase() + (user.status || '').slice(1));
+        
+        return '<tr>' +
+            '<td>' + user.id + '</td>' +
+            '<td>' + escapeHtml(user.name || '') + '</td>' +
+            '<td>' + escapeHtml(user.email || '') + '</td>' +
+            '<td><span class="badge badge-info">' + roleDisplay + '</span></td>' +
+            '<td><span class="badge badge-' + statusBadgeClass + '">' + statusDisplay + '</span></td>' +
+            '<td>' + escapeHtml(phone) + '</td>' +
+            '<td>' + escapeHtml(joinDate) + '</td>' +
+            '<td class="actions">' +
+                '<a href="/admin/users/' + user.id + '" class="btn-sm btn-info" title="View">' +
+                    '<i class="fas fa-eye"></i>' +
+                '</a>' +
+                '<a href="/admin/users/' + user.id + '/edit" class="btn-sm btn-warning" title="Edit">' +
+                    '<i class="fas fa-edit"></i>' +
+                '</a>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+    
+    // render pagination
+    if (usersData.links && usersData.links.length > 0) {
+        let paginationHtml = '<ul class="pagination">';
+        
+        usersData.links.forEach(link => {
+            if (link.url) {
+                const activeClass = link.active ? 'active' : '';
+                const disabledClass = !link.url ? 'disabled' : '';
+                const label = link.label.replace('&laquo;', '<<').replace('&raquo;', '>>');
+                
+                paginationHtml += `
+                    <li class="page-item ${activeClass} ${disabledClass}">
+                        <a class="page-link" href="${link.url || '#'}" ${link.url ? '' : 'onclick="return false;"'}>
+                            ${label}
+                        </a>
+                    </li>
+                `;
+            }
+        });
+        
+        paginationHtml += '</ul>';
+        paginationWrapper.innerHTML = paginationHtml;
+        
+        // attach click handlers to pagination links
+        paginationWrapper.querySelectorAll('.page-link').forEach(link => {
+            if (link.href && !link.closest('.page-item').classList.contains('disabled')) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const url = new URL(this.href);
+                    const page = url.searchParams.get('page') || 1;
+                    performSearch(page);
+                });
+            }
+        });
+    } else {
+        paginationWrapper.innerHTML = '';
+    }
+}
+
+// clear user search
+function clearUserSearch() {
+    const searchInput = document.getElementById('userSearchInput');
+    const searchClearBtn = document.getElementById('userSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        performSearch(1);
+    }
+}
+
+// update sort indicators in table headers
+function updateSortIndicators() {
+    // remove all sort indicators first
+    document.querySelectorAll('.sort-icon').forEach(icon => {
+        icon.className = 'sort-icon';
+        icon.textContent = '';
+    });
+    
+    // add indicator to current sort column
+    const currentSortTh = document.querySelector(`th[data-sort="${currentSortBy}"]`);
+    if (currentSortTh) {
+        const icon = currentSortTh.querySelector('.sort-icon');
+        if (icon) {
+            icon.className = `sort-icon fas fa-sort-${currentSortOrder === 'asc' ? 'up' : 'down'}`;
+        }
+    }
+}
+
+// escape html to prevent xss attack
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// perform search function
+async function performSearch(page = 1, sortBy = null, sortOrder = null) {
+    // handle sorting
+    if (sortBy !== null) {
+        if (currentSortBy === sortBy) {
+            // toggle sort order
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortBy = sortBy;
+            currentSortOrder = 'asc';
+        }
+    }
+    // check if api available or not
+    if (typeof API === 'undefined') {
+        console.error('api is not defined! make sure api.js is loaded.');
+        alert('API not loaded yet. Please refresh the page.');
+        return;
+    }
+    
+    const searchInput = document.getElementById('userSearchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const roleFilter = document.getElementById('roleFilter');
+    const loadingIndicator = document.getElementById('searchLoading');
+    const tableContainer = document.querySelector('.table-container');
+    
+    const search = searchInput ? searchInput.value.trim() : '';
+    const status = statusFilter ? statusFilter.value : '';
+    const role = roleFilter ? roleFilter.value : '';
+    
+    currentPage = page;
+    
+    // show loading indicator
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
+    }
+    if (tableContainer) {
+        tableContainer.style.opacity = '0.5';
+    }
+    
+    try {
+        const usersData = await fetchUsers(search, status, role, page, currentSortBy, currentSortOrder);
+        
+        if (usersData && usersData.data) {
+            renderUsersTable(usersData);
+            updateSortIndicators();
+        } else {
+            console.error('no users data received:', usersData);
+            let errorMsg = 'cannot load user data.';
+            
+            // check if api available or not
+            if (typeof API === 'undefined') {
+                errorMsg += ' API not loaded. Please refresh the page.';
+            } else if (!API.getToken()) {
+                errorMsg += ' Token not found. Please login again.';
+            } else {
+                errorMsg += ' Please check browser console (F12) for more details.';
+            }
+            
+            document.getElementById('usersTableBody').innerHTML = 
+                '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
+        }
+    } catch (error) {
+        console.error('search error:', error);
+        const errorMsg = 'Error: ' + (error.message || 'Unknown error. Please check console.');
+        document.getElementById('usersTableBody').innerHTML = 
+            '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
+    } finally {
+        // hide loading indicator
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        if (tableContainer) {
+            tableContainer.style.opacity = '1';
+        }
+    }
+}
+
+// initialize real-time search
+document.addEventListener('DOMContentLoaded', function() {
+    // handle csv upload form with ajax
+    var csvForm = document.getElementById('csvUploadForm');
+    var csvUploadBtn = document.getElementById('csvUploadBtn');
+    
+    if (csvForm) {
+        csvForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // prevent normal form submission
+            
+            var formData = new FormData(csvForm);
+            var originalBtnText = csvUploadBtn.innerHTML;
+            
+            // disable button and show loading
+            csvUploadBtn.disabled = true;
+            csvUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading now...';
+            
+            // send ajax request - route will be provided from blade
+            const uploadRoute = window.userUploadCsvRoute || '/admin/users/upload-csv';
+            fetch(uploadRoute, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                }
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                // re-enable button
+                csvUploadBtn.disabled = false;
+                csvUploadBtn.innerHTML = originalBtnText;
+                
+                // check if success or not
+                if (data.success) {
+                    // show success toast
+                    if (typeof showToast !== 'undefined') {
+                        showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+                    
+                    // show errors if got any
+                    if (data.data && data.data.errors && data.data.errors.length > 0) {
+                        var errorMessage = 'Got errors:\n' + data.data.errors.join('\n');
+                        if (typeof showToast !== 'undefined') {
+                            showToast(errorMessage, 'warning');
+                        } else {
+                            alert(errorMessage);
+                        }
+                    }
+                    
+                    // reload page after 2 seconds to show updated user list
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    // show error toast
+                    const errorMsg = data.message || data.error || 'Cannot upload file';
+                    if (typeof showToast !== 'undefined') {
+                        showToast(errorMsg, 'error');
+                    } else {
+                        alert(errorMsg);
+                    }
+                }
+            })
+            .catch(function(error) {
+                // re-enable button
+                csvUploadBtn.disabled = false;
+                csvUploadBtn.innerHTML = originalBtnText;
+                
+                // show error toast
+                const errorMsg = 'Something went wrong: ' + error.message;
+                if (typeof showToast !== 'undefined') {
+                    showToast(errorMsg, 'error');
+                } else {
+                    alert(errorMsg);
+                }
+                console.error('upload error:', error);
+            });
+        });
+    }
+    
+    // real-time search setup
+    const searchInput = document.getElementById('userSearchInput');
+    const searchClearBtn = document.getElementById('userSearchClear');
+    const statusFilter = document.getElementById('statusFilter');
+    const roleFilter = document.getElementById('roleFilter');
+    const searchForm = document.querySelector('.filters-form');
+    
+    // prevent form submission, use ajax instead
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            performSearch(1);
+        });
+    }
+    
+    // real-time search on input (debounced)
+    if (searchInput) {
+        const debouncedSearch = debounce(() => {
+            performSearch(1);
+        }, 300); // 300ms delay
+        
+        searchInput.addEventListener('input', function() {
+            // show/hide clear button
+            if (searchClearBtn) {
+                if (this.value.trim()) {
+                    searchClearBtn.style.display = 'flex';
+                } else {
+                    searchClearBtn.style.display = 'none';
+                }
+            }
+            debouncedSearch();
+        });
+    }
+    
+    // filter changes trigger search
+    if (statusFilter) {
+        statusFilter.addEventListener('change', function() {
+            performSearch(1);
+        });
+    }
+    
+    if (roleFilter) {
+        roleFilter.addEventListener('change', function() {
+            performSearch(1);
+        });
+    }
+    
+    // add click handlers to sortable headers
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', function() {
+            const sortBy = this.getAttribute('data-sort');
+            performSearch(1, sortBy, null);
+        });
+    });
+});

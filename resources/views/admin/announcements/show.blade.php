@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li (announcement show) --}}
 @extends('layouts.app')
 
 @section('title', 'Announcement Details - TARUMT FMS')

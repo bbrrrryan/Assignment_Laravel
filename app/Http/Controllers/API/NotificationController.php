@@ -283,6 +283,7 @@ class NotificationController extends Controller
         $user = auth()->user();
         $perPage = $request->get('per_page', 10);
         $page = $request->get('page', 1);
+        $search = $request->get('search', '');
         // Handle both string and boolean values for only_unread
         $onlyUnreadParam = $request->get('only_unread', false);
         $onlyUnread = filter_var($onlyUnreadParam, FILTER_VALIDATE_BOOLEAN);
@@ -391,6 +392,16 @@ class NotificationController extends Controller
 
         // Combine and sort by created_at (unread items first, then starred, then by date)
         $combined = $announcements->concat($notifications);
+        
+        // apply search filter if search term provided
+        if (!empty($search)) {
+            $searchLower = strtolower($search);
+            $combined = $combined->filter(function($item) use ($searchLower) {
+                $title = strtolower($item['title'] ?? '');
+                $content = strtolower($item['content'] ?? '');
+                return strpos($title, $searchLower) !== false || strpos($content, $searchLower) !== false;
+            });
+        }
         
         $sorted = $combined->sort(function ($a, $b) {
                 // Unread items first
