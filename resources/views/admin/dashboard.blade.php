@@ -117,33 +117,6 @@
         </div>
     </div>
 
-    <!-- Notification Management Module Stats -->
-    <div class="module-section">
-        <h2 class="module-title">
-            <i class="fas fa-bell"></i> Notification Management Module
-        </h2>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-bell"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ $stats['total_notifications'] }}</h3>
-                    <p>Total Notifications</p>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ $stats['active_notifications'] }}</h3>
-                    <p>Active Notifications</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Feedback Management Module Stats -->
     <div class="module-section">
         <h2 class="module-title">
@@ -350,43 +323,6 @@
             </div>
         </div>
 
-        <!-- Recent Notifications -->
-        <div class="dashboard-section">
-            <div class="section-header">
-                <h2>Recent Notifications</h2>
-                <a href="{{ route('notifications.index') }}" class="btn-primary">View All</a>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Target</th>
-                            <th>Created By</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($recentNotifications as $notification)
-                            <tr>
-                                <td>{{ Str::limit($notification->title, 40) }}</td>
-                                <td>
-                                    <span class="badge badge-info">{{ ucfirst($notification->type) }}</span>
-                                </td>
-                                <td>{{ ucfirst($notification->target_audience) }}</td>
-                                <td>{{ $notification->creator->name ?? '-' }}</td>
-                                <td>{{ $notification->created_at->format('M d, Y') }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="text-center">No notifications found</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 @endsection

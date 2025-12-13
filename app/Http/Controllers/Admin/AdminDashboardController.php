@@ -2,18 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Booking;
 use App\Models\Facility;
-use App\Models\Notification;
 use App\Models\Feedback;
 use App\Models\LoyaltyPoint;
 use App\Models\Reward;
 use App\Models\Certificate;
 
-class AdminDashboardController extends Controller
+class AdminDashboardController extends AdminBaseController
 {
     /**
      * Display admin dashboard
@@ -35,10 +33,6 @@ class AdminDashboardController extends Controller
         $stats['active_facilities'] = Facility::where('status', 'available')->count();
         $stats['maintenance_facilities'] = Facility::where('status', 'maintenance')->count();
 
-        // Notification Stats
-        $stats['total_notifications'] = Notification::count();
-        $stats['active_notifications'] = Notification::where('is_active', true)->count();
-
         // Feedback Stats
         $stats['total_feedbacks'] = Feedback::count();
         $stats['pending_feedbacks'] = Feedback::where('status', 'pending')->count();
@@ -53,8 +47,7 @@ class AdminDashboardController extends Controller
         $recentUsers = User::latest()->limit(5)->get();
         $recentBookings = Booking::with(['user', 'facility'])->latest()->limit(5)->get();
         $recentFeedbacks = Feedback::with('user')->latest()->limit(5)->get();
-        $recentNotifications = Notification::with('creator')->latest()->limit(5)->get();
 
-        return view('admin.dashboard', compact('stats', 'recentUsers', 'recentBookings', 'recentFeedbacks', 'recentNotifications'));
+        return view('admin.dashboard', compact('stats', 'recentUsers', 'recentBookings', 'recentFeedbacks'));
     }
 }

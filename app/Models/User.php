@@ -12,7 +12,6 @@
  * @property string|null $phone_number
  * @property string|null $address
  * @property \Illuminate\Support\Carbon|null $last_login_at
- * @property array|null $settings
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * 
@@ -28,7 +27,6 @@
  * @method bool update(array $attributes = [])
  * @method bool save(array $options = [])
  * @method static self fresh(array|string $with = [])
- * @method array getMergedSettings()
  */
 
 namespace App\Models;
@@ -51,7 +49,6 @@ class User extends Authenticatable
         'phone_number',
         'address',
         'last_login_at',
-        'settings',
         'otp_code',
         'otp_expires_at',
     ];
@@ -66,7 +63,6 @@ class User extends Authenticatable
         'last_login_at' => 'datetime',
         'otp_expires_at' => 'datetime',
         'password' => 'hashed',
-        'settings' => 'array',
     ];
 
     // Relationships
@@ -79,6 +75,13 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Notification::class, 'user_notification')
                     ->withPivot('is_read', 'read_at', 'is_acknowledged', 'acknowledged_at')
+                    ->withTimestamps();
+    }
+
+    public function announcements()
+    {
+        return $this->belongsToMany(Announcement::class, 'user_announcement')
+                    ->withPivot('is_read', 'read_at')
                     ->withTimestamps();
     }
 
@@ -157,50 +160,4 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * Get user setting value
-     */
-    public function getSetting($key, $default = null)
-    {
-        $settings = $this->settings ?? [];
-        return $settings[$key] ?? $default;
-    }
-
-    /**
-     * Set user setting value
-     */
-    public function setSetting($key, $value)
-    {
-        $settings = $this->settings ?? [];
-        $settings[$key] = $value;
-        $this->settings = $settings;
-        return $this;
-    }
-
-    /**
-     * Get default settings
-     */
-    public static function getDefaultSettings()
-    {
-        return [
-            'notifications' => [
-                'email' => true,
-                'system' => true,
-                'booking_reminders' => true,
-                'facility_maintenance' => true,
-                'loyalty_rewards' => true,
-            ],
-        ];
-    }
-
-    /**
-     * Get merged settings with defaults
-     */
-    public function getMergedSettings()
-    {
-        $defaults = self::getDefaultSettings();
-        $userSettings = $this->settings ?? [];
-        
-        return array_merge($defaults, $userSettings);
-    }
 }

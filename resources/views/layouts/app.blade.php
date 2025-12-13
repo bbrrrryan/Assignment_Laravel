@@ -128,6 +128,195 @@
         .user-dropdown.active .dropdown-overlay {
             display: block;
         }
+        
+        /* Notification Bell Styles */
+        .notification-dropdown {
+            position: relative;
+            margin-right: 15px;
+        }
+        
+        .notification-button {
+            position: relative;
+            background: #ffffff;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 8px 15px;
+            cursor: pointer;
+            color: #2d3436;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .notification-button:hover {
+            border-color: #a31f37;
+            background: #fff5f7;
+        }
+        
+        .notification-button i {
+            color: #a31f37;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        
+        .notification-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 10px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            min-width: 350px;
+            max-width: 400px;
+            max-height: 500px;
+            z-index: 1001;
+            overflow: hidden;
+        }
+        
+        .notification-dropdown.active .notification-menu {
+            display: block;
+        }
+        
+        .notification-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+        }
+        
+        .notification-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            color: #2d3436;
+        }
+        
+        .view-all-link {
+            color: #a31f37;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .view-all-link:hover {
+            text-decoration: underline;
+        }
+        
+        .notification-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .notification-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .notification-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .notification-item.unread {
+            background: #f0f7ff;
+            border-left: 3px solid #a31f37;
+        }
+        
+        .notification-item-title {
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .notification-item-message {
+            color: #636e72;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        
+        .notification-item-time {
+            color: #95a5a6;
+            font-size: 0.75rem;
+        }
+        
+        .notification-loading,
+        .notification-empty {
+            padding: 30px 20px;
+            text-align: center;
+            color: #95a5a6;
+            font-size: 0.9rem;
+        }
+        
+        /* Auth Links Container */
+        #authLinks {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        /* Notification Icon Link */
+        .notification-icon-link {
+            position: relative;
+            background: #ffffff;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 8px 15px;
+            color: #2d3436;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+        
+        .notification-icon-link:hover {
+            border-color: #a31f37;
+            background: #fff5f7;
+        }
+        
+        .notification-icon-link i {
+            color: #a31f37;
+        }
+        
+        .notification-icon-link .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
     </style>
     <script>
         // Simple function to toggle user dropdown menu - using if-else only
@@ -156,7 +345,9 @@
                 // If click is outside and dropdown is active, close it
                 dropdown.classList.remove('active');
             }
+            
         });
+        
     </script>
     
     <!-- Toast Message System -->
@@ -287,6 +478,7 @@
             padding: 0 5px;
             word-break: break-word;
         }
+        
     </style>
     
     <script>
@@ -321,9 +513,37 @@
                         address: '{{ auth()->user()->address ?? '' }}',
                         status: '{{ auth()->user()->status }}'
                     }));
+                    
+                    // Load notification count for all authenticated users
+                    loadNotificationCount();
+                    // Refresh notification count every 30 seconds
+                    setInterval(loadNotificationCount, 30000);
                 @endif
             @endauth
         });
+        
+        // Load unread notification count for notification icon badge
+        async function loadNotificationCount() {
+            if (typeof API === 'undefined') return;
+            
+            try {
+                const result = await API.get('/notifications/user/unread-count');
+                if (result.success && result.data && result.data.count !== undefined) {
+                    const count = result.data.count;
+                    const badge = document.getElementById('notificationNavBadge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count > 99 ? '99+' : count;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading notification count:', error);
+            }
+        }
     </script>
 </head>
 <body>
@@ -332,7 +552,6 @@
         <div class="logo"><h1><a href="{{ route('home') }}" style="text-decoration: none; color: inherit;">TARUMT FMS</a></h1></div>
         <nav>
             <ul>
-                <li><a href="{{ route('home') }}">Home</a></li>
                 @auth
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
@@ -353,10 +572,27 @@
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
+                        <li><a href="{{ route('bookings.index') }}">Booking Management</a></li>
+                        <li><a href="{{ route('admin.announcements.index') }}">Announcement Management</a></li>
+                    @else
+                        <li><a href="{{ route('home') }}">Home</a></li>
+                        <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                        <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
+                        <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
+                        <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                     @endif
                 @endauth
+                @guest
+                    <li><a href="{{ route('home') }}">Home</a></li>
+                    <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
+                @endguest
                 <li id="authLinks">
                     @auth
+                        <!-- Notification Icon Link - All authenticated users -->
+                        <a href="{{ route('notifications.index') }}" class="notification-icon-link" title="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notificationNavBadge" style="display: none;">0</span>
+                        </a>
                         <div class="user-dropdown">
                             <button class="user-button" onclick="toggleUserMenu()">
                                 <i class="fas fa-user-circle"></i>
@@ -366,9 +602,6 @@
                             <div class="dropdown-menu" id="userDropdownMenu">
                                 <a href="{{ route('profile.index') }}">
                                     <i class="fas fa-user"></i> Profile
-                                </a>
-                                <a href="{{ route('settings.index') }}">
-                                    <i class="fas fa-cog"></i> Settings
                                 </a>
                                 <form method="POST" action="{{ route('logout') }}" style="margin: 0;">
                                     @csrf
@@ -394,7 +627,7 @@
     <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000;"></div>
 
     <footer>
-        &copy; 2025 TAR UMT Facilities Management System | Built by Liew Zi Li
+        &copy; 2025 TAR UMT Facilities Management System | Built by Group 5 F4
     </footer>
 
     <!-- Bootstrap JS -->

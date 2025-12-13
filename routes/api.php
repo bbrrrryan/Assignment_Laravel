@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\AnnouncementController;
 use App\Http\Controllers\API\LoyaltyController;
 use App\Http\Controllers\API\FeedbackController;
 use App\Http\Controllers\API\FacilityController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\API\BookingController;
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -35,8 +37,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // User profile routes (All authenticated users) - Must be before /users/{id} routes
     Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
     Route::get('/users/profile/activity-logs', [UserController::class, 'myActivityLogs']);
-    Route::get('/users/profile/settings', [UserController::class, 'getSettings']);
-    Route::put('/users/profile/settings', [UserController::class, 'updateSettings']);
 
     // User Management Routes (Admin only)
     Route::prefix('users')->middleware('admin')->group(function () {
@@ -65,8 +65,27 @@ Route::middleware('auth:sanctum')->group(function () {
         // All authenticated users
         Route::get('/{id}', [NotificationController::class, 'show']);
         Route::get('/user/my-notifications', [NotificationController::class, 'myNotifications']);
+        Route::get('/user/unread-count', [NotificationController::class, 'unreadCount']);
         Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/{id}/unread', [NotificationController::class, 'markAsUnread']);
         Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
+    });
+
+    // Announcement Management Routes
+    Route::prefix('announcements')->group(function () {
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::get('/', [AnnouncementController::class, 'index']);
+            Route::post('/', [AnnouncementController::class, 'store']);
+            Route::put('/{id}', [AnnouncementController::class, 'update']);
+            Route::delete('/{id}', [AnnouncementController::class, 'destroy']);
+            Route::post('/{id}/publish', [AnnouncementController::class, 'publish']);
+        });
+        // All authenticated users
+        Route::get('/{id}', [AnnouncementController::class, 'show']);
+        Route::get('/user/my-announcements', [AnnouncementController::class, 'myAnnouncements']);
+        Route::get('/user/unread-count', [AnnouncementController::class, 'unreadCount']);
+        Route::put('/{id}/read', [AnnouncementController::class, 'markAsRead']);
     });
 
     // Loyalty Management Routes
@@ -159,7 +178,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('/', [BookingController::class, 'index']);
             Route::put('/{id}', [BookingController::class, 'update']);
-            Route::delete('/{id}', [BookingController::class, 'destroy']);
             Route::put('/{id}/approve', [BookingController::class, 'approve']);
             Route::put('/{id}/reject', [BookingController::class, 'reject']);
         });

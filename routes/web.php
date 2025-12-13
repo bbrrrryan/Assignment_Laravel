@@ -44,13 +44,19 @@ Route::middleware('auth')->group(function () {
         // Facility Management
         Route::resource('facilities', FacilityController::class);
         
-        // Loyalty Management
-        Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
+        // Announcement Management
+        Route::get('/announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::get('/announcements/{id}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
+        Route::get('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'show'])->name('announcements.show');
+        Route::put('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     });
     
+    // Loyalty Management
+    Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
+
     // Profile Routes (All authenticated users)
     Route::get('/profile', [PageController::class, 'profile'])->name('profile.index');
-    Route::get('/settings', [PageController::class, 'settings'])->name('settings.index');
     
     // Facilities Routes
     Route::get('/facilities', [PageController::class, 'facilities'])->name('facilities.index');

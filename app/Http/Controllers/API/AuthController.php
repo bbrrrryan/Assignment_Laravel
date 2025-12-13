@@ -20,10 +20,33 @@ class AuthController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => 'required|string|email|max:255',
             'password' => 'required|string|min:6|confirmed',
             'role' => 'nullable|in:admin,student,staff',
         ]);
+
+        // Check if email already exists
+        $existingUser = User::where('email', $request->email)->first();
+        
+        // If user exists and is inactive with expired OTP, allow re-registration
+        if ($existingUser) {
+            if ($existingUser->status === 'inactive' && $existingUser->otp_expires_at && $existingUser->otp_expires_at->isPast()) {
+                // Delete expired unactivated account to allow re-registration
+                $existingUser->delete();
+            } else if ($existingUser->status === 'active') {
+                // Active account exists, return validation error
+                throw ValidationException::withMessages([
+                    'email' => ['The email has already been taken.'],
+                ]);
+            } else if ($existingUser->status === 'inactive' && $existingUser->otp_expires_at && !$existingUser->otp_expires_at->isPast()) {
+                // Inactive account with valid OTP, redirect to OTP verification page
+                return response()->json([
+                    'message' => 'OTP already sent. Please check your email and verify.',
+                    'redirect_to_otp' => true,
+                    'email' => $existingUser->email,
+                ], 200);
+            }
+        }
 
         // Use provided role or default to student - using simple if-else
         $role = $request->role ?? 'student';
@@ -34,7 +57,7 @@ class AuthController extends Controller
         
         // Generate 6-digit OTP
         $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $otpExpiresAt = now()->addMinutes(15);
+        $otpExpiresAt = now()->addMinutes(3);
 
         $user = User::create([
             'name' => $request->name,
@@ -146,5 +169,55 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
         ]);
+    }
+
+    /**
+     * Resend OTP code
+     */
+    public function resendOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Email not found.',
+            ], 404);
+        }
+
+        // Check if account is already active
+        if ($user->status === 'active') {
+            return response()->json([
+                'message' => 'Account already activated. Please login.',
+            ], 400);
+        }
+
+        // Generate new 6-digit OTP
+        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $otpExpiresAt = now()->addMinutes(3);
+
+        // Update user with new OTP
+        $user->update([
+            'otp_code' => $otpCode,
+            'otp_expires_at' => $otpExpiresAt,
+        ]);
+
+        // Send OTP email
+        try {
+            Mail::to($user->email)->send(new OtpVerificationMail($otpCode, $user->name));
+        } catch (\Exception $e) {
+            Log::error('Failed to resend OTP email: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Cannot send OTP email. Please check email configuration.',
+                'error' => 'Email sending failed: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'OTP code resent successfully. Please check your email.',
+        ], 200);
     }
 }

@@ -138,10 +138,4 @@ class PageController extends Controller
     {
         return view('profile.index');
     }
-
-    // Settings
-    public function settings()
-    {
-        return view('settings.index');
-    }
 }

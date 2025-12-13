@@ -20,7 +20,7 @@
             <h1 style="color: #cb2d3e; font-size: 36px; letter-spacing: 5px; margin: 0;">{{ $otpCode }}</h1>
         </div>
         
-        <p style="color: #666; font-size: 14px;">This code will expire in 15 minutes.</p>
+        <p style="color: #666; font-size: 14px;">This code will expire in 3 minutes.</p>
         
         <p>If you didn't create an account, please ignore this email.</p>
         

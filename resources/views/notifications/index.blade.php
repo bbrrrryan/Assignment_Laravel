@@ -5,61 +5,13 @@
 @section('content')
 <div class="page-container">
     <div class="page-header">
-        <h1 id="notificationsTitle">Notifications</h1>
-        <button id="createNotificationBtn" class="btn-primary" onclick="showCreateModal()" style="display: none;">
-            <i class="fas fa-plus"></i> Create Notification
-        </button>
+        <h1>Notification</h1>
     </div>
 
-    <div class="tabs" id="notificationTabs">
-        <button class="tab-btn active" onclick="showTab('all')">All</button>
-        <button class="tab-btn" onclick="showTab('unread')">Unread</button>
-        <button class="tab-btn" onclick="showTab('my')">My Notifications</button>
-    </div>
+    <hr class="notification-divider">
 
     <div id="notificationsList" class="notifications-container">
         <p>Loading notifications...</p>
-    </div>
-</div>
-
-<!-- Create Notification Modal -->
-<div id="notificationModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Create Notification</h2>
-        <form id="notificationForm">
-            <div class="form-group">
-                <label>Title *</label>
-                <input type="text" id="notifTitle" required>
-            </div>
-            <div class="form-group">
-                <label>Message *</label>
-                <textarea id="notifMessage" required rows="4"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Type *</label>
-                <select id="notifType" required>
-                    <option value="info">Info</option>
-                    <option value="warning">Warning</option>
-                    <option value="success">Success</option>
-                    <option value="error">Error</option>
-                    <option value="reminder">Reminder</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Target Audience *</label>
-                <select id="notifAudience" required>
-                    <option value="all">All Users</option>
-                    <option value="students">Students</option>
-                    <option value="staff">Staff</option>
-                    <option value="admins">Admins</option>
-                </select>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Create & Send</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -77,109 +29,106 @@ document.addEventListener('DOMContentLoaded', function() {
     initNotifications();
 });
 
-let currentTab = 'all';
-
 function initNotifications() {
-    // Update UI based on user role
-    const titleElement = document.getElementById('notificationsTitle');
-    const createBtn = document.getElementById('createNotificationBtn');
-    const tabsContainer = document.getElementById('notificationTabs');
-    
-    if (API.isAdmin()) {
-        if (titleElement) {
-            titleElement.textContent = 'Notifications';
-        }
-        // Show create button and all tabs for admin
-        if (createBtn) {
-            createBtn.style.display = 'block';
-        }
-        if (tabsContainer) {
-            tabsContainer.style.display = 'flex';
-        }
-    } else {
-        if (titleElement) {
-            titleElement.textContent = 'My Notifications';
-        }
-        // Hide create button for students
-        if (createBtn) {
-            createBtn.style.display = 'none';
-        }
-        // Hide "All" tab for students, only show "My Notifications"
-        if (tabsContainer) {
-            const allTab = tabsContainer.querySelector('button[onclick="showTab(\'all\')"]');
-            const unreadTab = tabsContainer.querySelector('button[onclick="showTab(\'unread\')"]');
-            if (allTab) allTab.style.display = 'none';
-            if (unreadTab) unreadTab.style.display = 'none';
-            // Set default tab to 'my' for students
-            currentTab = 'my';
-            const myTab = tabsContainer.querySelector('button[onclick="showTab(\'my\')"]');
-            if (myTab) {
-                myTab.classList.add('active');
-            }
-        }
-    }
-    
     loadNotifications();
 }
 
 async function loadNotifications() {
-    showLoading(document.getElementById('notificationsList'));
+    const container = document.getElementById('notificationsList');
+    container.innerHTML = '<p>Loading notifications...</p>';
     
-    // Use appropriate endpoint based on user role and tab
-    let endpoint;
-    if (API.isAdmin()) {
-        if (currentTab === 'my') {
-            endpoint = '/notifications/user/my-notifications';
-        } else {
-            endpoint = '/notifications';
-        }
-    } else {
-        // Students can only access their own notifications
-        endpoint = '/notifications/user/my-notifications';
-    }
+    // Admin sees all notifications, regular users see only their own
+    const endpoint = API.isAdmin() ? '/notifications' : '/notifications/user/my-notifications';
 
-    const result = await API.get(endpoint);
-    
-    if (result.success) {
-        const notifications = result.data.data?.data || result.data.data || [];
-        displayNotifications(notifications);
-    } else {
-        showError(document.getElementById('notificationsList'), result.error || 'Failed to load notifications');
-        console.error('Error loading notifications:', result);
+    try {
+        const result = await API.get(endpoint);
+        
+        console.log('Notification API Response:', result);
+        
+        if (result.success) {
+            // Handle paginated response: result.data.data is the pagination object
+            // result.data.data.data is the actual array of notifications
+            let notifications = [];
+            
+            if (result.data && result.data.data) {
+                // Check if it's a paginated response
+                if (Array.isArray(result.data.data)) {
+                    // Direct array response
+                    notifications = result.data.data;
+                } else if (result.data.data.data && Array.isArray(result.data.data.data)) {
+                    // Paginated response
+                    notifications = result.data.data.data;
+                } else if (result.data.data.data && Array.isArray(result.data.data)) {
+                    // Alternative structure
+                    notifications = result.data.data;
+                }
+            }
+            
+            console.log('Parsed notifications:', notifications);
+            console.log('Notifications count:', notifications.length);
+            
+            displayNotifications(notifications);
+        } else {
+            container.innerHTML = `<p style="color: red;">Error: ${result.error || 'Failed to load notifications'}</p>`;
+            console.error('Error loading notifications:', result);
+        }
+    } catch (error) {
+        container.innerHTML = `<p style="color: red;">Error loading notifications: ${error.message}</p>`;
+        console.error('Exception loading notifications:', error);
     }
 }
 
 function displayNotifications(notifications) {
     const container = document.getElementById('notificationsList');
-    
-    if (currentTab === 'unread') {
-        notifications = notifications.filter(n => !n.pivot?.is_read);
-    }
 
     if (notifications.length === 0) {
         container.innerHTML = '<p>No notifications found</p>';
         return;
     }
 
-    container.innerHTML = notifications.map(notif => `
-        <div class="notification-card ${notif.pivot?.is_read ? '' : 'unread'}">
-            <div class="notification-icon">
-                <i class="fas fa-${getNotificationIcon(notif.type)}"></i>
-            </div>
-            <div class="notification-content">
-                <h3>${notif.title}</h3>
-                <p>${notif.message}</p>
-                <div class="notification-meta">
-                    <span class="notification-type type-${notif.type}">${notif.type}</span>
-                    <span class="notification-time">${formatDateTime(notif.created_at)}</span>
-                </div>
-            </div>
-            <div class="notification-actions">
-                ${!notif.pivot?.is_read ? `<button class="btn-sm" onclick="markAsRead(${notif.id})">Mark Read</button>` : ''}
-                <button class="btn-sm" onclick="viewNotification(${notif.id})">View</button>
-            </div>
-        </div>
-    `).join('');
+    const isAdmin = API.isAdmin();
+    
+    container.innerHTML = `
+        <table class="notification-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Sender</th>
+                    ${isAdmin ? '<th>Target Audience</th>' : ''}
+                    <th>Date</th>
+                    ${!isAdmin ? '<th>Mark as Unread</th>' : ''}
+                </tr>
+            </thead>
+            <tbody>
+                ${notifications.map(notif => {
+                    // Admin viewing all notifications may not have pivot data
+                    // Regular users viewing their notifications will have pivot data
+                    const isRead = notif.pivot?.is_read || false;
+                    const sender = notif.creator?.name || 'System';
+                    const date = formatDateTime(notif.created_at);
+                    const isAdmin = API.isAdmin();
+                    const hasPivot = notif.pivot !== undefined && notif.pivot !== null;
+                    
+                    return `
+                    <tr class="notification-row ${isRead ? 'read' : 'unread'}" onclick="handleRowClick(event, ${notif.id}, ${isRead})">
+                        <td class="notification-title ${isRead ? 'read-text' : ''}">
+                            <i class="fas fa-${getNotificationIcon(notif.type)} notification-type-icon type-${notif.type}"></i>
+                            ${notif.title}
+                        </td>
+                        <td class="notification-sender ${isRead ? 'read-text' : ''}">${sender}</td>
+                        ${isAdmin ? `<td class="notification-audience ${isRead ? 'read-text' : ''}">${notif.target_audience ? notif.target_audience.charAt(0).toUpperCase() + notif.target_audience.slice(1) : 'All'}</td>` : ''}
+                        <td class="notification-date ${isRead ? 'read-text' : ''}">${date}</td>
+                        ${!isAdmin ? `<td class="notification-actions" onclick="event.stopPropagation()">
+                            ${hasPivot && isRead ? `<button class="btn-unread-icon" onclick="markAsUnread(${notif.id}, event)" title="Mark as Unread">
+                                <i class="fas fa-envelope-open"></i>
+                            </button>` : ''}
+                        </td>` : ''}
+                    </tr>
+                `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
 }
 
 function getNotificationIcon(type) {
@@ -193,66 +142,214 @@ function getNotificationIcon(type) {
     return icons[type] || 'bell';
 }
 
-// Make functions global
-window.showTab = function(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    loadNotifications();
-};
+function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString();
+}
 
-window.showCreateModal = function() {
-    document.getElementById('notificationForm').reset();
-    document.getElementById('notificationModal').style.display = 'block';
-};
+// Handle row click - mark as read and navigate
+async function handleRowClick(event, id, isRead) {
+    // Only mark as read if user has this notification (has pivot data)
+    // Admin viewing all notifications may not have pivot, so skip marking as read
+    const isAdmin = API.isAdmin();
+    
+    // For regular users, mark as read if not already read
+    if (!isAdmin && !isRead) {
+        try {
+            await API.put(`/notifications/${id}/read`, {});
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    }
+    
+    // Navigate to notification page
+    window.location.href = `/notifications/${id}`;
+}
 
-window.closeModal = function() {
-    document.getElementById('notificationModal').style.display = 'none';
-};
-
-window.markAsRead = async function(id) {
-    const result = await API.put(`/notifications/${id}/read`, {});
+window.markAsUnread = async function(id, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    const result = await API.put(`/notifications/${id}/unread`, {});
     
     if (result.success) {
         loadNotifications();
+        showToast('Notification marked as unread', 'success');
     } else {
-        alert(result.error || 'Error marking notification as read');
+        showToast('Error marking notification as unread: ' + (result.error || 'Unknown error'), 'error');
     }
 };
 
-window.viewNotification = function(id) {
-    window.location.href = `/notifications/${id}`;
-};
-
-// Bind form submit event
-(function() {
-    const notificationForm = document.getElementById('notificationForm');
-    if (notificationForm) {
-        notificationForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const data = {
-                title: document.getElementById('notifTitle').value,
-                message: document.getElementById('notifMessage').value,
-                type: document.getElementById('notifType').value,
-                target_audience: document.getElementById('notifAudience').value
-            };
-
-            const result = await API.post('/notifications', data);
-
-            if (result.success) {
-                // Send notification
-                const sendResult = await API.post(`/notifications/${result.data.data.id}/send`, {});
-                
-                window.closeModal();
-                loadNotifications();
-                alert('Notification created and sent!');
-            } else {
-                alert(result.error || 'Error creating notification');
-            }
-        });
-    }
-})();
 </script>
+
+<style>
+.notification-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.notification-table thead {
+    background: #f8f9fa;
+}
+
+.notification-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.notification-table th:first-child {
+    width: 50%;
+    text-align: left;
+}
+
+.notification-table th:nth-child(2) {
+    width: 20%;
+    text-align: left;
+}
+
+.notification-table th:nth-child(3) {
+    width: 20%;
+    text-align: left;
+}
+
+.notification-table th:last-child {
+    width: 10%;
+    text-align: center;
+}
+
+.notification-row {
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.notification-row:hover {
+    background: #f8f9fa;
+}
+
+.notification-row.unread {
+    background: #fff;
+}
+
+.notification-row.read {
+    background: #fafafa;
+    opacity: 0.7;
+}
+
+.notification-row.read:hover {
+    opacity: 0.9;
+}
+
+.notification-table td {
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+.notification-title {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.notification-title.read-text {
+    color: #999;
+}
+
+.notification-type-icon {
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.notification-type-icon.type-info {
+    color: #0c5460;
+}
+
+.notification-type-icon.type-warning {
+    color: #856404;
+}
+
+.notification-type-icon.type-success {
+    color: #155724;
+}
+
+.notification-type-icon.type-error {
+    color: #721c24;
+}
+
+.notification-type-icon.type-reminder {
+    color: #383d41;
+}
+
+.notification-sender {
+    color: #666;
+    text-align: left;
+}
+
+.notification-sender.read-text {
+    color: #999;
+}
+
+.notification-date {
+    color: #666;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+.notification-date.read-text {
+    color: #999;
+}
+
+.notification-actions {
+    text-align: center;
+}
+
+.btn-unread-icon {
+    padding: 8px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: #999;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.btn-unread-icon:hover {
+    background: #f0f0f0;
+    color: #666;
+}
+
+.notification-divider {
+    border: none;
+    border-top: 2px solid #e0e0e0;
+    margin: 20px 0;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.page-header h1 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 2em;
+}
+</style>
 @endsection
 

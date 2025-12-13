@@ -3,64 +3,206 @@
 @section('title', 'Bookings - TARUMT FMS')
 
 @section('content')
-<div class="page-container">
+<div class="container">
     <div class="page-header">
-        <h1 id="bookingsTitle">My Bookings</h1>
-        <button id="newBookingBtn" class="btn-primary" onclick="showCreateModal()" style="display: none;">
-            <i class="fas fa-plus"></i> New Booking
-        </button>
+        <div class="page-header-content">
+            <h1 id="bookingsTitle">My Bookings</h1>
+            <p id="bookingsSubtitle">Manage your facility bookings</p>
+        </div>
+        <div>
+            <button id="newBookingBtn" class="btn-header-white" onclick="showCreateModal()" style="display: none;">
+                <i class="fas fa-plus"></i> New Booking
+            </button>
+        </div>
     </div>
 
-    <div class="filters">
-        <select id="statusFilter" onchange="filterBookings()">
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="cancelled">Cancelled</option>
-        </select>
+    <!-- Search and Filters -->
+    <div class="filters-section">
+        <div class="filters-card">
+            <div class="filters-form">
+                <div class="filter-input-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <input type="text" id="searchInput" placeholder="Search by booking number, facility or purpose..." 
+                           class="filter-input" onkeyup="filterBookings()">
+                </div>
+                
+                <div class="filter-select-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <select id="statusFilter" class="filter-select" onchange="filterBookings()">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Bookings Table -->
     <div id="bookingsList" class="table-container">
         <p>Loading bookings...</p>
     </div>
 </div>
 
-<!-- Create Booking Modal -->
+<!-- Cancel Booking Confirmation Modal -->
+<div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
+    <div class="cancel-modal-content" onclick="event.stopPropagation()">
+        <div class="cancel-modal-header">
+            <div class="cancel-modal-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>Cancel Booking Confirmation</h3>
+            <span class="cancel-modal-close" onclick="closeCancelModal()">&times;</span>
+        </div>
+        <div class="cancel-modal-body">
+            <p class="cancel-warning-text">
+                Are you sure you want to cancel this booking? This action cannot be undone.
+            </p>
+            <div class="cancel-reason-section">
+                <label for="cancelReason" class="cancel-reason-label">
+                    <i class="fas fa-comment-alt"></i> Reason for Cancellation <span class="text-danger">*</span>
+                </label>
+                <select id="cancelReason" class="cancel-reason-select" onchange="handleReasonChange()">
+                    <option value="">Select a reason...</option>
+                    <option value="schedule_conflict">Schedule Conflict</option>
+                    <option value="no_longer_needed">No Longer Needed</option>
+                    <option value="found_alternative">Found Alternative Facility</option>
+                    <option value="event_cancelled">Event Cancelled</option>
+                    <option value="insufficient_attendees">Insufficient Attendees</option>
+                    <option value="facility_issue">Facility Issue</option>
+                    <option value="other">Other (Please specify)</option>
+                </select>
+                <textarea 
+                    id="customCancelReason" 
+                    class="cancel-custom-reason" 
+                    placeholder="Please provide additional details..."
+                    style="display: none;"
+                    rows="3"
+                ></textarea>
+            </div>
+        </div>
+        <div class="cancel-modal-footer">
+            <button class="btn-cancel-modal" onclick="closeCancelModal()">
+                <i class="fas fa-times"></i> Keep Booking
+            </button>
+            <button class="btn-confirm-cancel" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled>
+                <i class="fas fa-check"></i> Confirm Cancellation
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Booking Modal -->
 <div id="bookingModal" class="modal" style="display: none;">
-    <div class="modal-content">
+    <div class="modal-content modal-large">
         <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Create New Booking</h2>
-        <form id="bookingForm">
-            <div class="form-group">
-                <label>Facility *</label>
-                <select id="bookingFacility" required></select>
+        
+        <!-- Form Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-plus-circle me-2 text-primary" id="modalIcon"></i><span id="modalTitle">Create New Booking</span>
+                </h5>
             </div>
-            <div class="form-group">
-                <label>Booking Date *</label>
-                <input type="date" id="bookingDate" required>
+            <div class="card-body">
+                <form id="bookingForm">
+                    <!-- Basic Information Section -->
+                    <div class="mb-4">
+                        <h5 class="text-primary mb-3 border-bottom pb-2">
+                            <i class="fas fa-info-circle me-2"></i>Basic Information
+                        </h5>
+                        
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="bookingFacility" class="form-label">Facility <span class="text-danger">*</span></label>
+                                <select id="bookingFacility" class="form-select" required onchange="handleFacilityChange(this)">
+                                    <option value="">Select Facility</option>
+                                </select>
+                                <small class="form-text text-muted">Select a facility to view available time slots for the next 3 days</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Time Information Section -->
+                    <div class="mb-4">
+                        <h5 class="text-primary mb-3 border-bottom pb-2">
+                            <i class="fas fa-clock me-2"></i>Time Information
+                        </h5>
+                        
+                        <!-- Duration Selection -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Booking Duration <span class="text-danger">*</span></label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration1h" value="1" checked>
+                                    <label class="btn btn-outline-primary" for="duration1h">
+                                        <i class="fas fa-clock me-2"></i>1 Hour
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration2h" value="2">
+                                    <label class="btn btn-outline-primary" for="duration2h">
+                                        <i class="fas fa-clock me-2"></i>2 Hours
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visual Timetable -->
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Select Time Slot <span class="text-danger">*</span></label>
+                                <div id="timetableContainer" class="timetable-container">
+                                    <div class="timetable-loading">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>Loading timetable...
+                                    </div>
+                                </div>
+                                <input type="hidden" id="bookingStartTime" required>
+                                <input type="hidden" id="bookingEndTime" required>
+                                <input type="hidden" id="selectedBookingDate" required>
+                                <div id="timeSlotError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
+                                <small class="form-text text-muted">Click on an available time slot to select. Green slots are available, red slots are booked.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information Section -->
+                    <div class="mb-4">
+                        <h5 class="text-primary mb-3 border-bottom pb-2">
+                            <i class="fas fa-calendar-alt me-2"></i>Additional Information
+                        </h5>
+                        
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="bookingPurpose" class="form-label">Purpose <span class="text-danger">*</span></label>
+                                <textarea id="bookingPurpose" class="form-control" required rows="3" placeholder="Enter the purpose of this booking..."></textarea>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="bookingAttendees" class="form-label">Expected Attendees</label>
+                                <input type="number" id="bookingAttendees" class="form-control" min="1" placeholder="Number of attendees">
+                                <small class="form-text text-muted">Optional: Number of people expected to attend</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="closeModal()">
+                            <i class="fas fa-times me-2"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i> <span id="submitButtonText">Submit Booking</span>
+                        </button>
+                    </div>
+                </form>
             </div>
-            <div class="form-group">
-                <label>Start Time *</label>
-                <input type="datetime-local" id="bookingStartTime" required min="">
-            </div>
-            <div class="form-group">
-                <label>End Time *</label>
-                <input type="datetime-local" id="bookingEndTime" required min="">
-            </div>
-            <div class="form-group">
-                <label>Purpose *</label>
-                <textarea id="bookingPurpose" required rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Expected Attendees</label>
-                <input type="number" id="bookingAttendees" min="1">
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Submit Booking</button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 
@@ -76,28 +218,199 @@ window.showCreateModal = function() {
     const form = document.getElementById('bookingForm');
     if (form) {
         form.reset();
+        delete form.dataset.bookingId;
     }
     
-    // Set minimum date to today
-    const today = new Date().toISOString().slice(0, 16);
-    const dateInput = document.getElementById('bookingDate');
+    // Reset modal title and button
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const submitButtonText = document.getElementById('submitButtonText');
+    
+    if (modalTitle) modalTitle.textContent = 'Create New Booking';
+    if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+    if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
+    
+    // Reset time slot selection
+    selectedTimeSlot = null;
     const startTimeInput = document.getElementById('bookingStartTime');
     const endTimeInput = document.getElementById('bookingEndTime');
+    const selectedDateInput = document.getElementById('selectedBookingDate');
+    if (startTimeInput) startTimeInput.value = '';
+    if (endTimeInput) endTimeInput.value = '';
+    if (selectedDateInput) selectedDateInput.value = '';
     
-    if (dateInput) {
-        dateInput.min = new Date().toISOString().split('T')[0];
-    }
-    if (startTimeInput) {
-        startTimeInput.min = today;
-    }
-    if (endTimeInput) {
-        endTimeInput.min = today;
+    // Clear timetable and show placeholder
+    clearTimetable();
+    
+    // Clear any previous validation errors
+    const timeSlotError = document.getElementById('timeSlotError');
+    if (timeSlotError) {
+        timeSlotError.style.display = 'none';
+        timeSlotError.textContent = '';
     }
     
     const modal = document.getElementById('bookingModal');
     if (modal) {
         modal.style.display = 'block';
     }
+    
+    // Ensure facility select has event listener
+    const facilitySelect = document.getElementById('bookingFacility');
+    if (facilitySelect) {
+        // Use onclick attribute for more reliable binding
+        facilitySelect.onchange = function() {
+            if (this.value) {
+                loadTimetable(this.value);
+            } else {
+                clearTimetable();
+            }
+        };
+        
+        // If facility is already selected, load timetable
+        if (facilitySelect.value) {
+            setTimeout(() => {
+                loadTimetable(facilitySelect.value);
+            }, 100);
+        }
+    }
+};
+
+// Function to validate time range in real-time
+window.validateTimeRange = function() {
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
+    
+    // Clear previous errors
+    clearTimeValidationErrors();
+    
+    // Check if both times are filled
+    if (!startTimeInput || !endTimeInput || !startTimeInput.value || !endTimeInput.value) {
+        return true; // Allow empty values during input
+    }
+    
+    const startTime = startTimeInput.value;
+    const endTime = endTimeInput.value;
+    const minTime = '08:00';
+    const maxTime = '20:00';
+    
+    // Validate start time is within allowed range (8:00 - 20:00)
+    if (startTime < minTime || startTime > maxTime) {
+        if (startTimeError) {
+            startTimeError.textContent = 'Start time must be between 8:00 AM and 8:00 PM';
+            startTimeError.style.display = 'block';
+        }
+        startTimeInput.classList.add('is-invalid');
+        startTimeInput.setCustomValidity('Start time must be between 8:00 AM and 8:00 PM');
+        return false;
+    }
+    
+    // Validate end time is within allowed range (8:00 - 20:00)
+    if (endTime < minTime || endTime > maxTime) {
+        if (endTimeError) {
+            endTimeError.textContent = 'End time must be between 8:00 AM and 8:00 PM';
+            endTimeError.style.display = 'block';
+        }
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity('End time must be between 8:00 AM and 8:00 PM');
+        return false;
+    }
+    
+    // Compare times - end time must be after start time
+    if (startTime >= endTime) {
+        showTimeValidationError('End time must be after start time');
+        return false;
+    }
+    
+    return true;
+};
+
+// Function to show time validation error
+function showTimeValidationError(message) {
+    const endTimeError = document.getElementById('endTimeError');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (endTimeError) {
+        endTimeError.textContent = message;
+        endTimeError.style.display = 'block';
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity(message);
+    }
+}
+
+// Function to clear time validation errors
+function clearTimeValidationErrors() {
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (startTimeError) {
+        startTimeError.style.display = 'none';
+        startTimeError.textContent = '';
+    }
+    
+    if (endTimeError) {
+        endTimeError.style.display = 'none';
+        endTimeError.textContent = '';
+    }
+    
+    if (startTimeInput) {
+        startTimeInput.classList.remove('is-invalid');
+        startTimeInput.setCustomValidity('');
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.remove('is-invalid');
+        endTimeInput.setCustomValidity('');
+    }
+}
+
+// Function to validate booking date (must be tomorrow or later)
+window.validateBookingDate = function() {
+    const dateInput = document.getElementById('bookingDate');
+    const errorDiv = document.getElementById('bookingDateError');
+    
+    if (!dateInput || !dateInput.value) {
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+        dateInput?.classList.remove('is-invalid');
+        return true;
+    }
+    
+    const selectedDate = new Date(dateInput.value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    // Check if selected date is today or earlier
+    if (selectedDate <= today) {
+        if (errorDiv) {
+            errorDiv.textContent = 'You can only book from tomorrow onwards. Please select a future date.';
+            errorDiv.style.display = 'block';
+        }
+        dateInput.classList.add('is-invalid');
+        dateInput.setCustomValidity('You can only book from tomorrow onwards');
+        return false;
+    }
+    
+    // Date is valid
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+    }
+    dateInput.classList.remove('is-invalid');
+    dateInput.setCustomValidity('');
+    
+    // Update facilities when date is valid
+    updateFacilitiesByDate();
+    return true;
 };
 
 window.closeModal = function() {
@@ -108,10 +421,20 @@ window.closeModal = function() {
 };
 
 window.filterBookings = function() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter');
     if (!statusFilter) return;
     const status = statusFilter.value;
-    const filtered = status ? bookings.filter(b => b.status === status) : bookings;
+    
+    const filtered = bookings.filter(b => {
+        const matchSearch = !search || 
+            (b.booking_number && b.booking_number.toLowerCase().includes(search)) ||
+            (b.facility?.name && b.facility.name.toLowerCase().includes(search)) ||
+            (b.purpose && b.purpose.toLowerCase().includes(search));
+        const matchStatus = !status || b.status === status;
+        return matchSearch && matchStatus;
+    });
+    
     if (typeof displayBookings === 'function') {
         displayBookings(filtered);
     }
@@ -121,25 +444,155 @@ window.viewBooking = function(id) {
     window.location.href = `/bookings/${id}`;
 };
 
-window.cancelBooking = async function(id) {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
+let currentBookingId = null;
+
+window.cancelBooking = function(id) {
+    currentBookingId = id;
+    
+    // Initialize listeners if not already done
+    initCancelModalListeners();
+    
+    // Reset modal
+    document.getElementById('cancelReason').value = '';
+    document.getElementById('customCancelReason').value = '';
+    document.getElementById('customCancelReason').style.display = 'none';
+    document.getElementById('confirmCancelBtn').disabled = true;
+    
+    // Show modal
+    document.getElementById('cancelBookingModal').style.display = 'flex';
+};
+
+function closeCancelModal() {
+    document.getElementById('cancelBookingModal').style.display = 'none';
+    currentBookingId = null;
+}
+
+function handleReasonChange() {
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    
+    if (reasonSelect.value === 'other') {
+        customReason.style.display = 'block';
+        customReason.required = true;
+    } else {
+        customReason.style.display = 'none';
+        customReason.required = false;
+    }
+    
+    // Enable confirm button if reason is selected
+    confirmBtn.disabled = !reasonSelect.value || (reasonSelect.value === 'other' && !customReason.value.trim());
+}
+
+// Enable confirm button when custom reason is typed
+function initCancelModalListeners() {
+    const customReason = document.getElementById('customCancelReason');
+    if (customReason && !customReason.hasAttribute('data-listener-added')) {
+        customReason.setAttribute('data-listener-added', 'true');
+        customReason.addEventListener('input', function() {
+            const reasonSelect = document.getElementById('cancelReason');
+            const confirmBtn = document.getElementById('confirmCancelBtn');
+            if (reasonSelect && reasonSelect.value === 'other') {
+                confirmBtn.disabled = !this.value.trim();
+            }
+        });
+    }
+}
+
+async function confirmCancelBooking() {
+    // Save booking ID before closing modal
+    const bookingId = currentBookingId;
+    
+    if (!bookingId) {
+        alert('Error: Booking ID is missing. Please try again.');
+        return;
+    }
+    
     if (typeof API === 'undefined') {
         alert('API not loaded');
         return;
     }
-    const result = await API.put(`/bookings/${id}/cancel`, { reason: 'Cancelled by user' });
-    if (result.success) {
-        if (typeof loadBookings === 'function') {
-            loadBookings();
-        }
-        alert('Booking cancelled successfully!');
-    } else {
-        alert(result.error || 'Error cancelling booking');
+    
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    
+    if (!reasonSelect.value) {
+        alert('Please select a reason for cancellation.');
+        return;
     }
-};
+    
+    if (reasonSelect.value === 'other' && !customReason.value.trim()) {
+        alert('Please provide a reason for cancellation.');
+        return;
+    }
+    
+    // Build reason text
+    const reasonText = reasonSelect.value === 'other' 
+        ? customReason.value.trim()
+        : reasonSelect.options[reasonSelect.selectedIndex].text;
+    
+    // Disable confirm button
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+    
+    // Close modal
+    closeCancelModal();
+    
+    try {
+        const result = await API.put(`/bookings/${bookingId}/cancel`, { reason: reasonText });
+        
+        if (result.success) {
+            // Reload bookings list
+            if (typeof loadBookings === 'function') {
+                loadBookings();
+            }
+            // Show success message
+            alert('✅ Booking cancelled successfully!');
+        } else {
+            alert('❌ Error: ' + (result.error || 'Failed to cancel booking. Please try again.'));
+        }
+    } catch (error) {
+        alert('❌ Error: ' + (error.message || 'An unexpected error occurred. Please try again.'));
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm Cancellation';
+        }
+    }
+}
 
 // Admin functions for managing bookings - defined at top level for onclick handlers
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.dropdown-menu-container')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+        });
+    }
+});
+
+window.toggleDropdown = function(id) {
+    event.stopPropagation();
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    const allDropdowns = document.querySelectorAll('.dropdown-menu');
+    
+    // Close all other dropdowns
+    allDropdowns.forEach(menu => {
+        if (menu.id !== `dropdown-${id}`) {
+            menu.classList.remove('show');
+        }
+    });
+    
+    // Toggle current dropdown
+    dropdown.classList.toggle('show');
+};
+
 window.approveBooking = async function(id) {
+    // Close dropdown
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
     if (!confirm('Are you sure you want to approve this booking?')) return;
     if (typeof API === 'undefined') {
         alert('API not loaded');
@@ -157,6 +610,10 @@ window.approveBooking = async function(id) {
 };
 
 window.rejectBooking = async function(id) {
+    // Close dropdown
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
     const reason = prompt('Please provide a reason for rejection:');
     if (reason === null) return; // User cancelled
     if (reason.trim() === '') {
@@ -193,21 +650,43 @@ window.editBooking = async function(id) {
     
     const booking = result.data.data || result.data;
     
+    // Populate date first (needed for facility loading)
+    const bookingDate = booking.booking_date || '';
+    const dateInput = document.getElementById('bookingDate');
+    
+    // Set minimum date to tomorrow (users can only book from tomorrow onwards)
+    if (dateInput) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.min = tomorrow.toISOString().split('T')[0];
+        dateInput.value = bookingDate;
+        // Validate the date after setting it
+        if (typeof validateBookingDate === 'function') {
+            validateBookingDate();
+        }
+    }
+    
+    // Load facilities with the booking date to check capacity
+    if (typeof loadFacilities === 'function') {
+        await loadFacilities(bookingDate);
+    }
+    
     // Populate form with booking data
     document.getElementById('bookingFacility').value = booking.facility_id || '';
-    document.getElementById('bookingDate').value = booking.booking_date || '';
     
-    // Convert datetime strings to datetime-local format
+    // Extract time from datetime strings
     if (booking.start_time) {
         const startDate = new Date(booking.start_time);
-        const startLocal = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        document.getElementById('bookingStartTime').value = startLocal;
+        const hours = String(startDate.getHours()).padStart(2, '0');
+        const minutes = String(startDate.getMinutes()).padStart(2, '0');
+        document.getElementById('bookingStartTime').value = `${hours}:${minutes}`;
     }
     
     if (booking.end_time) {
         const endDate = new Date(booking.end_time);
-        const endLocal = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        document.getElementById('bookingEndTime').value = endLocal;
+        const hours = String(endDate.getHours()).padStart(2, '0');
+        const minutes = String(endDate.getMinutes()).padStart(2, '0');
+        document.getElementById('bookingEndTime').value = `${hours}:${minutes}`;
     }
     
     document.getElementById('bookingPurpose').value = booking.purpose || '';
@@ -217,18 +696,19 @@ window.editBooking = async function(id) {
     document.getElementById('bookingForm').dataset.bookingId = id;
     
     // Change form title and submit button
-    const modalTitle = document.querySelector('#bookingModal h2');
-    if (modalTitle) {
-        modalTitle.textContent = 'Edit Booking';
-    }
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const submitButtonText = document.getElementById('submitButtonText');
     
-    const submitBtn = document.querySelector('#bookingForm button[type="submit"]');
-    if (submitBtn) {
-        submitBtn.textContent = 'Update Booking';
-    }
+    if (modalTitle) modalTitle.textContent = 'Edit Booking';
+    if (modalIcon) modalIcon.className = 'fas fa-edit me-2 text-primary';
+    if (submitButtonText) submitButtonText.textContent = 'Update Booking';
     
     // Show modal
-    window.showCreateModal();
+    const modal = document.getElementById('bookingModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
 };
 
 window.deleteBooking = async function(id) {
@@ -248,6 +728,13 @@ window.deleteBooking = async function(id) {
     }
 };
 
+// Helper function to format date
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+}
+
 // Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
     // Check if API is loaded
@@ -264,9 +751,30 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initBookings() {
+    // Set minimum date to tomorrow for booking date input (users can only book from tomorrow onwards)
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.min = tomorrow.toISOString().split('T')[0];
+    }
+    
+    // Set time input constraints (8:00 AM - 8:00 PM)
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    if (startTimeInput) {
+        startTimeInput.min = '08:00';
+        startTimeInput.max = '20:00';
+    }
+    if (endTimeInput) {
+        endTimeInput.min = '08:00';
+        endTimeInput.max = '20:00';
+    }
+    
     // Update title based on user role
     if (API.isAdmin()) {
         document.getElementById('bookingsTitle').textContent = 'Booking Management';
+        document.getElementById('bookingsSubtitle').textContent = 'Manage all bookings in the system';
         // Hide "New Booking" button for admin - admin can only manage existing bookings
         const newBookingBtn = document.getElementById('newBookingBtn');
         if (newBookingBtn) {
@@ -274,6 +782,7 @@ function initBookings() {
         }
     } else {
         document.getElementById('bookingsTitle').textContent = 'My Bookings';
+        document.getElementById('bookingsSubtitle').textContent = 'Manage your facility bookings';
         // Show "New Booking" button for students
         const newBookingBtn = document.getElementById('newBookingBtn');
         if (newBookingBtn) {
@@ -308,8 +817,13 @@ async function loadBookings() {
     }
 }
 
-async function loadFacilities() {
-    const result = await API.get('/facilities');
+async function loadFacilities(bookingDate = null) {
+    let url = '/facilities';
+    if (bookingDate) {
+        url += `?booking_date=${bookingDate}`;
+    }
+    
+    const result = await API.get(url);
     
     if (result.success) {
         facilities = result.data.data?.data || result.data.data || [];
@@ -321,8 +835,17 @@ async function loadFacilities() {
             alert('No facilities available. Please create a facility first.');
         } else {
             select.disabled = false;
+            const currentValue = select.value; // Preserve current selection if any
             select.innerHTML = '<option value="">Select Facility</option>' +
-                facilities.map(f => `<option value="${f.id}">${f.name} (${f.code}) - ${f.status}</option>`).join('');
+                facilities.map(f => {
+                    const isDisabled = f.is_at_capacity || f.status !== 'available';
+                    const disabledAttr = isDisabled ? 'disabled' : '';
+                    const selectedAttr = (currentValue == f.id) ? 'selected' : '';
+                    const capacityInfo = f.is_at_capacity 
+                        ? ` (Full - ${f.total_approved_attendees}/${f.capacity} attendees)` 
+                        : ` (${f.total_approved_attendees || 0}/${f.capacity} attendees)`;
+                    return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}${capacityInfo}</option>`;
+                }).join('');
         }
     } else {
         const select = document.getElementById('bookingFacility');
@@ -332,10 +855,287 @@ async function loadFacilities() {
     }
 }
 
+// Function to update facilities when date is selected
+window.updateFacilitiesByDate = function() {
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput && dateInput.value) {
+        loadFacilities(dateInput.value);
+    }
+};
+
+// Timetable functions
+let selectedTimeSlot = null;
+let bookedSlots = {};
+
+// Generate 3 days starting from tomorrow
+function getNextThreeDays() {
+    const days = [];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    for (let i = 1; i <= 3; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        const dayName = dayNames[date.getDay()];
+        const month = monthNames[date.getMonth()];
+        const day = date.getDate();
+        const year = date.getFullYear();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        days.push({
+            date: dateStr,
+            display: `${dayName}, ${month} ${day}`,
+            fullDate: `${month} ${day}, ${year}`
+        });
+    }
+    
+    return days;
+}
+
+// Generate time slots (8:00 AM to 8:00 PM)
+function generateTimeSlots(duration = 1) {
+    const slots = [];
+    const startHour = 8;
+    const endHour = 20;
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+        const startTime = `${hour.toString().padStart(2, '0')}:00`;
+        const endHourTime = hour + duration;
+        const endTime = `${endHourTime.toString().padStart(2, '0')}:00`;
+        
+        // Only add slot if it doesn't exceed 20:00
+        if (endHourTime <= endHour) {
+            slots.push({
+                start: startTime,
+                end: endTime,
+                display: `${formatTime12(startTime)} - ${formatTime12(endTime)}`
+            });
+        }
+    }
+    
+    return slots;
+}
+
+// Format time to 12-hour format
+function formatTime12(time24) {
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+}
+
+// Load timetable for selected facility
+async function loadTimetable(facilityId) {
+    console.log('Loading timetable for facility:', facilityId);
+    const container = document.getElementById('timetableContainer');
+    if (!container) {
+        console.error('Timetable container not found');
+        return;
+    }
+    
+    container.innerHTML = '<div class="timetable-loading"><i class="fas fa-spinner fa-spin me-2"></i>Loading timetable...</div>';
+    
+    try {
+        if (!facilityId) {
+            throw new Error('Facility ID is required');
+        }
+        const days = getNextThreeDays();
+        const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
+        const slots = generateTimeSlots(duration);
+        
+        // Load booked slots for each day
+        bookedSlots = {};
+        const availabilityPromises = days.map(async (day) => {
+            try {
+                const result = await API.get(`/facilities/${facilityId}/availability?date=${day.date}`);
+                console.log(`Availability result for ${day.date}:`, result);
+                
+                // Check different possible response structures
+                let bookings = [];
+                if (result.success && result.data) {
+                    // Laravel API typically returns: { message: "...", data: { ... } }
+                    // API.js wraps it as: { success: true, data: { message: "...", data: { ... } } }
+                    if (result.data.data && result.data.data.bookings) {
+                        bookings = result.data.data.bookings;
+                    } else if (result.data.bookings) {
+                        bookings = result.data.bookings;
+                    } else if (Array.isArray(result.data)) {
+                        bookings = result.data;
+                    }
+                }
+                
+                bookedSlots[day.date] = bookings.map(booking => {
+                    // Handle booking format - API returns start_time and end_time as "HH:mm"
+                    const startTime = booking.start_time || '';
+                    const endTime = booking.end_time || '';
+                    
+                    return {
+                        start_time: `${day.date} ${startTime}:00`,
+                        end_time: `${day.date} ${endTime}:00`
+                    };
+                });
+            } catch (error) {
+                console.error(`Error loading availability for ${day.date}:`, error);
+                bookedSlots[day.date] = [];
+            }
+        });
+        
+        // Wait for all availability checks to complete
+        await Promise.all(availabilityPromises);
+        
+        // Render timetable
+        renderTimetable(days, slots, facilityId);
+    } catch (error) {
+        console.error('Error loading timetable:', error);
+        container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
+    }
+}
+
+// Render timetable
+function renderTimetable(days, slots, facilityId) {
+    const container = document.getElementById('timetableContainer');
+    if (!container) {
+        console.error('Timetable container not found');
+        return;
+    }
+    
+    const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
+    
+    let html = '<div class="timetable-days">';
+    
+    days.forEach(day => {
+        const dayBookedSlots = bookedSlots[day.date] || [];
+        const bookedTimes = new Set();
+        
+        dayBookedSlots.forEach(booking => {
+            try {
+                const start = new Date(booking.start_time);
+                const end = new Date(booking.end_time);
+                
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    console.warn('Invalid date for booking:', booking);
+                    return;
+                }
+                
+                let current = new Date(start);
+                
+                while (current < end) {
+                    const timeStr = `${current.getHours().toString().padStart(2, '0')}:00`;
+                    bookedTimes.add(timeStr);
+                    current.setHours(current.getHours() + 1);
+                }
+            } catch (error) {
+                console.error('Error processing booking:', booking, error);
+            }
+        });
+        
+        html += `
+            <div class="timetable-day" data-date="${day.date}">
+                <div class="timetable-day-header">
+                    <div class="timetable-day-title">${day.display}</div>
+                    <div class="timetable-day-date">${day.fullDate}</div>
+                </div>
+                <div class="timetable-slots">
+        `;
+        
+        slots.forEach(slot => {
+            const isBooked = bookedTimes.has(slot.start) || 
+                           (duration === 2 && bookedTimes.has(slot.end.split(':')[0] + ':00'));
+            const slotClass = isBooked ? 'booked' : 'available';
+            const slotId = `slot-${day.date}-${slot.start}`;
+            
+            html += `
+                <div class="timetable-slot ${slotClass}" 
+                     data-date="${day.date}" 
+                     data-start="${slot.start}" 
+                     data-end="${slot.end}"
+                     id="${slotId}"
+                     onclick="selectTimeSlot('${day.date}', '${slot.start}', '${slot.end}', '${slotId}')">
+                    <span class="timetable-slot-time">${slot.display}</span>
+                    <span class="timetable-slot-duration">${duration}h</span>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Select time slot
+window.selectTimeSlot = function(date, start, end, slotId) {
+    const slot = document.getElementById(slotId);
+    if (slot.classList.contains('booked')) {
+        return;
+    }
+    
+    // Remove previous selection
+    document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+        s.classList.remove('selected');
+    });
+    
+    // Add selection
+    slot.classList.add('selected');
+    selectedTimeSlot = { date, start, end };
+    
+    // Update hidden inputs
+    const dateInput = document.getElementById('selectedBookingDate');
+    const startInput = document.getElementById('bookingStartTime');
+    const endInput = document.getElementById('bookingEndTime');
+    
+    if (dateInput) dateInput.value = date;
+    if (startInput) startInput.value = `${date} ${start}:00`;
+    if (endInput) endInput.value = `${date} ${end}:00`;
+    
+    // Clear error
+    const errorDiv = document.getElementById('timeSlotError');
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+};
+
+// Clear timetable
+function clearTimetable() {
+    const container = document.getElementById('timetableContainer');
+    if (container) {
+        container.innerHTML = '<div class="timetable-no-slots">Please select a facility to view available time slots</div>';
+    }
+    selectedTimeSlot = null;
+}
+
+// Handle facility change
+window.handleFacilityChange = function(select) {
+    console.log('Facility changed to:', select.value);
+    if (select && select.value) {
+        loadTimetable(select.value);
+    } else {
+        clearTimetable();
+    }
+};
+
+// Listen to duration changes
+document.addEventListener('DOMContentLoaded', function() {
+    const durationInputs = document.querySelectorAll('input[name="bookingDuration"]');
+    durationInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            const facilitySelect = document.getElementById('bookingFacility');
+            if (facilitySelect && facilitySelect.value) {
+                loadTimetable(facilitySelect.value);
+            }
+        });
+    });
+});
+
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
     if (bookingsToShow.length === 0) {
-        container.innerHTML = '<p>No bookings found</p>';
+        container.innerHTML = '<div class="table-container"><table class="data-table"><tbody><tr><td colspan="8" class="text-center">No bookings found</td></tr></tbody></table></div>';
         return;
     }
 
@@ -347,6 +1147,8 @@ function displayBookings(bookingsToShow) {
                     <th>Facility</th>
                     <th>Date</th>
                     <th>Time</th>
+                    <th>Purpose</th>
+                    <th>Attendees</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -358,18 +1160,42 @@ function displayBookings(bookingsToShow) {
                         <td>${booking.facility?.name || 'N/A'}</td>
                         <td>${formatDate(booking.booking_date)}</td>
                         <td>${new Date(booking.start_time).toLocaleTimeString()} - ${new Date(booking.end_time).toLocaleTimeString()}</td>
-                        <td><span class="status-badge status-${booking.status}">${booking.status}</span></td>
+                        <td>${booking.purpose ? (booking.purpose.length > 30 ? booking.purpose.substring(0, 30) + '...' : booking.purpose) : 'N/A'}</td>
+                        <td>${booking.expected_attendees || 'N/A'}</td>
                         <td>
-                            <button class="btn-sm" onclick="viewBooking(${booking.id})">View</button>
+                            <span class="badge badge-${booking.status === 'approved' ? 'success' : (booking.status === 'pending' ? 'warning' : (booking.status === 'rejected' ? 'danger' : 'secondary'))}">
+                                ${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                            </span>
+                        </td>
+                        <td class="actions">
+                            <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
                             ${API.isAdmin() ? `
+                                <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                                 ${booking.status === 'pending' ? `
-                                    <button class="btn-sm btn-success" onclick="approveBooking(${booking.id})">Approve</button>
-                                    <button class="btn-sm btn-danger" onclick="rejectBooking(${booking.id})">Reject</button>
+                                    <div class="dropdown-menu-container">
+                                        <button class="btn-sm btn-secondary" onclick="toggleDropdown(${booking.id})" title="More Actions" style="position: relative;">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="dropdown-${booking.id}">
+                                            <button class="dropdown-item" onclick="approveBooking(${booking.id})">
+                                                <i class="fas fa-check text-success"></i> Approve
+                                            </button>
+                                            <button class="dropdown-item" onclick="rejectBooking(${booking.id})">
+                                                <i class="fas fa-times text-danger"></i> Reject
+                                            </button>
+                                        </div>
+                                    </div>
                                 ` : ''}
-                                <button class="btn-sm" onclick="editBooking(${booking.id})">Edit</button>
-                                <button class="btn-sm btn-danger" onclick="deleteBooking(${booking.id})">Delete</button>
                             ` : `
-                                ${booking.status === 'pending' ? `<button class="btn-sm btn-danger" onclick="cancelBooking(${booking.id})">Cancel</button>` : ''}
+                                ${booking.status === 'pending' ? `
+                                    <button class="btn-sm btn-danger" onclick="cancelBooking(${booking.id})" title="Cancel">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                ` : ''}
                             `}
                         </td>
                     </tr>
@@ -395,61 +1221,70 @@ function bindBookingForm() {
             const bookingId = this.dataset.bookingId; // Check if editing
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+        alert('Submit button not found');
+        return;
+    }
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
 
-    const date = document.getElementById('bookingDate').value;
-    const startTimeInput = document.getElementById('bookingStartTime').value;
-    const endTimeInput = document.getElementById('bookingEndTime').value;
-
-    // Convert datetime-local to Y-m-d H:i:s format (use local time, not UTC)
-    let startTime = null;
-    let endTime = null;
-    
-    if (startTimeInput) {
-        const startDate = new Date(startTimeInput);
-        // Use local time, not UTC
-        const year = startDate.getFullYear();
-        const month = String(startDate.getMonth() + 1).padStart(2, '0');
-        const day = String(startDate.getDate()).padStart(2, '0');
-        const hours = String(startDate.getHours()).padStart(2, '0');
-        const minutes = String(startDate.getMinutes()).padStart(2, '0');
-        startTime = `${year}-${month}-${day} ${hours}:${minutes}:00`;
-    }
-    
-    if (endTimeInput) {
-        const endDate = new Date(endTimeInput);
-        // Use local time, not UTC
-        const year = endDate.getFullYear();
-        const month = String(endDate.getMonth() + 1).padStart(2, '0');
-        const day = String(endDate.getDate()).padStart(2, '0');
-        const hours = String(endDate.getHours()).padStart(2, '0');
-        const minutes = String(endDate.getMinutes()).padStart(2, '0');
-        endTime = `${year}-${month}-${day} ${hours}:${minutes}:00`;
-    }
-
-    // Validation
-    if (!date || !startTime || !endTime) {
-        alert('Please fill in all required fields');
+    // Validate time slot selection
+    if (!selectedTimeSlot) {
+        const errorDiv = document.getElementById('timeSlotError');
+        if (errorDiv) {
+            errorDiv.textContent = 'Please select a time slot from the timetable';
+            errorDiv.style.display = 'block';
+        }
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
+        return;
+    }
+    
+    const date = selectedTimeSlot.date;
+    const startTime = `${date} ${selectedTimeSlot.start}:00`;
+    const endTime = `${date} ${selectedTimeSlot.end}:00`;
+    
+    // Validation - time slot is already validated above
+    if (!date || !startTime || !endTime) {
+        alert('Please select a time slot from the timetable');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
     const facilityId = document.getElementById('bookingFacility').value;
     if (!facilityId) {
         alert('Please select a facility');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
     const purpose = document.getElementById('bookingPurpose').value;
     if (!purpose) {
         alert('Please enter a purpose for the booking');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+        return;
+    }
+
+    // Final validation: Ensure start time is before end time
+    const startDateTime = new Date(startTime);
+    const endDateTime = new Date(endTime);
+    
+    if (startDateTime >= endDateTime) {
+        alert('Error: Start time must be before end time. Please check your time selection.\n\nStart: ' + startTime + '\nEnd: ' + endTime);
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         return;
     }
 
@@ -462,9 +1297,6 @@ function bindBookingForm() {
         expected_attendees: document.getElementById('bookingAttendees').value ? parseInt(document.getElementById('bookingAttendees').value) : null
     };
 
-    console.log('Submitting booking:', data); // Debug
-    console.log('Start time:', startTime);
-    console.log('End time:', endTime);
 
     try {
         let result;
@@ -476,8 +1308,10 @@ function bindBookingForm() {
             result = await API.post('/bookings', data);
         }
 
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
 
         if (result.success) {
             window.closeModal();
@@ -488,14 +1322,13 @@ function bindBookingForm() {
             delete document.getElementById('bookingForm').dataset.bookingId;
             
             // Reset modal title and button
-            const modalTitle = document.querySelector('#bookingModal h2');
-            if (modalTitle) {
-                modalTitle.textContent = 'Create New Booking';
-            }
-            const submitBtn = document.querySelector('#bookingForm button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.textContent = 'Submit Booking';
-            }
+            const modalTitle = document.getElementById('modalTitle');
+            const modalIcon = document.getElementById('modalIcon');
+            const submitButtonText = document.getElementById('submitButtonText');
+            
+            if (modalTitle) modalTitle.textContent = 'Create New Booking';
+            if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+            if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
             
             alert(bookingId ? 'Booking updated successfully!' : 'Booking created successfully!');
         } else {
@@ -515,8 +1348,10 @@ function bindBookingForm() {
             console.error('Booking error:', result); // Debug
         }
     } catch (error) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
         alert('Error creating booking: ' + error.message);
         console.error('Booking submission error:', error);
     }
@@ -524,5 +1359,782 @@ function bindBookingForm() {
     }
 }
 </script>
+
+<style>
+/* Page Header Styling */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 30px;
+    background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.page-header-content {
+    padding: 10px 0;
+}
+
+.page-header-content h1 {
+    font-size: 2.2rem;
+    color: #ffffff;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.page-header-content p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+/* Filters Section Styling */
+.filters-section {
+    margin-bottom: 30px;
+}
+
+.filters-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+}
+
+.filters-form {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-input-wrapper,
+.filter-select-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.filter-input,
+.filter-select {
+    width: 100%;
+    padding: 12px 15px 12px 45px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    color: #495057;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-input::placeholder {
+    color: #adb5bd;
+}
+
+.filter-select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+.btn-header-white {
+    background-color: #ffffff;
+    color: #cb2d3e; 
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-header-white:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    color: #a01a2a;
+}
+
+/* Table Container Enhancement */
+.table-container {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+
+.data-table {
+    margin: 0;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.data-table th {
+    font-weight: 600;
+    color: #495057;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.data-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+    color: #2d3436;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.data-table .actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Dropdown Menu Styles */
+.dropdown-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    margin-top: 5px;
+    overflow: hidden;
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: white;
+    color: #333;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.dropdown-item:hover {
+    background: #f8f9fa;
+    color: #333;
+}
+
+.dropdown-item i {
+    width: 18px;
+    text-align: center;
+}
+
+.dropdown-item .text-success {
+    color: #28a745;
+}
+
+.dropdown-item .text-danger {
+    color: #dc3545;
+}
+
+.data-table .text-center {
+    text-align: center;
+    padding: 40px;
+    color: #636e72;
+}
+
+.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #138496;
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background: #e0a800;
+}
+
+/* Modal Styling - Reference Add New Facility */
+.modal-large {
+    max-width: 1200px !important;
+    width: 95% !important;
+    padding: 0 !important;
+}
+
+.modal-large .card {
+    margin: 0;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.modal-large .card-header {
+    padding: 1rem 1.5rem;
+    background-color: #ffffff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.modal-large .card-body {
+    padding: 1.5rem;
+}
+
+/* Ensure form sections match Add New Facility spacing */
+.modal-large .mb-4 {
+    margin-bottom: 1.5rem !important;
+}
+
+.modal-large .row.g-3 {
+    --bs-gutter-x: 1rem;
+    --bs-gutter-y: 1rem;
+}
+
+.modal-large .close {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #636e72;
+    cursor: pointer;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.modal-large .close:hover {
+    color: #2d3436;
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+}
+
+/* Time Validation Error Styles */
+.is-invalid {
+    border-color: #dc3545 !important;
+}
+
+.is-invalid:focus {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-form {
+        flex-direction: column;
+    }
+    
+    .filter-input-wrapper,
+    .filter-select-wrapper {
+        width: 100%;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+    }
+    
+    .page-header-content h1 {
+        font-size: 1.8rem;
+    }
+
+    .data-table {
+        font-size: 0.85rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px;
+    }
+
+    .data-table .actions {
+        flex-direction: column;
+    }
+    
+    .dropdown-menu {
+        right: auto;
+        left: 0;
+    }
+}
+
+/* Cancel Booking Modal Styles */
+.cancel-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.cancel-modal-content {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.cancel-modal-header {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+    padding: 25px;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+    border-bottom: 2px solid #ffcccc;
+}
+
+.cancel-modal-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(245, 124, 0, 0.3);
+}
+
+.cancel-modal-header h3 {
+    margin: 0;
+    color: #d32f2f;
+    font-size: 1.5rem;
+    font-weight: 700;
+    flex: 1;
+}
+
+.cancel-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #999;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.cancel-modal-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.cancel-modal-body {
+    padding: 30px;
+}
+
+.cancel-warning-text {
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.cancel-reason-section {
+    margin-top: 20px;
+}
+
+.cancel-reason-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+}
+
+.cancel-reason-label i {
+    color: #dc3545;
+}
+
+.cancel-reason-select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+.cancel-reason-select:focus {
+    outline: none;
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.cancel-reason-select:hover {
+    border-color: #dc3545;
+}
+
+.cancel-custom-reason {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    margin-top: 12px;
+    resize: vertical;
+    transition: all 0.3s ease;
+}
+
+.cancel-custom-reason:focus {
+    outline: none;
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.cancel-modal-footer {
+    padding: 20px 30px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    background: #f8f9fa;
+    border-radius: 0 0 16px 16px;
+}
+
+.btn-cancel-modal {
+    padding: 12px 24px;
+    border: 2px solid #6c757d;
+    background: white;
+    color: #6c757d;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-cancel-modal:hover {
+    background: #6c757d;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.btn-confirm-cancel {
+    padding: 12px 24px;
+    border: none;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.btn-confirm-cancel:hover:not(:disabled) {
+    background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+.btn-confirm-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 600px) {
+    .cancel-modal-content {
+        width: 95%;
+        margin: 20px;
+    }
+    
+    .cancel-modal-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .cancel-modal-footer {
+        flex-direction: column;
+    }
+    
+    .btn-cancel-modal,
+    .btn-confirm-cancel {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Timetable Styles */
+.timetable-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-top: 10px;
+}
+
+.timetable-loading {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.timetable-days {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.timetable-day {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background: #f8f9fa;
+    transition: all 0.3s;
+}
+
+.timetable-day.active {
+    border-color: #cb2d3e;
+    background: #fff5f7;
+    box-shadow: 0 4px 12px rgba(203, 45, 62, 0.2);
+}
+
+.timetable-day-header {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.timetable-day-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #2d3436;
+    margin-bottom: 5px;
+}
+
+.timetable-day-date {
+    font-size: 1.1rem;
+    color: #cb2d3e;
+    font-weight: 700;
+}
+
+.timetable-day.active .timetable-day-date {
+    color: #a01a2a;
+}
+
+.timetable-slots {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.timetable-slot {
+    padding: 10px 8px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.timetable-slot:hover:not(.booked):not(.selected) {
+    border-color: #cb2d3e;
+    background: #fff5f7;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(203, 45, 62, 0.2);
+}
+
+.timetable-slot.available {
+    border-color: #28a745;
+    background: #d4edda;
+    color: #155724;
+}
+
+.timetable-slot.available:hover {
+    border-color: #218838;
+    background: #c3e6cb;
+}
+
+.timetable-slot.booked {
+    border-color: #dc3545;
+    background: #f8d7da;
+    color: #721c24;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.timetable-slot.selected {
+    border-color: #cb2d3e;
+    background: #cb2d3e;
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(203, 45, 62, 0.4);
+}
+
+.timetable-slot-time {
+    display: block;
+    font-size: 0.9rem;
+}
+
+.timetable-slot-duration {
+    display: block;
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+.timetable-no-slots {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+@media (max-width: 992px) {
+    .timetable-days {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .timetable-slots {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 @endsection
 
