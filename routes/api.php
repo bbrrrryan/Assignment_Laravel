@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [NotificationController::class, 'show']);
         Route::get('/user/my-notifications', [NotificationController::class, 'myNotifications']);
         Route::get('/user/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::get('/user/unread-items', [NotificationController::class, 'getUnreadItems']);
         Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::put('/{id}/unread', [NotificationController::class, 'markAsUnread']);
         Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
@@ -149,6 +150,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin only routes
         Route::middleware('admin')->group(function () {
             Route::get('/', [BookingController::class, 'index']);
+            Route::get('/pending', [BookingController::class, 'getPendingBookings']);
             Route::put('/{id}', [BookingController::class, 'update']);
             Route::put('/{id}/approve', [BookingController::class, 'approve']);
             Route::put('/{id}/reject', [BookingController::class, 'reject']);

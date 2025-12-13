@@ -236,17 +236,17 @@ class AnnouncementController extends Controller
 
             case 'students':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'student'))
+                    ->where('role', 'student')
                     ->pluck('id')->toArray();
 
             case 'staff':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'staff'))
+                    ->where('role', 'staff')
                     ->pluck('id')->toArray();
 
             case 'admins':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'admin'))
+                    ->where('role', 'admin')
                     ->pluck('id')->toArray();
 
             case 'specific':

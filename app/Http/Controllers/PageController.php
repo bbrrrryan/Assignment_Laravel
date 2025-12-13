@@ -107,6 +107,12 @@ class PageController extends Controller
         return view('notifications.show', compact('id'));
     }
 
+    // Announcements
+    public function showAnnouncement($id)
+    {
+        return view('announcements.show', compact('id'));
+    }
+
     // Loyalty
     public function loyalty()
     {

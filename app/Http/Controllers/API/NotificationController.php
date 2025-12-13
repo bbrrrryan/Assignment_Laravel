@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -270,6 +271,173 @@ class NotificationController extends Controller
 
         return response()->json([
             'message' => 'Notification acknowledged',
+        ]);
+    }
+
+    /**
+     * Get user's announcements and notifications for dropdown (combined)
+     * Returns recent items from announcements and notifications tables directly
+     */
+    public function getUnreadItems(Request $request)
+    {
+        $user = auth()->user();
+        $limit = $request->get('limit', 10);
+        $onlyUnread = $request->get('only_unread', false);
+        
+        // Get announcements - Get all published announcements that match user's audience
+        // Then filter by checking if announcement should be visible to this user
+        $announcementQuery = Announcement::with('creator')
+            ->where('is_active', true)
+            ->whereNotNull('published_at') // Only published announcements
+            ->where(function($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            });
+        
+        $allAnnouncements = $announcementQuery->get();
+        
+        // Filter announcements based on target_audience
+        $filteredAnnouncements = $allAnnouncements->filter(function($announcement) use ($user) {
+            $targetAudience = $announcement->target_audience;
+            $role = strtolower($user->role ?? '');
+            
+            // Check if announcement should be visible to this user
+            if ($targetAudience === 'all') {
+                return true;
+            } elseif ($targetAudience === 'students' && $role === 'student') {
+                return true;
+            } elseif ($targetAudience === 'staff' && $role === 'staff') {
+                return true;
+            } elseif ($targetAudience === 'admins' && ($role === 'admin' || $role === 'administrator')) {
+                return true;
+            } elseif ($targetAudience === 'specific') {
+                $targetUserIds = $announcement->target_user_ids ?? [];
+                return in_array($user->id, $targetUserIds);
+            }
+            
+            return false;
+        });
+        
+        // Get read status from pivot table for each announcement
+        $announcements = $filteredAnnouncements->map(function ($announcement) use ($user) {
+            // Get pivot data using DB query
+            $pivotData = DB::table('user_announcement')
+                ->where('user_id', $user->id)
+                ->where('announcement_id', $announcement->id)
+                ->first();
+            
+            $pivotCreatedAt = $pivotData ? $pivotData->created_at : ($announcement->published_at ?? $announcement->created_at);
+            // Convert to string if it's a Carbon instance
+            if ($pivotCreatedAt instanceof \Carbon\Carbon) {
+                $pivotCreatedAt = $pivotCreatedAt->toDateTimeString();
+            }
+            
+            return [
+                'id' => $announcement->id,
+                'type' => 'announcement',
+                'title' => $announcement->title,
+                'content' => $announcement->content,
+                'created_at' => $announcement->created_at ? $announcement->created_at->toDateTimeString() : null,
+                'pivot_created_at' => $pivotCreatedAt,
+                'creator' => $announcement->creator ? $announcement->creator->name : 'System',
+                'is_read' => $pivotData ? (bool)($pivotData->is_read ?? false) : false,
+            ];
+        })->filter(function($item) use ($onlyUnread) {
+            if ($onlyUnread) {
+                return !$item['is_read'];
+            }
+            return true;
+        });
+
+        // Get notifications - ONLY notifications that are sent to this specific user
+        // Use the user_notification pivot table to ensure we only get notifications for this user
+        $notifications = $user->notifications()
+            ->with('creator')
+            ->where('is_active', true)
+            ->where(function($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            })
+            ->get()
+            ->map(function ($notification) {
+                $pivotCreatedAt = $notification->pivot->created_at ?? ($notification->scheduled_at ?? $notification->created_at);
+                // Convert to string if it's a Carbon instance
+                if ($pivotCreatedAt instanceof \Carbon\Carbon) {
+                    $pivotCreatedAt = $pivotCreatedAt->toDateTimeString();
+                }
+                
+                return [
+                    'id' => $notification->id,
+                    'type' => 'notification',
+                    'title' => $notification->title,
+                    'content' => $notification->message,
+                    'created_at' => $notification->created_at ? $notification->created_at->toDateTimeString() : null,
+                    'pivot_created_at' => $pivotCreatedAt,
+                    'creator' => $notification->creator ? $notification->creator->name : 'System',
+                    'is_read' => (bool)($notification->pivot->is_read ?? false),
+                ];
+            })
+            ->filter(function($item) use ($onlyUnread) {
+                if ($onlyUnread) {
+                    return !$item['is_read'];
+                }
+                return true;
+            });
+
+        // Combine and sort by created_at (unread items first)
+        $combined = $announcements->concat($notifications);
+        
+        $items = $combined->sort(function ($a, $b) {
+                // Unread items first
+                if ($a['is_read'] !== $b['is_read']) {
+                    return $a['is_read'] ? 1 : -1;
+                }
+                // Then sort by date (most recent first)
+                $dateA = $a['pivot_created_at'] ?? $a['created_at'] ?? '';
+                $dateB = $b['pivot_created_at'] ?? $b['created_at'] ?? '';
+                
+                // Convert to timestamp for comparison
+                $timestampA = is_string($dateA) ? strtotime($dateA) : (is_object($dateA) ? $dateA->timestamp : 0);
+                $timestampB = is_string($dateB) ? strtotime($dateB) : (is_object($dateB) ? $dateB->timestamp : 0);
+                
+                return $timestampB <=> $timestampA;
+            })
+            ->take($limit)
+            ->values();
+
+        // Get total unread counts for badge (count unread items)
+        $announcementCount = $announcements->filter(function($item) {
+            return !$item['is_read'];
+        })->count();
+
+        $notificationCount = $notifications->filter(function($item) {
+            return !$item['is_read'];
+        })->count();
+        
+        \Log::info('User ' . $user->id . ' items count - announcements: ' . $announcements->count() . ', notifications: ' . $notifications->count() . ', total items: ' . $items->count());
+        \Log::info('Filtered announcements count: ' . $filteredAnnouncements->count());
+        \Log::info('All announcements count: ' . $allAnnouncements->count());
+
+        return response()->json([
+            'message' => 'Items retrieved successfully',
+            'data' => [
+                'items' => $items->toArray(), // Ensure it's an array
+                'counts' => [
+                    'announcements' => $announcementCount,
+                    'notifications' => $notificationCount,
+                    'total' => $announcementCount + $notificationCount,
+                ],
+                'debug' => [
+                    'user_id' => $user->id,
+                    'user_role' => $user->role,
+                    'announcements_total' => $allAnnouncements->count(),
+                    'announcements_filtered' => $filteredAnnouncements->count(),
+                    'announcements_mapped' => $announcements->count(),
+                    'notifications_count' => $notifications->count(),
+                    'combined_count' => $combined->count(),
+                    'items_count' => $items->count(),
+                ],
+            ],
         ]);
     }
 

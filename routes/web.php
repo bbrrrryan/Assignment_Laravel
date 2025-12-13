@@ -67,6 +67,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [PageController::class, 'notifications'])->name('notifications.index');
     Route::get('/notifications/{id}', [PageController::class, 'showNotification'])->name('notifications.show');
 
+    // Announcements Routes
+    Route::get('/announcements/{id}', [PageController::class, 'showAnnouncement'])->name('announcements.show');
+
     // Loyalty Routes
     Route::get('/loyalty', [PageController::class, 'loyalty'])->name('loyalty.index');
 

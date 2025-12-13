@@ -491,8 +491,6 @@ class BookingController extends Controller
         $booking->update([
             'status' => 'rejected',
             'rejection_reason' => $request->reason,
-            'rejected_by' => auth()->id(),
-            'rejected_at' => now(),
         ]);
 
         // Create status history
@@ -604,6 +602,43 @@ class BookingController extends Controller
                         'status' => $booking->status,
                     ];
                 }),
+            ],
+        ]);
+    }
+
+    /**
+     * Get pending bookings for admin dropdown
+     */
+    public function getPendingBookings(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        $bookings = Booking::with(['user', 'facility'])
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($booking) {
+                return [
+                    'id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'facility_name' => $booking->facility->name ?? 'Unknown',
+                    'user_name' => $booking->user->name ?? 'Unknown',
+                    'booking_date' => $booking->booking_date->format('Y-m-d'),
+                    'start_time' => $booking->start_time->format('H:i'),
+                    'end_time' => $booking->end_time->format('H:i'),
+                    'purpose' => $booking->purpose,
+                    'created_at' => $booking->created_at,
+                ];
+            });
+
+        $count = Booking::where('status', 'pending')->count();
+
+        return response()->json([
+            'message' => 'Pending bookings retrieved successfully',
+            'data' => [
+                'bookings' => $bookings,
+                'count' => $count,
             ],
         ]);
     }
