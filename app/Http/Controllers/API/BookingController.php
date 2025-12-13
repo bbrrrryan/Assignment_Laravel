@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Facility;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
@@ -173,6 +174,13 @@ class BookingController extends Controller
         } catch (\Exception $e) {
             // Status history is optional, continue even if it fails
             \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+        }
+
+        // Send notification to user
+        if ($booking->status === 'approved') {
+            $this->sendBookingNotification($booking, 'approved', 'Your booking has been created and approved!');
+        } else {
+            $this->sendBookingNotification($booking, 'pending', 'Your booking has been submitted and is pending approval.');
         }
 
         return response()->json([
@@ -454,6 +462,9 @@ class BookingController extends Controller
             'notes' => 'Booking approved by admin',
         ]);
 
+        // Send notification to user
+        $this->sendBookingNotification($booking, 'approved', 'Your booking has been approved!');
+
         return response()->json([
             'message' => 'Booking approved successfully',
             'data' => $booking->load(['user', 'facility', 'approver']),
@@ -495,6 +506,9 @@ class BookingController extends Controller
             \Log::warning('Failed to create booking status history: ' . $e->getMessage());
         }
 
+        // Send notification to user
+        $this->sendBookingNotification($booking, 'rejected', 'Your booking has been rejected. Reason: ' . $request->reason);
+
         return response()->json([
             'message' => 'Booking rejected successfully',
             'data' => $booking->load(['user', 'facility']),
@@ -507,8 +521,25 @@ class BookingController extends Controller
         $booking->update([
             'status' => 'cancelled',
             'cancelled_at' => now(),
-            'cancellation_reason' => $request->reason,
+            'cancellation_reason' => $request->reason ?? null,
         ]);
+
+        // Create status history
+        try {
+            $booking->statusHistory()->create([
+                'status' => 'cancelled',
+                'changed_by' => auth()->id(),
+                'notes' => 'Booking cancelled' . ($request->reason ? '. Reason: ' . $request->reason : ''),
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+        }
+
+        // Send notification to user (only if cancelled by admin, not by user themselves)
+        if (auth()->user()->isAdmin() || auth()->user()->isStaff()) {
+            $this->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled' . ($request->reason ? '. Reason: ' . $request->reason : ''));
+        }
+
         return response()->json(['data' => $booking]);
     }
 
@@ -575,5 +606,74 @@ class BookingController extends Controller
                 }),
             ],
         ]);
+    }
+
+    /**
+     * Send notification to user about booking status change
+     */
+    private function sendBookingNotification(Booking $booking, string $status, string $message)
+    {
+        try {
+            // Determine notification type based on status
+            $type = 'info';
+            if ($status === 'approved') {
+                $type = 'success';
+            } elseif ($status === 'rejected') {
+                $type = 'error';
+            } elseif ($status === 'cancelled') {
+                $type = 'warning';
+            }
+
+            // Create notification title
+            $title = 'Booking ' . ucfirst($status);
+            if ($status === 'approved') {
+                $title = 'Booking Approved';
+            } elseif ($status === 'rejected') {
+                $title = 'Booking Rejected';
+            } elseif ($status === 'cancelled') {
+                $title = 'Booking Cancelled';
+            } elseif ($status === 'pending') {
+                $title = 'Booking Submitted';
+            }
+
+            // Create detailed message
+            $facilityName = $booking->facility->name ?? 'Facility';
+            $bookingDate = $booking->booking_date->format('Y-m-d');
+            $startTime = $booking->start_time->format('H:i');
+            $endTime = $booking->end_time->format('H:i');
+            
+            $detailedMessage = $message . "\n\n";
+            $detailedMessage .= "Facility: {$facilityName}\n";
+            $detailedMessage .= "Date: {$bookingDate}\n";
+            $detailedMessage .= "Time: {$startTime} - {$endTime}\n";
+            $detailedMessage .= "Booking Number: {$booking->booking_number}";
+
+            // Create notification
+            $notification = Notification::create([
+                'title' => $title,
+                'message' => $detailedMessage,
+                'type' => $type,
+                'priority' => 'medium',
+                'created_by' => auth()->id(),
+                'target_audience' => 'specific',
+                'target_user_ids' => [$booking->user_id],
+                'is_active' => true,
+            ]);
+
+            // Send notification to user
+            $notification->users()->sync([
+                $booking->user_id => [
+                    'is_read' => false,
+                    'is_acknowledged' => false,
+                ]
+            ]);
+
+            // Update scheduled_at
+            $notification->update(['scheduled_at' => now()]);
+
+        } catch (\Exception $e) {
+            // Log error but don't fail the booking operation
+            \Log::warning('Failed to send booking notification: ' . $e->getMessage());
+        }
     }
 }
