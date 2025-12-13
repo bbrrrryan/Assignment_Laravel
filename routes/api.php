@@ -70,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::put('/{id}/unread', [NotificationController::class, 'markAsUnread']);
         Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
+        Route::put('/star/{type}/{id}', [NotificationController::class, 'toggleStar']);
     });
 
     // Announcement Management Routes

@@ -15,13 +15,34 @@ class AnnouncementController extends Controller
      */
     public function index(Request $request)
     {
-        $announcements = Announcement::with('creator')
+        $query = Announcement::with('creator')
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->priority, fn($q) => $q->where('priority', $request->priority))
             ->when($request->is_active !== null, fn($q) => $q->where('is_active', $request->is_active))
-            ->when($request->is_pinned !== null, fn($q) => $q->where('is_pinned', $request->is_pinned))
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+            ->when($request->has('search'), function($q) use ($request) {
+                $search = $request->search;
+                $q->where(function($query) use ($search) {
+                    $query->where('title', 'like', "%{$search}%")
+                          ->orWhere('content', 'like', "%{$search}%");
+                });
+            });
+        
+        // Sorting
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        
+        // Validate sort_by to prevent SQL injection
+        $allowedSortFields = ['id', 'title', 'type', 'priority', 'created_at', 'is_active'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'created_at';
+        }
+        
+        if (strtolower($sortOrder) !== 'asc' && strtolower($sortOrder) !== 'desc') {
+            $sortOrder = 'desc';
+        }
+        
+        $announcements = $query->orderBy($sortBy, $sortOrder)
+            ->paginate($request->get('per_page', 10));
 
         return response()->json([
             'message' => 'Announcements retrieved successfully',
@@ -45,13 +66,11 @@ class AnnouncementController extends Controller
             'published_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:published_at',
             'is_active' => 'nullable|boolean',
-            'is_pinned' => 'nullable|boolean',
         ]);
 
         $announcement = Announcement::create($validated + [
             'created_by' => auth()->id(),
             'is_active' => $request->is_active ?? true,
-            'is_pinned' => $request->is_pinned ?? false,
         ]);
 
         return response()->json([
@@ -94,7 +113,6 @@ class AnnouncementController extends Controller
             'published_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:published_at',
             'is_active' => 'nullable|boolean',
-            'is_pinned' => 'nullable|boolean',
         ]);
 
         $announcement->update($validated);

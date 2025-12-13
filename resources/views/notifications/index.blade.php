@@ -29,14 +29,18 @@ document.addEventListener('DOMContentLoaded', function() {
     initNotifications();
 });
 
+let currentPage = 1;
+let currentPagination = null;
+
 function initNotifications() {
-    loadNotifications();
+    loadNotifications(1);
 }
 
-async function loadNotifications() {
+async function loadNotifications(page = 1) {
     const container = document.getElementById('notificationsList');
     container.innerHTML = '<p>Loading...</p>';
     
+    currentPage = page;
     const isAdmin = API.isAdmin();
     
     try {
@@ -64,43 +68,27 @@ async function loadNotifications() {
             // For regular users: show announcements and notifications
             document.getElementById('pageTitle').textContent = 'Announcements & Notifications';
             
-            // Get all items (both read and unread) for the full page view
-            // Note: only_unread defaults to false, so we don't need to pass it
-            const result = await API.get('/notifications/user/unread-items?limit=100');
-            console.log('Unread items API Response (full):', result);
-            console.log('API Response structure:', JSON.stringify(result, null, 2));
+            // Get items with pagination (10 per page)
+            const result = await API.get(`/notifications/user/unread-items?per_page=10&page=${page}`);
+            console.log('Unread items API Response:', result);
             
-            if (result && result.success) {
-                // Check multiple possible response structures
-                if (result.data && Array.isArray(result.data.items)) {
-                    items = result.data.items;
-                    console.log('Items found in result.data.items:', items.length);
-                } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
-                    items = result.data.data.items;
-                    console.log('Items found in result.data.data.items:', items.length);
+            if (result && result.success && result.data) {
+                // API.js wraps Laravel response, so structure is: result.data.data.items
+                const responseData = result.data.data || result.data;
+                
+                if (responseData && Array.isArray(responseData.items)) {
+                    items = responseData.items;
+                    currentPagination = responseData.pagination;
                 } else {
                     console.error('Unexpected API response structure:', result);
-                    console.error('result.data:', result.data);
-                    console.error('result.data.items:', result.data?.items);
-                }
-                
-                // Log debug info if available
-                if (result.data && result.data.debug) {
-                    console.log('Debug info:', result.data.debug);
+                    console.error('responseData:', responseData);
                 }
             } else {
                 console.error('API call failed or returned unsuccessful result:', result);
             }
         }
         
-        console.log('Items to display:', items.length);
-        console.log('Items array:', items);
-        
-        if (items.length === 0) {
-            console.warn('No items found! This might be a problem.');
-        }
-        
-        displayNotifications(items, isAdmin);
+        displayNotifications(items, isAdmin, currentPagination);
         
     } catch (error) {
         container.innerHTML = `<p style="color: red;">Error loading data: ${error.message}</p>`;
@@ -108,7 +96,7 @@ async function loadNotifications() {
     }
 }
 
-function displayNotifications(items, isAdmin) {
+function displayNotifications(items, isAdmin, pagination = null) {
     const container = document.getElementById('notificationsList');
 
     if (items.length === 0) {
@@ -159,10 +147,13 @@ function displayNotifications(items, isAdmin) {
         `;
     } else {
         // Display announcements and notifications for regular users
+        const paginationHtml = pagination ? renderPagination(pagination) : '';
+        
         container.innerHTML = `
             <table class="notification-table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;"></th>
                         <th>Type</th>
                         <th>Title</th>
                         <th>Sender</th>
@@ -176,12 +167,18 @@ function displayNotifications(items, isAdmin) {
                         const typeLabel = item.type === 'announcement' ? 'Announcement' : 'Notification';
                         const url = item.type === 'announcement' ? `/announcements/${item.id}` : `/notifications/${item.id}`;
                         const isRead = item.is_read === true || item.is_read === 1;
+                        const isStarred = item.is_starred === true || item.is_starred === 1;
                         const sender = item.creator || 'System';
                         const date = formatDateTime(item.created_at || item.pivot_created_at);
                         const hasPivot = item.is_read !== undefined;
                         
                         return `
-                        <tr class="notification-row ${isRead ? 'read' : 'unread'}" onclick="handleRowClick(event, '${item.type}', ${item.id}, ${isRead}, '${url}')">
+                        <tr class="notification-row ${isRead ? 'read' : 'unread'} ${isStarred ? 'starred' : ''}" onclick="handleRowClick(event, '${item.type}', ${item.id}, ${isRead}, '${url}')">
+                            <td class="star-cell" onclick="event.stopPropagation()">
+                                <button class="btn-star ${isStarred ? 'starred' : ''}" onclick="toggleStar('${item.type}', ${item.id}, event)" title="${isStarred ? 'Unstar' : 'Star'}">
+                                    <i class="fas fa-star"></i>
+                                </button>
+                            </td>
                             <td class="notification-type-cell">
                                 <i class="fas fa-${icon} notification-type-icon type-${item.type}"></i>
                                 ${typeLabel}
@@ -199,7 +196,94 @@ function displayNotifications(items, isAdmin) {
                     }).join('')}
                 </tbody>
             </table>
+            ${paginationHtml}
         `;
+    }
+}
+
+function renderPagination(pagination) {
+    if (!pagination || pagination.last_page <= 1) {
+        return '';
+    }
+    
+    const currentPage = pagination.current_page;
+    const lastPage = pagination.last_page;
+    const total = pagination.total;
+    const from = pagination.from || 0;
+    const to = pagination.to || 0;
+    
+    let paginationHtml = '<div class="pagination-wrapper">';
+    paginationHtml += `<div class="pagination-info">显示 ${from}-${to} / 共 ${total} 条</div>`;
+    paginationHtml += '<div class="pagination-buttons">';
+    
+    // Previous button
+    if (currentPage > 1) {
+        paginationHtml += `<button class="btn-pagination" onclick="loadNotifications(${currentPage - 1})">
+            <i class="fas fa-chevron-left"></i> 上一页
+        </button>`;
+    } else {
+        paginationHtml += `<button class="btn-pagination" disabled>
+            <i class="fas fa-chevron-left"></i> 上一页
+        </button>`;
+    }
+    
+    // Page numbers
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(lastPage, currentPage + 2);
+    
+    if (startPage > 1) {
+        paginationHtml += `<button class="btn-pagination" onclick="loadNotifications(1)">1</button>`;
+        if (startPage > 2) {
+            paginationHtml += `<span class="pagination-ellipsis">...</span>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === currentPage) {
+            paginationHtml += `<button class="btn-pagination active">${i}</button>`;
+        } else {
+            paginationHtml += `<button class="btn-pagination" onclick="loadNotifications(${i})">${i}</button>`;
+        }
+    }
+    
+    if (endPage < lastPage) {
+        if (endPage < lastPage - 1) {
+            paginationHtml += `<span class="pagination-ellipsis">...</span>`;
+        }
+        paginationHtml += `<button class="btn-pagination" onclick="loadNotifications(${lastPage})">${lastPage}</button>`;
+    }
+    
+    // Next button
+    if (currentPage < lastPage) {
+        paginationHtml += `<button class="btn-pagination" onclick="loadNotifications(${currentPage + 1})">
+            下一页 <i class="fas fa-chevron-right"></i>
+        </button>`;
+    } else {
+        paginationHtml += `<button class="btn-pagination" disabled>
+            下一页 <i class="fas fa-chevron-right"></i>
+        </button>`;
+    }
+    
+    paginationHtml += '</div></div>';
+    return paginationHtml;
+}
+
+async function toggleStar(type, id, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    try {
+        const result = await API.put(`/notifications/star/${type}/${id}`, {});
+        if (result.success) {
+            // Reload current page to reflect the change
+            loadNotifications(currentPage);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to toggle star'));
+        }
+    } catch (error) {
+        console.error('Error toggling star:', error);
+        alert('Error toggling star: ' + error.message);
     }
 }
 
@@ -257,7 +341,7 @@ window.markAsUnread = async function(type, id, event) {
         }
         
         if (result && result.success !== false) {
-            loadNotifications();
+            loadNotifications(currentPage);
             const typeLabel = type === 'announcement' ? 'Announcement' : 'Notification';
             showToast(`${typeLabel} marked as unread`, 'success');
         } else {
@@ -532,6 +616,131 @@ window.rejectBookingFromPage = async function(bookingId, event) {
     margin: 0;
     color: #2c3e50;
     font-size: 2em;
+}
+
+/* Star button styles */
+.star-cell {
+    text-align: center;
+    width: 40px;
+    padding: 8px;
+}
+
+.btn-star {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #ccc;
+    font-size: 18px;
+    transition: all 0.2s;
+    padding: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-star:hover {
+    color: #ffc107;
+    transform: scale(1.2);
+}
+
+.btn-star.starred {
+    color: #ffc107;
+}
+
+.notification-row.starred {
+    background-color: #fffef0;
+}
+
+.notification-row.starred:hover {
+    background-color: #fffce6;
+}
+
+/* Pagination styles */
+.pagination-wrapper {
+    margin-top: 30px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.pagination-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn-pagination {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    min-width: 40px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.btn-pagination:hover:not(:disabled) {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.btn-pagination.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    font-weight: 600;
+}
+
+.btn-pagination:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f5f5f5;
+}
+
+.pagination-ellipsis {
+    padding: 8px 4px;
+    color: #999;
+}
+
+@media (max-width: 768px) {
+    .pagination-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .pagination-info {
+        text-align: center;
+        order: -1;
+    }
+    
+    .pagination-buttons {
+        justify-content: center;
+    }
+    
+    .btn-pagination {
+        min-width: 36px;
+        padding: 6px 10px;
+        font-size: 0.85em;
+    }
 }
 </style>
 @endsection

@@ -67,15 +67,18 @@
                     <div class="filter-icon">
                         <i class="fas fa-search"></i>
                     </div>
-                    <input type="text" name="search" placeholder="Search by name or email..." 
+                    <input type="text" name="search" id="userSearchInput" placeholder="Search by name or email..." 
                            value="{{ request('search') }}" class="filter-input">
+                    <button type="button" class="filter-clear-btn" id="userSearchClear" style="display: none;" onclick="clearUserSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
                 
                 <div class="filter-select-wrapper">
                     <div class="filter-icon">
                         <i class="fas fa-info-circle"></i>
                     </div>
-                    <select name="status" class="filter-select">
+                    <select name="status" id="statusFilter" class="filter-select">
                         <option value="">All Status</option>
                         <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
                         <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
@@ -86,7 +89,7 @@
                     <div class="filter-icon">
                         <i class="fas fa-user-tag"></i>
                     </div>
-                    <select name="role" class="filter-select">
+                    <select name="role" id="roleFilter" class="filter-select">
                         <option value="">All Roles</option>
                         <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
                         <option value="student" {{ request('role') === 'student' ? 'selected' : '' }}>Student</option>
@@ -94,17 +97,6 @@
                     </select>
                 </div>
                 
-                <button type="submit" class="btn-search">
-                    <i class="fas fa-search"></i>
-                    <span>Search</span>
-                </button>
-                
-                @if(request()->hasAny(['search', 'status', 'role']))
-                    <a href="{{ route('admin.users.index') }}" class="btn-clear">
-                        <i class="fas fa-times"></i>
-                        <span>Clear</span>
-                    </a>
-                @endif
             </form>
         </div>
     </div>
@@ -114,17 +106,17 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
+                    <th class="sortable" data-sort="id">ID <i class="sort-icon"></i></th>
+                    <th class="sortable" data-sort="name">Name <i class="sort-icon"></i></th>
+                    <th class="sortable" data-sort="email">Email <i class="sort-icon"></i></th>
+                    <th class="sortable" data-sort="role">Role <i class="sort-icon"></i></th>
+                    <th class="sortable" data-sort="status">Status <i class="sort-icon"></i></th>
                     <th>Phone</th>
-                    <th>Joined</th>
+                    <th class="sortable" data-sort="created_at">Joined <i class="sort-icon"></i></th>
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="usersTableBody">
                 @forelse($users as $user)
                     <tr>
                         <td>{{ $user->id }}</td>
@@ -159,9 +151,14 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Loading Indicator -->
+    <div id="searchLoading" style="display: none; text-align: center; padding: 20px;">
+        <i class="fas fa-spinner fa-spin"></i> 正在搜索...
+    </div>
 
     <!-- Pagination -->
-    <div class="pagination-wrapper">
+    <div class="pagination-wrapper" id="paginationWrapper">
         {{ $users->links('pagination::bootstrap-5') }}
     </div>
 </div>
@@ -345,7 +342,7 @@
 .filter-input,
 .filter-select {
     width: 100%;
-    padding: 12px 15px 12px 45px;
+    padding: 12px 40px 12px 45px;
     border: 2px solid #e9ecef;
     border-radius: 8px;
     font-size: 0.95rem;
@@ -497,6 +494,61 @@
     letter-spacing: 0.5px;
 }
 
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.data-table th.sortable:hover {
+    background-color: #e9ecef;
+}
+
+.sort-icon {
+    margin-left: 5px;
+    font-size: 0.8em;
+    color: #6c757d;
+}
+
+.data-table th.sortable:hover .sort-icon {
+    color: #495057;
+}
+
+/* Actions Buttons */
+.actions {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.btn-sm.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-sm.btn-info:hover {
+    background: #138496;
+}
+
+.btn-sm.btn-warning {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btn-sm.btn-warning:hover {
+    background: #e0a800;
+}
+
 /* Custom Pagination Styling */
 .pagination-wrapper {
     margin-top: 30px;
@@ -589,8 +641,280 @@
 </style>
 
 <script>
-// Handle CSV Upload Form with AJAX
+// Real-time search functionality
+let searchTimeout;
+let currentPage = 1;
+let currentSortBy = 'created_at';
+let currentSortOrder = 'desc';
+
+// Debounce function
+function debounce(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(searchTimeout);
+            func(...args);
+        };
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(later, wait);
+    };
+}
+
+// Fetch users from API
+async function fetchUsers(search = '', status = '', role = '', page = 1, sortBy = null, sortOrder = null) {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (status) params.append('status', status);
+    if (role) params.append('role', role);
+    params.append('per_page', 10);
+    params.append('page', page);
+    
+    // Add sorting parameters
+    if (sortBy !== null) {
+        currentSortBy = sortBy;
+    }
+    if (sortOrder !== null) {
+        currentSortOrder = sortOrder;
+    }
+    params.append('sort_by', currentSortBy);
+    params.append('sort_order', currentSortOrder);
+    
+    const queryString = params.toString();
+    // API.js already has baseURL='/api', so we just need '/users'
+    const endpoint = '/users' + (queryString ? '?' + queryString : '');
+    
+    try {
+        console.log('Fetching users from:', endpoint);
+        console.log('API token exists:', !!API.getToken());
+        
+        const result = await API.get(endpoint);
+        console.log('API result:', result);
+        
+        // API response structure: { success: true, data: { message: "...", data: { data: [...], links: [...] } } }
+        if (result.success && result.data) {
+            // Check if result.data.data exists (the paginated response)
+            if (result.data.data) {
+                // Return the paginated data structure: { data: [...], links: [...] }
+                return result.data.data;
+            } else {
+                console.error('Unexpected API response structure:', result);
+                return null;
+            }
+        } else {
+            console.error('API request failed:', result);
+            if (result.error) {
+                console.error('Error message:', result.error);
+            }
+            // Check if it's an authentication error
+            if (result.data && (result.data.message && result.data.message.includes('Unauthenticated'))) {
+                console.error('Authentication failed. Token may be invalid or expired.');
+            }
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        return null;
+    }
+}
+
+// Render users table
+function renderUsersTable(usersData) {
+    const tbody = document.getElementById('usersTableBody');
+    const paginationWrapper = document.getElementById('paginationWrapper');
+    
+    if (!usersData || !usersData.data || usersData.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No users found</td></tr>';
+        paginationWrapper.innerHTML = '';
+        return;
+    }
+    
+    // Render table rows
+    tbody.innerHTML = usersData.data.map(user => {
+        const statusBadgeClass = (user.status === 'active') ? 'success' : 'secondary';
+        const role = user.role || '-';
+        const phone = user.phone_number || '-';
+        const joinDate = user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : '-';
+        const roleDisplay = escapeHtml(role.charAt(0).toUpperCase() + role.slice(1));
+        const statusDisplay = escapeHtml((user.status || '').charAt(0).toUpperCase() + (user.status || '').slice(1));
+        
+        return '<tr>' +
+            '<td>' + user.id + '</td>' +
+            '<td>' + escapeHtml(user.name || '') + '</td>' +
+            '<td>' + escapeHtml(user.email || '') + '</td>' +
+            '<td><span class="badge badge-info">' + roleDisplay + '</span></td>' +
+            '<td><span class="badge badge-' + statusBadgeClass + '">' + statusDisplay + '</span></td>' +
+            '<td>' + escapeHtml(phone) + '</td>' +
+            '<td>' + escapeHtml(joinDate) + '</td>' +
+            '<td class="actions">' +
+                '<a href="/admin/users/' + user.id + '" class="btn-sm btn-info" title="View">' +
+                    '<i class="fas fa-eye"></i>' +
+                '</a>' +
+                '<a href="/admin/users/' + user.id + '/edit" class="btn-sm btn-warning" title="Edit">' +
+                    '<i class="fas fa-edit"></i>' +
+                '</a>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+    
+    // Render pagination
+    if (usersData.links && usersData.links.length > 0) {
+        let paginationHtml = '<ul class="pagination">';
+        
+        usersData.links.forEach(link => {
+            if (link.url) {
+                const activeClass = link.active ? 'active' : '';
+                const disabledClass = !link.url ? 'disabled' : '';
+                const label = link.label.replace('&laquo;', '«').replace('&raquo;', '»');
+                
+                paginationHtml += `
+                    <li class="page-item ${activeClass} ${disabledClass}">
+                        <a class="page-link" href="${link.url || '#'}" ${link.url ? '' : 'onclick="return false;"'}>
+                            ${label}
+                        </a>
+                    </li>
+                `;
+            }
+        });
+        
+        paginationHtml += '</ul>';
+        paginationWrapper.innerHTML = paginationHtml;
+        
+        // Attach click handlers to pagination links
+        paginationWrapper.querySelectorAll('.page-link').forEach(link => {
+            if (link.href && !link.closest('.page-item').classList.contains('disabled')) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const url = new URL(this.href);
+                    const page = url.searchParams.get('page') || 1;
+                    performSearch(page);
+                });
+            }
+        });
+    } else {
+        paginationWrapper.innerHTML = '';
+    }
+}
+
+// Clear user search
+function clearUserSearch() {
+    const searchInput = document.getElementById('userSearchInput');
+    const searchClearBtn = document.getElementById('userSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        performSearch(1);
+    }
+}
+
+// Update sort indicators in table headers
+function updateSortIndicators() {
+    // Remove all sort indicators
+    document.querySelectorAll('.sort-icon').forEach(icon => {
+        icon.className = 'sort-icon';
+        icon.textContent = '';
+    });
+    
+    // Add indicator to current sort column
+    const currentSortTh = document.querySelector(`th[data-sort="${currentSortBy}"]`);
+    if (currentSortTh) {
+        const icon = currentSortTh.querySelector('.sort-icon');
+        if (icon) {
+            icon.className = `sort-icon fas fa-sort-${currentSortOrder === 'asc' ? 'up' : 'down'}`;
+        }
+    }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// Perform search
+async function performSearch(page = 1, sortBy = null, sortOrder = null) {
+    // Handle sorting
+    if (sortBy !== null) {
+        if (currentSortBy === sortBy) {
+            // Toggle sort order
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortBy = sortBy;
+            currentSortOrder = 'asc';
+        }
+    }
+    // Check if API is available
+    if (typeof API === 'undefined') {
+        console.error('API is not defined! Make sure api.js is loaded.');
+        alert('API 未加载。请刷新页面重试。');
+        return;
+    }
+    
+    const searchInput = document.getElementById('userSearchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const roleFilter = document.getElementById('roleFilter');
+    const loadingIndicator = document.getElementById('searchLoading');
+    const tableContainer = document.querySelector('.table-container');
+    
+    const search = searchInput ? searchInput.value.trim() : '';
+    const status = statusFilter ? statusFilter.value : '';
+    const role = roleFilter ? roleFilter.value : '';
+    
+    currentPage = page;
+    
+    // Show loading indicator
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
+    }
+    if (tableContainer) {
+        tableContainer.style.opacity = '0.5';
+    }
+    
+    try {
+        const usersData = await fetchUsers(search, status, role, page, currentSortBy, currentSortOrder);
+        
+        if (usersData && usersData.data) {
+            renderUsersTable(usersData);
+            updateSortIndicators();
+        } else {
+            console.error('No users data received:', usersData);
+            let errorMsg = '无法加载用户数据。';
+            
+            // Check if API is available
+            if (typeof API === 'undefined') {
+                errorMsg += ' API 未加载。请刷新页面重试。';
+            } else if (!API.getToken()) {
+                errorMsg += ' 未找到认证令牌。请重新登录。';
+            } else {
+                errorMsg += ' 请查看浏览器控制台（F12）获取详细错误信息。';
+            }
+            
+            document.getElementById('usersTableBody').innerHTML = 
+                '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+        const errorMsg = 'Error: ' + (error.message || 'Unknown error. Please check console.');
+        document.getElementById('usersTableBody').innerHTML = 
+            '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
+    } finally {
+        // Hide loading indicator
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        if (tableContainer) {
+            tableContainer.style.opacity = '1';
+        }
+    }
+}
+
+// Initialize real-time search
 document.addEventListener('DOMContentLoaded', function() {
+    // Handle CSV Upload Form with AJAX
     var csvForm = document.getElementById('csvUploadForm');
     var csvUploadBtn = document.getElementById('csvUploadBtn');
     
@@ -653,6 +977,51 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Real-time search setup
+    const searchInput = document.getElementById('userSearchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const roleFilter = document.getElementById('roleFilter');
+    const searchForm = document.querySelector('.filters-form');
+    
+    // Prevent form submission, use AJAX instead
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            performSearch(1);
+        });
+    }
+    
+    // Real-time search on input (debounced)
+    if (searchInput) {
+        const debouncedSearch = debounce(() => {
+            performSearch(1);
+        }, 300); // 300ms delay
+        
+        searchInput.addEventListener('input', debouncedSearch);
+    }
+    
+    // Filter changes trigger search
+    if (statusFilter) {
+        statusFilter.addEventListener('change', function() {
+            performSearch(1);
+        });
+    }
+    
+    if (roleFilter) {
+        roleFilter.addEventListener('change', function() {
+            performSearch(1);
+        });
+    }
+    
+    // Add click handlers to sortable headers
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', function() {
+            const sortBy = this.getAttribute('data-sort');
+            performSearch(1, sortBy, null);
+        });
+    });
 });
 </script>
 @endsection

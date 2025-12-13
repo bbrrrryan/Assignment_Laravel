@@ -38,7 +38,22 @@ class UserController extends Controller
             });
         }
 
-        $users = $query->paginate($request->get('per_page', 15));
+        // Sorting
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        
+        // Validate sort_by to prevent SQL injection
+        $allowedSortFields = ['id', 'name', 'email', 'role', 'status', 'created_at'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'created_at';
+        }
+        
+        if (strtolower($sortOrder) !== 'asc' && strtolower($sortOrder) !== 'desc') {
+            $sortOrder = 'desc';
+        }
+        
+        $users = $query->orderBy($sortBy, $sortOrder)
+            ->paginate($request->get('per_page', 10));
 
         return response()->json([
             'message' => 'Users retrieved successfully',
@@ -58,7 +73,7 @@ class UserController extends Controller
             'role' => 'required|in:admin,student,staff',
             'phone_number' => 'nullable|string',
             'address' => 'nullable|string',
-            'status' => 'nullable|in:active,suspended,deactivated',
+            'status' => 'nullable|in:active,inactive',
         ]);
 
         if ($validator->fails()) {
@@ -122,7 +137,7 @@ class UserController extends Controller
             'role' => 'sometimes|required|in:admin,student,staff',
             'phone_number' => 'nullable|string',
             'address' => 'nullable|string',
-            'status' => 'nullable|in:active,suspended,deactivated',
+            'status' => 'nullable|in:active,inactive',
         ]);
 
         if ($validator->fails()) {
@@ -272,7 +287,7 @@ class UserController extends Controller
                         'role' => 'required|in:admin,student,staff',
                         'phone_number' => 'nullable|string',
                         'address' => 'nullable|string',
-                        'status' => 'nullable|in:active,suspended,deactivated',
+                        'status' => 'nullable|in:active,inactive',
                     ]);
 
                     if ($validator->fails()) {

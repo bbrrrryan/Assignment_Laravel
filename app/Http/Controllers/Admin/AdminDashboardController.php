@@ -21,7 +21,7 @@ class AdminDashboardController extends AdminBaseController
         // User Management Stats
         $stats['total_users'] = User::count();
         $stats['active_users'] = User::where('status', 'active')->count();
-        $stats['suspended_users'] = User::where('status', 'suspended')->count();
+        $stats['inactive_users'] = User::where('status', 'inactive')->count();
 
         // Booking Stats
         $stats['total_bookings'] = Booking::count();
@@ -44,10 +44,9 @@ class AdminDashboardController extends AdminBaseController
         $stats['total_certificates'] = Certificate::count();
 
         // Recent Data
-        $recentUsers = User::latest()->limit(5)->get();
         $recentBookings = Booking::with(['user', 'facility'])->latest()->limit(5)->get();
         $recentFeedbacks = Feedback::with('user')->latest()->limit(5)->get();
 
-        return view('admin.dashboard', compact('stats', 'recentUsers', 'recentBookings', 'recentFeedbacks'));
+        return view('admin.dashboard', compact('stats', 'recentBookings', 'recentFeedbacks'));
     }
 }

@@ -281,7 +281,8 @@ class NotificationController extends Controller
     public function getUnreadItems(Request $request)
     {
         $user = auth()->user();
-        $limit = $request->get('limit', 10);
+        $perPage = $request->get('per_page', 10);
+        $page = $request->get('page', 1);
         // Handle both string and boolean values for only_unread
         $onlyUnreadParam = $request->get('only_unread', false);
         $onlyUnread = filter_var($onlyUnreadParam, FILTER_VALIDATE_BOOLEAN);
@@ -343,6 +344,7 @@ class NotificationController extends Controller
                 'pivot_created_at' => $pivotCreatedAt,
                 'creator' => $announcement->creator ? $announcement->creator->name : 'System',
                 'is_read' => $pivotData ? (bool)($pivotData->is_read ?? false) : false,
+                'is_starred' => $pivotData ? (bool)($pivotData->is_starred ?? false) : false,
             ];
         })->filter(function($item) use ($onlyUnread) {
             if ($onlyUnread) {
@@ -377,6 +379,7 @@ class NotificationController extends Controller
                     'pivot_created_at' => $pivotCreatedAt,
                     'creator' => $notification->creator ? $notification->creator->name : 'System',
                     'is_read' => (bool)($notification->pivot->is_read ?? false),
+                    'is_starred' => (bool)($notification->pivot->is_starred ?? false),
                 ];
             })
             ->filter(function($item) use ($onlyUnread) {
@@ -386,13 +389,17 @@ class NotificationController extends Controller
                 return true;
             });
 
-        // Combine and sort by created_at (unread items first)
+        // Combine and sort by created_at (unread items first, then starred, then by date)
         $combined = $announcements->concat($notifications);
         
-        $items = $combined->sort(function ($a, $b) {
+        $sorted = $combined->sort(function ($a, $b) {
                 // Unread items first
                 if ($a['is_read'] !== $b['is_read']) {
                     return $a['is_read'] ? 1 : -1;
+                }
+                // Then starred items
+                if ($a['is_starred'] !== $b['is_starred']) {
+                    return $a['is_starred'] ? -1 : 1;
                 }
                 // Then sort by date (most recent first)
                 $dateA = $a['pivot_created_at'] ?? $a['created_at'] ?? '';
@@ -404,8 +411,23 @@ class NotificationController extends Controller
                 
                 return $timestampB <=> $timestampA;
             })
-            ->take($limit)
             ->values();
+
+        // Manual pagination using LengthAwarePaginator
+        $total = $sorted->count();
+        $offset = ($page - 1) * $perPage;
+        $items = $sorted->slice($offset, $perPage)->values();
+        
+        // Create pagination data structure similar to Laravel's paginator
+        $lastPage = (int) ceil($total / $perPage);
+        $paginationData = [
+            'current_page' => (int) $page,
+            'per_page' => (int) $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'from' => $total > 0 ? $offset + 1 : null,
+            'to' => min($offset + $perPage, $total),
+        ];
 
         // Get total unread counts for badge (count unread items)
         $announcementCount = $announcements->filter(function($item) {
@@ -415,29 +437,16 @@ class NotificationController extends Controller
         $notificationCount = $notifications->filter(function($item) {
             return !$item['is_read'];
         })->count();
-        
-        \Log::info('User ' . $user->id . ' items count - announcements: ' . $announcements->count() . ', notifications: ' . $notifications->count() . ', total items: ' . $items->count());
-        \Log::info('Filtered announcements count: ' . $filteredAnnouncements->count());
-        \Log::info('All announcements count: ' . $allAnnouncements->count());
 
         return response()->json([
             'message' => 'Items retrieved successfully',
             'data' => [
-                'items' => $items->toArray(), // Ensure it's an array
+                'items' => $items->toArray(),
+                'pagination' => $paginationData,
                 'counts' => [
                     'announcements' => $announcementCount,
                     'notifications' => $notificationCount,
                     'total' => $announcementCount + $notificationCount,
-                ],
-                'debug' => [
-                    'user_id' => $user->id,
-                    'user_role' => $user->role,
-                    'announcements_total' => $allAnnouncements->count(),
-                    'announcements_filtered' => $filteredAnnouncements->count(),
-                    'announcements_mapped' => $announcements->count(),
-                    'notifications_count' => $notifications->count(),
-                    'combined_count' => $combined->count(),
-                    'items_count' => $items->count(),
                 ],
             ],
         ]);
@@ -472,6 +481,95 @@ class NotificationController extends Controller
 
             default:
                 return [];
+        }
+    }
+
+    /**
+     * Star/Unstar a notification or announcement
+     */
+    public function toggleStar(Request $request, string $type, string $id)
+    {
+        $user = auth()->user();
+        
+        if (!in_array($type, ['notification', 'announcement'])) {
+            return response()->json([
+                'message' => 'Invalid type. Must be "notification" or "announcement"',
+            ], 400);
+        }
+
+        if ($type === 'notification') {
+            $notification = Notification::findOrFail($id);
+            $pivot = DB::table('user_notification')
+                ->where('user_id', $user->id)
+                ->where('notification_id', $id)
+                ->first();
+
+            if (!$pivot) {
+                return response()->json([
+                    'message' => 'Notification not found or not assigned to user',
+                ], 404);
+            }
+
+            $isStarred = !$pivot->is_starred;
+            
+            DB::table('user_notification')
+                ->where('user_id', $user->id)
+                ->where('notification_id', $id)
+                ->update([
+                    'is_starred' => $isStarred,
+                    'starred_at' => $isStarred ? now() : null,
+                ]);
+
+            return response()->json([
+                'message' => $isStarred ? 'Notification starred successfully' : 'Notification unstarred successfully',
+                'data' => [
+                    'is_starred' => $isStarred,
+                ],
+            ]);
+        } else {
+            // announcement
+            $announcement = Announcement::findOrFail($id);
+            $pivot = DB::table('user_announcement')
+                ->where('user_id', $user->id)
+                ->where('announcement_id', $id)
+                ->first();
+
+            // If pivot doesn't exist, create it
+            if (!$pivot) {
+                DB::table('user_announcement')->insert([
+                    'user_id' => $user->id,
+                    'announcement_id' => $id,
+                    'is_read' => false,
+                    'is_starred' => true,
+                    'starred_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Announcement starred successfully',
+                    'data' => [
+                        'is_starred' => true,
+                    ],
+                ]);
+            }
+
+            $isStarred = !$pivot->is_starred;
+            
+            DB::table('user_announcement')
+                ->where('user_id', $user->id)
+                ->where('announcement_id', $id)
+                ->update([
+                    'is_starred' => $isStarred,
+                    'starred_at' => $isStarred ? now() : null,
+                ]);
+
+            return response()->json([
+                'message' => $isStarred ? 'Announcement starred successfully' : 'Announcement unstarred successfully',
+                'data' => [
+                    'is_starred' => $isStarred,
+                ],
+            ]);
         }
     }
 }
