@@ -6,56 +6,12 @@
 <div class="page-container">
     <div class="page-header">
         <h1>Notification</h1>
-        <button id="createNotificationBtn" class="btn-primary" onclick="showCreateModal()" style="display: none;">
-            <i class="fas fa-plus"></i> Create Notification
-        </button>
     </div>
 
     <hr class="notification-divider">
 
     <div id="notificationsList" class="notifications-container">
         <p>Loading notifications...</p>
-    </div>
-</div>
-
-<!-- Create Notification Modal -->
-<div id="notificationModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Create Notification</h2>
-        <form id="notificationForm">
-            <div class="form-group">
-                <label>Title *</label>
-                <input type="text" id="notifTitle" required>
-            </div>
-            <div class="form-group">
-                <label>Message *</label>
-                <textarea id="notifMessage" required rows="4"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Type *</label>
-                <select id="notifType" required>
-                    <option value="info">Info</option>
-                    <option value="warning">Warning</option>
-                    <option value="success">Success</option>
-                    <option value="error">Error</option>
-                    <option value="reminder">Reminder</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Target Audience *</label>
-                <select id="notifAudience" required>
-                    <option value="all">All Users</option>
-                    <option value="students">Students</option>
-                    <option value="staff">Staff</option>
-                    <option value="admins">Admins</option>
-                </select>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Create & Send</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -74,21 +30,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initNotifications() {
-    // Update UI based on user role
-    const createBtn = document.getElementById('createNotificationBtn');
-    
-    if (API.isAdmin()) {
-        // Show create button for admin
-        if (createBtn) {
-            createBtn.style.display = 'block';
-        }
-    } else {
-        // Hide create button for students
-        if (createBtn) {
-            createBtn.style.display = 'none';
-        }
-    }
-    
     loadNotifications();
 }
 
@@ -96,19 +37,44 @@ async function loadNotifications() {
     const container = document.getElementById('notificationsList');
     container.innerHTML = '<p>Loading notifications...</p>';
     
-    // Load user's notifications (all users see their own notifications)
-    const endpoint = '/notifications/user/my-notifications';
+    // Admin sees all notifications, regular users see only their own
+    const endpoint = API.isAdmin() ? '/notifications' : '/notifications/user/my-notifications';
 
-    const result = await API.get(endpoint);
-    
-    if (result.success) {
-        // Handle paginated response: result.data.data is the pagination object
-        // result.data.data.data is the actual array of notifications
-        const notifications = result.data?.data?.data || result.data?.data || [];
-        displayNotifications(notifications);
-    } else {
-        container.innerHTML = `<p style="color: red;">Error: ${result.error || 'Failed to load notifications'}</p>`;
-        console.error('Error loading notifications:', result);
+    try {
+        const result = await API.get(endpoint);
+        
+        console.log('Notification API Response:', result);
+        
+        if (result.success) {
+            // Handle paginated response: result.data.data is the pagination object
+            // result.data.data.data is the actual array of notifications
+            let notifications = [];
+            
+            if (result.data && result.data.data) {
+                // Check if it's a paginated response
+                if (Array.isArray(result.data.data)) {
+                    // Direct array response
+                    notifications = result.data.data;
+                } else if (result.data.data.data && Array.isArray(result.data.data.data)) {
+                    // Paginated response
+                    notifications = result.data.data.data;
+                } else if (result.data.data.data && Array.isArray(result.data.data)) {
+                    // Alternative structure
+                    notifications = result.data.data;
+                }
+            }
+            
+            console.log('Parsed notifications:', notifications);
+            console.log('Notifications count:', notifications.length);
+            
+            displayNotifications(notifications);
+        } else {
+            container.innerHTML = `<p style="color: red;">Error: ${result.error || 'Failed to load notifications'}</p>`;
+            console.error('Error loading notifications:', result);
+        }
+    } catch (error) {
+        container.innerHTML = `<p style="color: red;">Error loading notifications: ${error.message}</p>`;
+        console.error('Exception loading notifications:', error);
     }
 }
 
@@ -120,21 +86,29 @@ function displayNotifications(notifications) {
         return;
     }
 
+    const isAdmin = API.isAdmin();
+    
     container.innerHTML = `
         <table class="notification-table">
             <thead>
                 <tr>
                     <th>Title</th>
                     <th>Sender</th>
+                    ${isAdmin ? '<th>Target Audience</th>' : ''}
                     <th>Date</th>
-                    <th>Mark as Unread</th>
+                    ${!isAdmin ? '<th>Mark as Unread</th>' : ''}
                 </tr>
             </thead>
             <tbody>
                 ${notifications.map(notif => {
+                    // Admin viewing all notifications may not have pivot data
+                    // Regular users viewing their notifications will have pivot data
                     const isRead = notif.pivot?.is_read || false;
                     const sender = notif.creator?.name || 'System';
                     const date = formatDateTime(notif.created_at);
+                    const isAdmin = API.isAdmin();
+                    const hasPivot = notif.pivot !== undefined && notif.pivot !== null;
+                    
                     return `
                     <tr class="notification-row ${isRead ? 'read' : 'unread'}" onclick="handleRowClick(event, ${notif.id}, ${isRead})">
                         <td class="notification-title ${isRead ? 'read-text' : ''}">
@@ -142,12 +116,13 @@ function displayNotifications(notifications) {
                             ${notif.title}
                         </td>
                         <td class="notification-sender ${isRead ? 'read-text' : ''}">${sender}</td>
+                        ${isAdmin ? `<td class="notification-audience ${isRead ? 'read-text' : ''}">${notif.target_audience ? notif.target_audience.charAt(0).toUpperCase() + notif.target_audience.slice(1) : 'All'}</td>` : ''}
                         <td class="notification-date ${isRead ? 'read-text' : ''}">${date}</td>
-                        <td class="notification-actions" onclick="event.stopPropagation()">
-                            ${isRead ? `<button class="btn-unread-icon" onclick="markAsUnread(${notif.id}, event)" title="Mark as Unread">
+                        ${!isAdmin ? `<td class="notification-actions" onclick="event.stopPropagation()">
+                            ${hasPivot && isRead ? `<button class="btn-unread-icon" onclick="markAsUnread(${notif.id}, event)" title="Mark as Unread">
                                 <i class="fas fa-envelope-open"></i>
                             </button>` : ''}
-                        </td>
+                        </td>` : ''}
                     </tr>
                 `;
                 }).join('')}
@@ -173,26 +148,21 @@ function formatDateTime(dateString) {
     return date.toLocaleString();
 }
 
-// Make functions global
-window.showCreateModal = function() {
-    document.getElementById('notificationForm').reset();
-    document.getElementById('notificationModal').style.display = 'block';
-};
-
-window.closeModal = function() {
-    document.getElementById('notificationModal').style.display = 'none';
-};
-
 // Handle row click - mark as read and navigate
 async function handleRowClick(event, id, isRead) {
-    // If not read, mark as read first
-    if (!isRead) {
+    // Only mark as read if user has this notification (has pivot data)
+    // Admin viewing all notifications may not have pivot, so skip marking as read
+    const isAdmin = API.isAdmin();
+    
+    // For regular users, mark as read if not already read
+    if (!isAdmin && !isRead) {
         try {
             await API.put(`/notifications/${id}/read`, {});
         } catch (error) {
             console.error('Error marking notification as read:', error);
         }
     }
+    
     // Navigate to notification page
     window.location.href = `/notifications/${id}`;
 }
@@ -212,35 +182,6 @@ window.markAsUnread = async function(id, event) {
     }
 };
 
-// Bind form submit event
-(function() {
-    const notificationForm = document.getElementById('notificationForm');
-    if (notificationForm) {
-        notificationForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const data = {
-                title: document.getElementById('notifTitle').value,
-                message: document.getElementById('notifMessage').value,
-                type: document.getElementById('notifType').value,
-                target_audience: document.getElementById('notifAudience').value
-            };
-
-            const result = await API.post('/notifications', data);
-
-            if (result.success) {
-                // Send notification
-                const sendResult = await API.post(`/notifications/${result.data.data.id}/send`, {});
-                
-                window.closeModal();
-                loadNotifications();
-                alert('Notification created and sent!');
-            } else {
-                alert(result.error || 'Error creating notification');
-            }
-        });
-    }
-})();
 </script>
 
 <style>

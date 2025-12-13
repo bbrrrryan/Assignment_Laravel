@@ -119,18 +119,12 @@
                         </h5>
                         
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label for="bookingFacility" class="form-label">Facility <span class="text-danger">*</span></label>
-                                <select id="bookingFacility" class="form-select" required>
+                                <select id="bookingFacility" class="form-select" required onchange="handleFacilityChange(this)">
                                     <option value="">Select Facility</option>
                                 </select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="bookingDate" class="form-label">Booking Date <span class="text-danger">*</span></label>
-                                <input type="date" id="bookingDate" class="form-control" required onchange="validateBookingDate()">
-                                <small class="form-text text-muted">You can only book from tomorrow onwards</small>
-                                <div id="bookingDateError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
+                                <small class="form-text text-muted">Select a facility to view available time slots for the next 3 days</small>
                             </div>
                         </div>
                     </div>
@@ -141,19 +135,38 @@
                             <i class="fas fa-clock me-2"></i>Time Information
                         </h5>
                         
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="bookingStartTime" class="form-label">Start Time <span class="text-danger">*</span></label>
-                                <input type="time" id="bookingStartTime" class="form-control" required min="08:00" max="20:00" onchange="validateTimeRange()">
-                                <div id="startTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
-                                <small class="form-text text-muted">Available time: 8:00 AM - 8:00 PM</small>
+                        <!-- Duration Selection -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Booking Duration <span class="text-danger">*</span></label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration1h" value="1" checked>
+                                    <label class="btn btn-outline-primary" for="duration1h">
+                                        <i class="fas fa-clock me-2"></i>1 Hour
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration2h" value="2">
+                                    <label class="btn btn-outline-primary" for="duration2h">
+                                        <i class="fas fa-clock me-2"></i>2 Hours
+                                    </label>
+                                </div>
                             </div>
+                        </div>
 
-                            <div class="col-md-6">
-                                <label for="bookingEndTime" class="form-label">End Time <span class="text-danger">*</span></label>
-                                <input type="time" id="bookingEndTime" class="form-control" required min="08:00" max="20:00" onchange="validateTimeRange()">
-                                <div id="endTimeError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
-                                <small class="form-text text-muted">Available time: 8:00 AM - 8:00 PM</small>
+                        <!-- Visual Timetable -->
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Select Time Slot <span class="text-danger">*</span></label>
+                                <div id="timetableContainer" class="timetable-container">
+                                    <div class="timetable-loading">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>Loading timetable...
+                                    </div>
+                                </div>
+                                <input type="hidden" id="bookingStartTime" required>
+                                <input type="hidden" id="bookingEndTime" required>
+                                <input type="hidden" id="selectedBookingDate" required>
+                                <div id="timeSlotError" class="text-danger" style="display: none; font-size: 0.875rem; margin-top: 5px;"></div>
+                                <small class="form-text text-muted">Click on an available time slot to select. Green slots are available, red slots are booked.</small>
                             </div>
                         </div>
                     </div>
@@ -217,40 +230,23 @@ window.showCreateModal = function() {
     if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
     if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
     
-    // Set minimum date to tomorrow (users can only book from tomorrow onwards)
-    const dateInput = document.getElementById('bookingDate');
-    if (dateInput) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-        dateInput.min = tomorrowStr;
-        dateInput.value = ''; // Clear any previous value
-        // Also set max attribute to prevent selecting dates too far in the future (optional, can remove if not needed)
-    }
-    
-    // Set time input constraints (8:00 AM - 8:00 PM)
+    // Reset time slot selection
+    selectedTimeSlot = null;
     const startTimeInput = document.getElementById('bookingStartTime');
     const endTimeInput = document.getElementById('bookingEndTime');
-    if (startTimeInput) {
-        startTimeInput.min = '08:00';
-        startTimeInput.max = '20:00';
-        startTimeInput.value = '';
-    }
-    if (endTimeInput) {
-        endTimeInput.min = '08:00';
-        endTimeInput.max = '20:00';
-        endTimeInput.value = '';
-    }
+    const selectedDateInput = document.getElementById('selectedBookingDate');
+    if (startTimeInput) startTimeInput.value = '';
+    if (endTimeInput) endTimeInput.value = '';
+    if (selectedDateInput) selectedDateInput.value = '';
     
-    // Clear date validation errors
-    const dateErrorDiv = document.getElementById('bookingDateError');
-    if (dateErrorDiv) {
-        dateErrorDiv.style.display = 'none';
-        dateErrorDiv.textContent = '';
-    }
-    if (dateInput) {
-        dateInput.classList.remove('is-invalid');
-        dateInput.setCustomValidity('');
+    // Clear timetable and show placeholder
+    clearTimetable();
+    
+    // Clear any previous validation errors
+    const timeSlotError = document.getElementById('timeSlotError');
+    if (timeSlotError) {
+        timeSlotError.style.display = 'none';
+        timeSlotError.textContent = '';
     }
     
     const modal = document.getElementById('bookingModal');
@@ -258,8 +254,25 @@ window.showCreateModal = function() {
         modal.style.display = 'block';
     }
     
-    // Clear any previous validation errors
-    clearTimeValidationErrors();
+    // Ensure facility select has event listener
+    const facilitySelect = document.getElementById('bookingFacility');
+    if (facilitySelect) {
+        // Use onclick attribute for more reliable binding
+        facilitySelect.onchange = function() {
+            if (this.value) {
+                loadTimetable(this.value);
+            } else {
+                clearTimetable();
+            }
+        };
+        
+        // If facility is already selected, load timetable
+        if (facilitySelect.value) {
+            setTimeout(() => {
+                loadTimetable(facilitySelect.value);
+            }, 100);
+        }
+    }
 };
 
 // Function to validate time range in real-time
@@ -850,6 +863,275 @@ window.updateFacilitiesByDate = function() {
     }
 };
 
+// Timetable functions
+let selectedTimeSlot = null;
+let bookedSlots = {};
+
+// Generate 3 days starting from tomorrow
+function getNextThreeDays() {
+    const days = [];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    for (let i = 1; i <= 3; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        const dayName = dayNames[date.getDay()];
+        const month = monthNames[date.getMonth()];
+        const day = date.getDate();
+        const year = date.getFullYear();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        days.push({
+            date: dateStr,
+            display: `${dayName}, ${month} ${day}`,
+            fullDate: `${month} ${day}, ${year}`
+        });
+    }
+    
+    return days;
+}
+
+// Generate time slots (8:00 AM to 8:00 PM)
+function generateTimeSlots(duration = 1) {
+    const slots = [];
+    const startHour = 8;
+    const endHour = 20;
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+        const startTime = `${hour.toString().padStart(2, '0')}:00`;
+        const endHourTime = hour + duration;
+        const endTime = `${endHourTime.toString().padStart(2, '0')}:00`;
+        
+        // Only add slot if it doesn't exceed 20:00
+        if (endHourTime <= endHour) {
+            slots.push({
+                start: startTime,
+                end: endTime,
+                display: `${formatTime12(startTime)} - ${formatTime12(endTime)}`
+            });
+        }
+    }
+    
+    return slots;
+}
+
+// Format time to 12-hour format
+function formatTime12(time24) {
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+}
+
+// Load timetable for selected facility
+async function loadTimetable(facilityId) {
+    console.log('Loading timetable for facility:', facilityId);
+    const container = document.getElementById('timetableContainer');
+    if (!container) {
+        console.error('Timetable container not found');
+        return;
+    }
+    
+    container.innerHTML = '<div class="timetable-loading"><i class="fas fa-spinner fa-spin me-2"></i>Loading timetable...</div>';
+    
+    try {
+        if (!facilityId) {
+            throw new Error('Facility ID is required');
+        }
+        const days = getNextThreeDays();
+        const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
+        const slots = generateTimeSlots(duration);
+        
+        // Load booked slots for each day
+        bookedSlots = {};
+        const availabilityPromises = days.map(async (day) => {
+            try {
+                const result = await API.get(`/facilities/${facilityId}/availability?date=${day.date}`);
+                console.log(`Availability result for ${day.date}:`, result);
+                
+                // Check different possible response structures
+                let bookings = [];
+                if (result.success && result.data) {
+                    // Laravel API typically returns: { message: "...", data: { ... } }
+                    // API.js wraps it as: { success: true, data: { message: "...", data: { ... } } }
+                    if (result.data.data && result.data.data.bookings) {
+                        bookings = result.data.data.bookings;
+                    } else if (result.data.bookings) {
+                        bookings = result.data.bookings;
+                    } else if (Array.isArray(result.data)) {
+                        bookings = result.data;
+                    }
+                }
+                
+                bookedSlots[day.date] = bookings.map(booking => {
+                    // Handle booking format - API returns start_time and end_time as "HH:mm"
+                    const startTime = booking.start_time || '';
+                    const endTime = booking.end_time || '';
+                    
+                    return {
+                        start_time: `${day.date} ${startTime}:00`,
+                        end_time: `${day.date} ${endTime}:00`
+                    };
+                });
+            } catch (error) {
+                console.error(`Error loading availability for ${day.date}:`, error);
+                bookedSlots[day.date] = [];
+            }
+        });
+        
+        // Wait for all availability checks to complete
+        await Promise.all(availabilityPromises);
+        
+        // Render timetable
+        renderTimetable(days, slots, facilityId);
+    } catch (error) {
+        console.error('Error loading timetable:', error);
+        container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
+    }
+}
+
+// Render timetable
+function renderTimetable(days, slots, facilityId) {
+    const container = document.getElementById('timetableContainer');
+    if (!container) {
+        console.error('Timetable container not found');
+        return;
+    }
+    
+    const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
+    
+    let html = '<div class="timetable-days">';
+    
+    days.forEach(day => {
+        const dayBookedSlots = bookedSlots[day.date] || [];
+        const bookedTimes = new Set();
+        
+        dayBookedSlots.forEach(booking => {
+            try {
+                const start = new Date(booking.start_time);
+                const end = new Date(booking.end_time);
+                
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    console.warn('Invalid date for booking:', booking);
+                    return;
+                }
+                
+                let current = new Date(start);
+                
+                while (current < end) {
+                    const timeStr = `${current.getHours().toString().padStart(2, '0')}:00`;
+                    bookedTimes.add(timeStr);
+                    current.setHours(current.getHours() + 1);
+                }
+            } catch (error) {
+                console.error('Error processing booking:', booking, error);
+            }
+        });
+        
+        html += `
+            <div class="timetable-day" data-date="${day.date}">
+                <div class="timetable-day-header">
+                    <div class="timetable-day-title">${day.display}</div>
+                    <div class="timetable-day-date">${day.fullDate}</div>
+                </div>
+                <div class="timetable-slots">
+        `;
+        
+        slots.forEach(slot => {
+            const isBooked = bookedTimes.has(slot.start) || 
+                           (duration === 2 && bookedTimes.has(slot.end.split(':')[0] + ':00'));
+            const slotClass = isBooked ? 'booked' : 'available';
+            const slotId = `slot-${day.date}-${slot.start}`;
+            
+            html += `
+                <div class="timetable-slot ${slotClass}" 
+                     data-date="${day.date}" 
+                     data-start="${slot.start}" 
+                     data-end="${slot.end}"
+                     id="${slotId}"
+                     onclick="selectTimeSlot('${day.date}', '${slot.start}', '${slot.end}', '${slotId}')">
+                    <span class="timetable-slot-time">${slot.display}</span>
+                    <span class="timetable-slot-duration">${duration}h</span>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Select time slot
+window.selectTimeSlot = function(date, start, end, slotId) {
+    const slot = document.getElementById(slotId);
+    if (slot.classList.contains('booked')) {
+        return;
+    }
+    
+    // Remove previous selection
+    document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+        s.classList.remove('selected');
+    });
+    
+    // Add selection
+    slot.classList.add('selected');
+    selectedTimeSlot = { date, start, end };
+    
+    // Update hidden inputs
+    const dateInput = document.getElementById('selectedBookingDate');
+    const startInput = document.getElementById('bookingStartTime');
+    const endInput = document.getElementById('bookingEndTime');
+    
+    if (dateInput) dateInput.value = date;
+    if (startInput) startInput.value = `${date} ${start}:00`;
+    if (endInput) endInput.value = `${date} ${end}:00`;
+    
+    // Clear error
+    const errorDiv = document.getElementById('timeSlotError');
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+};
+
+// Clear timetable
+function clearTimetable() {
+    const container = document.getElementById('timetableContainer');
+    if (container) {
+        container.innerHTML = '<div class="timetable-no-slots">Please select a facility to view available time slots</div>';
+    }
+    selectedTimeSlot = null;
+}
+
+// Handle facility change
+window.handleFacilityChange = function(select) {
+    console.log('Facility changed to:', select.value);
+    if (select && select.value) {
+        loadTimetable(select.value);
+    } else {
+        clearTimetable();
+    }
+};
+
+// Listen to duration changes
+document.addEventListener('DOMContentLoaded', function() {
+    const durationInputs = document.querySelectorAll('input[name="bookingDuration"]');
+    durationInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            const facilitySelect = document.getElementById('bookingFacility');
+            if (facilitySelect && facilitySelect.value) {
+                loadTimetable(facilitySelect.value);
+            }
+        });
+    });
+});
+
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
     if (bookingsToShow.length === 0) {
@@ -947,62 +1229,25 @@ function bindBookingForm() {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
 
-    const date = document.getElementById('bookingDate').value;
-    const startTimeInput = document.getElementById('bookingStartTime').value;
-    const endTimeInput = document.getElementById('bookingEndTime').value;
-
-    // Combine date and time to create datetime string
-    let startTime = null;
-    let endTime = null;
-    
-    if (date && startTimeInput) {
-        // Combine booking date with start time
-        startTime = `${date} ${startTimeInput}:00`;
-    }
-    
-    if (date && endTimeInput) {
-        // Combine booking date with end time
-        endTime = `${date} ${endTimeInput}:00`;
-    }
-    
-    // Double-check: Ensure start time is before end time
-    if (startTime && endTime) {
-        const startDateTime = new Date(startTime);
-        const endDateTime = new Date(endTime);
-        
-        if (startDateTime >= endDateTime) {
-            alert('Error: Start time must be before end time. Please check your time selection.');
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
-            }
-            return;
+    // Validate time slot selection
+    if (!selectedTimeSlot) {
+        const errorDiv = document.getElementById('timeSlotError');
+        if (errorDiv) {
+            errorDiv.textContent = 'Please select a time slot from the timetable';
+            errorDiv.style.display = 'block';
         }
-    }
-
-    // Validate booking date (must be tomorrow or later)
-    if (!validateBookingDate()) {
-        alert('You can only book from tomorrow onwards. Please select a future date.');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
         return;
     }
     
-    // Validate time range before submission (including time constraints 8:00-20:00)
-    if (!validateTimeRange()) {
-        alert('Please fix the time range error. Start and end times must be between 8:00 AM and 8:00 PM, and end time must be after start time.');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
-        return;
-    }
+    const date = selectedTimeSlot.date;
+    const startTime = `${date} ${selectedTimeSlot.start}:00`;
+    const endTime = `${date} ${selectedTimeSlot.end}:00`;
     
-    // Validation
+    // Validation - time slot is already validated above
     if (!date || !startTime || !endTime) {
-        alert('Please fill in all required fields');
+        alert('Please select a time slot from the timetable');
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
@@ -1052,14 +1297,6 @@ function bindBookingForm() {
         expected_attendees: document.getElementById('bookingAttendees').value ? parseInt(document.getElementById('bookingAttendees').value) : null
     };
 
-    console.log('Submitting booking:', data); // Debug
-    console.log('Start time input:', startTimeInput);
-    console.log('End time input:', endTimeInput);
-    console.log('Combined start time:', startTime);
-    console.log('Combined end time:', endTime);
-    console.log('Start DateTime object:', startDateTime);
-    console.log('End DateTime object:', endDateTime);
-    console.log('Is start < end?', startDateTime < endDateTime);
 
     try {
         let result;
@@ -1754,6 +1991,148 @@ function bindBookingForm() {
     .btn-confirm-cancel {
         width: 100%;
         justify-content: center;
+    }
+}
+
+/* Timetable Styles */
+.timetable-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-top: 10px;
+}
+
+.timetable-loading {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.timetable-days {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.timetable-day {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background: #f8f9fa;
+    transition: all 0.3s;
+}
+
+.timetable-day.active {
+    border-color: #cb2d3e;
+    background: #fff5f7;
+    box-shadow: 0 4px 12px rgba(203, 45, 62, 0.2);
+}
+
+.timetable-day-header {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.timetable-day-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #2d3436;
+    margin-bottom: 5px;
+}
+
+.timetable-day-date {
+    font-size: 1.1rem;
+    color: #cb2d3e;
+    font-weight: 700;
+}
+
+.timetable-day.active .timetable-day-date {
+    color: #a01a2a;
+}
+
+.timetable-slots {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.timetable-slot {
+    padding: 10px 8px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.timetable-slot:hover:not(.booked):not(.selected) {
+    border-color: #cb2d3e;
+    background: #fff5f7;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(203, 45, 62, 0.2);
+}
+
+.timetable-slot.available {
+    border-color: #28a745;
+    background: #d4edda;
+    color: #155724;
+}
+
+.timetable-slot.available:hover {
+    border-color: #218838;
+    background: #c3e6cb;
+}
+
+.timetable-slot.booked {
+    border-color: #dc3545;
+    background: #f8d7da;
+    color: #721c24;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.timetable-slot.selected {
+    border-color: #cb2d3e;
+    background: #cb2d3e;
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(203, 45, 62, 0.4);
+}
+
+.timetable-slot-time {
+    display: block;
+    font-size: 0.9rem;
+}
+
+.timetable-slot-duration {
+    display: block;
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+.timetable-no-slots {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+@media (max-width: 992px) {
+    .timetable-days {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .timetable-slots {
+        grid-template-columns: 1fr;
     }
 }
 </style>

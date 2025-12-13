@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\AnnouncementController;
 use App\Http\Controllers\API\LoyaltyController;
 use App\Http\Controllers\API\FeedbackController;
 use App\Http\Controllers\API\FacilityController;
@@ -64,9 +65,27 @@ Route::middleware('auth:sanctum')->group(function () {
         // All authenticated users
         Route::get('/{id}', [NotificationController::class, 'show']);
         Route::get('/user/my-notifications', [NotificationController::class, 'myNotifications']);
+        Route::get('/user/unread-count', [NotificationController::class, 'unreadCount']);
         Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::put('/{id}/unread', [NotificationController::class, 'markAsUnread']);
         Route::put('/{id}/acknowledge', [NotificationController::class, 'acknowledge']);
+    });
+
+    // Announcement Management Routes
+    Route::prefix('announcements')->group(function () {
+        // Admin only routes
+        Route::middleware('admin')->group(function () {
+            Route::get('/', [AnnouncementController::class, 'index']);
+            Route::post('/', [AnnouncementController::class, 'store']);
+            Route::put('/{id}', [AnnouncementController::class, 'update']);
+            Route::delete('/{id}', [AnnouncementController::class, 'destroy']);
+            Route::post('/{id}/publish', [AnnouncementController::class, 'publish']);
+        });
+        // All authenticated users
+        Route::get('/{id}', [AnnouncementController::class, 'show']);
+        Route::get('/user/my-announcements', [AnnouncementController::class, 'myAnnouncements']);
+        Route::get('/user/unread-count', [AnnouncementController::class, 'unreadCount']);
+        Route::put('/{id}/read', [AnnouncementController::class, 'markAsRead']);
     });
 
     // Loyalty Management Routes

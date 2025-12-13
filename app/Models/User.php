@@ -78,6 +78,13 @@ class User extends Authenticatable
                     ->withTimestamps();
     }
 
+    public function announcements()
+    {
+        return $this->belongsToMany(Announcement::class, 'user_announcement')
+                    ->withPivot('is_read', 'read_at')
+                    ->withTimestamps();
+    }
+
     public function loyaltyPoints()
     {
         return $this->hasMany(LoyaltyPoint::class);
