@@ -144,23 +144,6 @@
                             <i class="fas fa-clock me-2"></i>Time Information
                         </h5>
                         
-                        <!-- Duration Selection -->
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-12">
-                                <label class="form-label">Booking Duration <span class="text-danger">*</span></label>
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration1h" value="1" checked>
-                                    <label class="btn btn-outline-primary" for="duration1h">
-                                        <i class="fas fa-clock me-2"></i>1 Hour
-                                    </label>
-                                    
-                                    <input type="radio" class="btn-check" name="bookingDuration" id="duration2h" value="2">
-                                    <label class="btn btn-outline-primary" for="duration2h">
-                                        <i class="fas fa-clock me-2"></i>2 Hours
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
 
                         <!-- Visual Timetable -->
                         <div class="row g-3">
@@ -241,7 +224,7 @@ window.showCreateModal = function() {
     if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
     
     // Reset time slot selection
-    selectedTimeSlot = null;
+    selectedTimeSlots = [];
     const startTimeInput = document.getElementById('bookingStartTime');
     const endTimeInput = document.getElementById('bookingEndTime');
     const selectedDateInput = document.getElementById('selectedBookingDate');
@@ -678,10 +661,16 @@ async function confirmCancelBooking() {
 }
 
 // Admin functions for managing bookings - defined at top level for onclick handlers
-// Close dropdown when clicking outside
+// Close dropdown when clicking outside (only for booking page dropdowns, not user dropdown)
 document.addEventListener('click', function(event) {
+    // Don't interfere with user dropdown in navigation
+    if (event.target.closest('.user-dropdown')) {
+        return;
+    }
+    
     if (!event.target.closest('.dropdown-menu-container')) {
-        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        // Only close dropdowns inside dropdown-menu-container
+        document.querySelectorAll('.dropdown-menu-container .dropdown-menu').forEach(menu => {
             menu.classList.remove('show');
         });
     }
@@ -691,9 +680,10 @@ window.toggleDropdown = function(id) {
     event.stopPropagation();
     const dropdown = document.getElementById(`dropdown-${id}`);
     const button = event.target.closest('button');
-    const allDropdowns = document.querySelectorAll('.dropdown-menu');
+    // Only select dropdowns inside dropdown-menu-container, not user dropdown
+    const allDropdowns = document.querySelectorAll('.dropdown-menu-container .dropdown-menu');
     
-    // Close all other dropdowns
+    // Close all other dropdowns (only booking page dropdowns)
     allDropdowns.forEach(menu => {
         if (menu.id !== `dropdown-${id}`) {
             menu.classList.remove('show');
@@ -850,12 +840,22 @@ window.editBooking = async function(id) {
         document.getElementById('bookingStartTime').value = `${bookingDateStr} ${startTime}:00`;
         document.getElementById('bookingEndTime').value = `${bookingDateStr} ${endTime}:00`;
         
-        // Set selected time slot
-        selectedTimeSlot = {
+        // Set selected time slots (for editing, we'll set it as a single slot for now)
+        // When editing, we show the booking as a single continuous range
+        selectedTimeSlots = [{
             date: bookingDateStr,
             start: startTime,
             end: endTime
-        };
+        }];
+        
+        // Mark the corresponding slot as selected in the timetable
+        setTimeout(() => {
+            const slotId = `slot-${bookingDateStr}-${startTime}`;
+            const slot = document.getElementById(slotId);
+            if (slot) {
+                slot.classList.add('selected');
+            }
+        }, 500);
     }
     
     document.getElementById('bookingPurpose').value = booking.purpose || '';
@@ -941,8 +941,9 @@ function initBookings() {
         endTimeInput.max = '20:00';
     }
     
-    // Initialize facility time range
+    // Initialize facility time range and max booking hours
     window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
+    window.currentFacilityMaxBookingHours = 1; // Default to 1 hour
     
     // Update title based on user role
     const isAdmin = API.isAdmin();
@@ -1038,13 +1039,12 @@ async function loadFacilities(bookingDate = null) {
             const currentValue = select.value; // Preserve current selection if any
             select.innerHTML = '<option value="">Select Facility</option>' +
                 facilities.map(f => {
-                    const isDisabled = f.is_at_capacity || f.status !== 'available';
+                    // Only disable if facility status is not available
+                    // Don't disable based on capacity because capacity is checked by time segments
+                    const isDisabled = f.status !== 'available';
                     const disabledAttr = isDisabled ? 'disabled' : '';
                     const selectedAttr = (currentValue == f.id) ? 'selected' : '';
-                    const capacityInfo = f.is_at_capacity 
-                        ? ` (Full - ${f.total_approved_attendees}/${f.capacity} attendees)` 
-                        : ` (${f.total_approved_attendees || 0}/${f.capacity} attendees)`;
-                    return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}${capacityInfo}</option>`;
+                    return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}</option>`;
                 }).join('');
         }
     } else {
@@ -1064,19 +1064,22 @@ window.updateFacilitiesByDate = function() {
 };
 
 // Timetable functions
-let selectedTimeSlot = null;
+let selectedTimeSlots = []; // Array to store multiple selected time slots
 let bookedSlots = {};
 
 // Generate 3 days starting from tomorrow
 function getNextThreeDays() {
     const days = [];
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayNamesLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     for (let i = 1; i <= 3; i++) {
         const date = new Date();
         date.setDate(date.getDate() + i);
-        const dayName = dayNames[date.getDay()];
+        const dayIndex = date.getDay();
+        const dayName = dayNames[dayIndex];
+        const dayOfWeek = dayNamesLower[dayIndex]; // Lowercase day name for matching
         const month = monthNames[date.getMonth()];
         const day = date.getDate();
         const year = date.getFullYear();
@@ -1085,15 +1088,16 @@ function getNextThreeDays() {
         days.push({
             date: dateStr,
             display: `${dayName}, ${month} ${day}`,
-            fullDate: `${month} ${day}, ${year}`
+            fullDate: `${month} ${day}, ${year}`,
+            dayOfWeek: dayOfWeek // Add day of week in lowercase for facility available_day matching
         });
     }
     
     return days;
 }
 
-// Generate time slots based on facility available time
-function generateTimeSlots(duration = 1, startTime = '08:00', endTime = '20:00') {
+// Generate time slots based on facility available time (fixed to 1 hour)
+function generateTimeSlots(startTime = '08:00', endTime = '20:00') {
     const slots = [];
     
     // Parse start and end times
@@ -1103,9 +1107,9 @@ function generateTimeSlots(duration = 1, startTime = '08:00', endTime = '20:00')
     // Convert to minutes for easier calculation
     const startMinutes = startHour * 60 + startMin;
     const endMinutes = endHour * 60 + endMin;
-    const durationMinutes = duration * 60;
+    const durationMinutes = 60; // Fixed to 1 hour
     
-    // Generate slots
+    // Generate slots (1 hour each)
     for (let currentMinutes = startMinutes; currentMinutes + durationMinutes <= endMinutes; currentMinutes += 60) {
         const slotStartHour = Math.floor(currentMinutes / 60);
         const slotStartMin = currentMinutes % 60;
@@ -1136,14 +1140,46 @@ function formatTime12(time24) {
 }
 
 // Format Date object to 12-hour format without seconds
+// Handle timezone issues by extracting time directly from the datetime string
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
+    
+    // If date is a string, extract time directly to avoid timezone conversion issues
+    if (typeof date === 'string') {
+        // Try to extract time from various formats:
+        // - "2025-12-15 08:00:00" (local format)
+        // - "2025-12-15T08:00:00.000000Z" (ISO format with Z)
+        // - "2025-12-15T08:00:00" (ISO format without timezone)
+        
+        // First, try to match time pattern HH:mm:ss
+        const timeMatch = date.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+        if (timeMatch) {
+            let hours = parseInt(timeMatch[1]);
+            const minutes = timeMatch[2];
+            
+            // If the string ends with 'Z' or has timezone, it's UTC
+            // In that case, we need to check if we should use UTC or local time
+            // For booking times, we want to use the time as stored (local time)
+            // So we'll use the time directly from the string
+            
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const hour12 = hours % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+    }
+    
+    // Fallback to Date object parsing
     const d = new Date(date);
-    return d.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit', 
-        hour12: true 
-    });
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // If the date string contains 'Z' (UTC), use UTC methods
+    // Otherwise, use local time methods
+    const isUTC = typeof date === 'string' && date.includes('Z');
+    const hours = isUTC ? d.getUTCHours() : d.getHours();
+    const minutes = String(isUTC ? d.getUTCMinutes() : d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
 }
 
 // Format DateTime to show both date and time
@@ -1173,18 +1209,20 @@ async function loadTimetable(facilityId) {
             throw new Error('Facility ID is required');
         }
         const days = getNextThreeDays();
-        const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
         
-        // Load facility info to get capacity and available_time
+        // Load facility info to get capacity, available_time, available_day, and max_booking_hours
         let facilityCapacity = null;
         let facilityStartTime = '08:00'; // Default start time
         let facilityEndTime = '20:00';   // Default end time
+        let maxBookingHours = 1; // Default to 1 hour
+        let facilityAvailableDays = null; // Facility available days array
         
         try {
             const facilityResult = await API.get(`/facilities/${facilityId}`);
             if (facilityResult.success && facilityResult.data) {
                 const facility = facilityResult.data.data || facilityResult.data;
                 facilityCapacity = facility.capacity;
+                maxBookingHours = facility.max_booking_hours || 1; // Get max booking hours
                 
                 // Get available_time from facility
                 if (facility.available_time && typeof facility.available_time === 'object') {
@@ -1196,18 +1234,26 @@ async function loadTimetable(facilityId) {
                     }
                 }
                 
+                // Get available_day from facility
+                if (facility.available_day && Array.isArray(facility.available_day) && facility.available_day.length > 0) {
+                    facilityAvailableDays = facility.available_day.map(day => day.toLowerCase()); // Ensure lowercase
+                }
+                
                 // Store facility time range globally for validation
                 window.currentFacilityTimeRange = {
                     start: facilityStartTime,
                     end: facilityEndTime
                 };
+                
+                // Store max booking hours globally
+                window.currentFacilityMaxBookingHours = maxBookingHours;
             }
         } catch (error) {
             console.error('Error loading facility info:', error);
         }
         
-        // Generate time slots based on facility available time
-        const slots = generateTimeSlots(duration, facilityStartTime, facilityEndTime);
+        // Generate time slots based on facility available time (fixed to 1 hour)
+        const slots = generateTimeSlots(facilityStartTime, facilityEndTime);
         
         // Load booked slots for each day
         bookedSlots = {};
@@ -1250,8 +1296,55 @@ async function loadTimetable(facilityId) {
         // Wait for all availability checks to complete
         await Promise.all(availabilityPromises);
         
-        // Render timetable
-        renderTimetable(days, slots, facilityId, facilityCapacity);
+        // Load user's existing bookings to highlight them
+        let userBookingsByDate = {};
+        try {
+            const bookingsResult = await API.get('/bookings/user/my-bookings');
+            if (bookingsResult.success) {
+                const userBookings = bookingsResult.data.data?.data || bookingsResult.data.data || [];
+                console.log('User bookings loaded:', userBookings);
+                console.log('Current facility ID:', facilityId);
+                
+                // Group bookings by date and facility
+                userBookings.forEach(booking => {
+                    const bookingDate = booking.booking_date || '';
+                    const bookingFacilityId = booking.facility_id || booking.facility?.id;
+                    console.log('Checking booking:', {
+                        bookingDate,
+                        bookingFacilityId,
+                        facilityId,
+                        status: booking.status,
+                        start_time: booking.start_time,
+                        end_time: booking.end_time
+                    });
+                    
+                    if (bookingDate && bookingFacilityId == facilityId && 
+                        (booking.status === 'pending' || booking.status === 'approved')) {
+                        // Normalize booking_date format
+                        let normalizedDate = bookingDate;
+                        if (typeof bookingDate === 'string' && bookingDate.includes('T')) {
+                            normalizedDate = bookingDate.split('T')[0];
+                        } else if (bookingDate instanceof Date) {
+                            normalizedDate = bookingDate.toISOString().split('T')[0];
+                        } else if (bookingDate && typeof bookingDate === 'object' && bookingDate.year) {
+                            normalizedDate = `${bookingDate.year}-${String(bookingDate.month).padStart(2, '0')}-${String(bookingDate.day).padStart(2, '0')}`;
+                        }
+                        
+                        if (!userBookingsByDate[normalizedDate]) {
+                            userBookingsByDate[normalizedDate] = [];
+                        }
+                        userBookingsByDate[normalizedDate].push(booking);
+                        console.log('Added booking to date:', normalizedDate, booking);
+                    }
+                });
+                console.log('User bookings by date:', userBookingsByDate);
+            }
+        } catch (error) {
+            console.error('Error loading user bookings:', error);
+        }
+        
+        // Render timetable with user bookings info and available days
+        renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours, userBookingsByDate, facilityAvailableDays);
     } catch (error) {
         console.error('Error loading timetable:', error);
         container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
@@ -1259,30 +1352,53 @@ async function loadTimetable(facilityId) {
 }
 
 // Render timetable
-function renderTimetable(days, slots, facilityId, facilityCapacity) {
+function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours = 1, userBookingsByDate = {}, facilityAvailableDays = null) {
     const container = document.getElementById('timetableContainer');
     if (!container) {
         console.error('Timetable container not found');
         return;
     }
     
-    const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
-    
     let html = '<div class="timetable-days">';
     
     days.forEach(day => {
         const dayBookedSlots = bookedSlots[day.date] || [];
         
+        // Check if this day is available based on facility's available_day
+        const isDayAvailable = !facilityAvailableDays || facilityAvailableDays.length === 0 || 
+                                facilityAvailableDays.includes(day.dayOfWeek);
+        
+        // Add class for unavailable days
+        const dayClass = isDayAvailable ? 'timetable-day' : 'timetable-day unavailable-day';
+        
         html += `
-            <div class="timetable-day" data-date="${day.date}">
+            <div class="${dayClass}" data-date="${day.date}" ${!isDayAvailable ? 'data-unavailable="true"' : ''}>
                 <div class="timetable-day-header">
                     <div class="timetable-day-title">${day.display}</div>
                     <div class="timetable-day-date">${day.fullDate}</div>
+                    ${!isDayAvailable ? '<div class="timetable-day-unavailable-badge"><i class="fas fa-ban"></i> Not Available</div>' : ''}
                 </div>
                 <div class="timetable-slots">
         `;
         
         slots.forEach(slot => {
+            // If day is not available, mark all slots as disabled
+            if (!isDayAvailable) {
+                const slotId = `slot-${day.date}-${slot.start}`;
+                html += `
+                    <div class="timetable-slot unavailable" 
+                         data-date="${day.date}" 
+                         data-start="${slot.start}" 
+                         data-end="${slot.end}"
+                         id="${slotId}"
+                         title="This facility is not available on ${day.display}">
+                        <span class="timetable-slot-time">${slot.display}</span>
+                        <span class="timetable-slot-unavailable-text">Not Available</span>
+                    </div>
+                `;
+                return; // Skip to next slot
+            }
+            
             // Calculate total attendees for overlapping bookings in this time slot
             let totalAttendees = 0;
             const slotStart = new Date(`${day.date} ${slot.start}:00`);
@@ -1317,8 +1433,204 @@ function renderTimetable(days, slots, facilityId, facilityCapacity) {
                 isAvailable = totalAttendees === 0;
             }
             
-            const slotClass = isAvailable ? 'available' : 'booked';
             const slotId = `slot-${day.date}-${slot.start}`;
+            
+            // Check if this slot is already selected
+            const isSelected = selectedTimeSlots.some(s => 
+                s.date === day.date && s.start === slot.start && s.end === slot.end
+            );
+            
+            // Check if this slot belongs to the current user's bookings FIRST
+            // This must be checked before determining availability to ensure user bookings are highlighted
+            const userBookingsOnDate = userBookingsByDate[day.date] || [];
+            let isUserBooked = false;
+            let userBookingStatus = null; // Track the status of user's booking (pending or approved)
+            
+            if (userBookingsOnDate.length > 0) {
+                console.log(`Checking ${userBookingsOnDate.length} user bookings for date ${day.date}, slot ${slot.start}-${slot.end}`);
+            }
+            
+            userBookingsOnDate.forEach(userBooking => {
+                try {
+                    // Get the booking date - normalize it first
+                    let bookingDateStr = day.date;
+                    if (userBooking.booking_date) {
+                        if (typeof userBooking.booking_date === 'string') {
+                            bookingDateStr = userBooking.booking_date.split('T')[0]; // Extract date part
+                        } else if (userBooking.booking_date instanceof Date) {
+                            bookingDateStr = userBooking.booking_date.toISOString().split('T')[0];
+                        } else if (userBooking.booking_date.year) {
+                            bookingDateStr = `${userBooking.booking_date.year}-${String(userBooking.booking_date.month).padStart(2, '0')}-${String(userBooking.booking_date.day).padStart(2, '0')}`;
+                        }
+                    }
+                    
+                    // Parse start_time and end_time - extract time part and combine with booking_date
+                    let userBookingStart, userBookingEnd;
+                    
+                    if (userBooking.start_time) {
+                        let startTimeStr = '';
+                        if (typeof userBooking.start_time === 'string') {
+                            startTimeStr = userBooking.start_time;
+                        } else {
+                            startTimeStr = String(userBooking.start_time);
+                        }
+                        
+                        // Extract time part (HH:mm:ss) from the datetime string
+                        // Format could be: "2025-12-13T08:00:00.000000Z" or "2025-12-13 08:00:00"
+                        let timePart = '';
+                        if (startTimeStr.includes('T')) {
+                            // ISO format: "2025-12-13T08:00:00.000000Z"
+                            const timeMatch = startTimeStr.match(/T(\d{2}:\d{2}:\d{2})/);
+                            if (timeMatch) {
+                                timePart = timeMatch[1].substring(0, 5); // Get HH:mm
+                            }
+                        } else if (startTimeStr.includes(' ')) {
+                            // Space format: "2025-12-13 08:00:00"
+                            const parts = startTimeStr.split(' ');
+                            if (parts.length > 1) {
+                                timePart = parts[1].substring(0, 5); // Get HH:mm
+                            }
+                        }
+                        
+                        // Combine booking_date with extracted time
+                        if (timePart) {
+                            userBookingStart = new Date(`${bookingDateStr} ${timePart}:00`);
+                        } else {
+                            // Fallback: try to parse as-is
+                            userBookingStart = new Date(userBooking.start_time);
+                        }
+                    } else {
+                        return; // Skip if no start_time
+                    }
+                    
+                    if (userBooking.end_time) {
+                        let endTimeStr = '';
+                        if (typeof userBooking.end_time === 'string') {
+                            endTimeStr = userBooking.end_time;
+                        } else {
+                            endTimeStr = String(userBooking.end_time);
+                        }
+                        
+                        // Extract time part
+                        let timePart = '';
+                        if (endTimeStr.includes('T')) {
+                            const timeMatch = endTimeStr.match(/T(\d{2}:\d{2}:\d{2})/);
+                            if (timeMatch) {
+                                timePart = timeMatch[1].substring(0, 5); // Get HH:mm
+                            }
+                        } else if (endTimeStr.includes(' ')) {
+                            const parts = endTimeStr.split(' ');
+                            if (parts.length > 1) {
+                                timePart = parts[1].substring(0, 5); // Get HH:mm
+                            }
+                        }
+                        
+                        // Combine booking_date with extracted time
+                        if (timePart) {
+                            userBookingEnd = new Date(`${bookingDateStr} ${timePart}:00`);
+                        } else {
+                            userBookingEnd = new Date(userBooking.end_time);
+                        }
+                    } else {
+                        return; // Skip if no end_time
+                    }
+                    
+                    if (isNaN(userBookingStart.getTime()) || isNaN(userBookingEnd.getTime())) {
+                        console.warn('Invalid date for user booking:', {
+                            booking: userBooking,
+                            bookingDate: bookingDateStr,
+                            start: userBooking.start_time,
+                            end: userBooking.end_time,
+                            startParsed: userBookingStart,
+                            endParsed: userBookingEnd
+                        });
+                        return;
+                    }
+                    
+                    // Check if this slot overlaps with user's booking
+                    // Match if the slot time exactly matches or overlaps with user's booking
+                    const overlaps = slotStart < userBookingEnd && slotEnd > userBookingStart;
+                    if (overlaps) {
+                        console.log('Found user booking match!', {
+                            slot: `${slot.start}-${slot.end}`,
+                            bookingDate: bookingDateStr,
+                            booking: `${userBookingStart.toLocaleTimeString()}-${userBookingEnd.toLocaleTimeString()}`,
+                            status: userBooking.status,
+                            slotStart: slotStart.toISOString(),
+                            slotEnd: slotEnd.toISOString(),
+                            bookingStart: userBookingStart.toISOString(),
+                            bookingEnd: userBookingEnd.toISOString()
+                        });
+                        isUserBooked = true;
+                        userBookingStatus = userBooking.status; // Store the booking status
+                        return; // Found match, can exit early
+                    }
+                } catch (error) {
+                    console.error('Error checking user booking:', userBooking, error);
+                }
+            });
+            
+            // Check max_booking_hours limit for this date
+            const existingBookingHours = userBookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+            const hasReachedLimit = existingBookingHours >= maxBookingHours;
+            
+            // Determine slot class and disabled state
+            // Priority: selected > user-booked (pending) > booked (approved) > available/booked
+            let slotClass = '';
+            let isDisabled = false;
+            
+            if (isSelected) {
+                slotClass = 'selected';
+            } else if (isUserBooked) {
+                // User's own booking - check status
+                if (userBookingStatus === 'pending') {
+                    // Pending bookings: show as golden highlight
+                    slotClass = 'user-booked';
+                    console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as user-booked (pending)`);
+                } else if (userBookingStatus === 'approved') {
+                    // Approved bookings: show as red (booked)
+                    slotClass = 'booked';
+                    console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as booked (approved)`);
+                } else {
+                    // Other statuses: default to user-booked
+                    slotClass = 'user-booked';
+                }
+                isDisabled = true; // Can't book the same slot twice
+            } else if (isAvailable) {
+                slotClass = 'available';
+            } else {
+                slotClass = 'booked';
+            }
+            
+            // If user has reached max_booking_hours limit, disable all available slots for this date
+            if (hasReachedLimit && isAvailable && !isSelected && !isUserBooked) {
+                slotClass = 'disabled';
+                isDisabled = true;
+            } else if (!isAvailable && !isUserBooked) {
+                isDisabled = true;
+            }
+            
+            // Display attendees count (X/Capacity)
+            const attendeesInfo = facilityCapacity !== null 
+                ? `${totalAttendees}/${facilityCapacity}` 
+                : (totalAttendees > 0 ? `${totalAttendees}` : '');
+            
+            const onclickAttr = isDisabled ? '' : `onclick="selectTimeSlot('${day.date}', '${slot.start}', '${slot.end}', '${slotId}')"`;
+            let titleAttr = '';
+            if (isDisabled && hasReachedLimit) {
+                titleAttr = `title="Max ${maxBookingHours}h limit reached"`;
+            } else if (isUserBooked) {
+                if (userBookingStatus === 'pending') {
+                    titleAttr = `title="Your booking (Pending)"`;
+                } else if (userBookingStatus === 'approved') {
+                    titleAttr = `title="Your booking (Approved)"`;
+                } else {
+                    titleAttr = `title="Your booking"`;
+                }
+            }
+            
+            // Add data attribute to mark user bookings for easier identification
+            const userBookingAttr = isUserBooked ? `data-user-booking="true" data-booking-status="${userBookingStatus || ''}"` : '';
             
             html += `
                 <div class="timetable-slot ${slotClass}" 
@@ -1326,9 +1638,11 @@ function renderTimetable(days, slots, facilityId, facilityCapacity) {
                      data-start="${slot.start}" 
                      data-end="${slot.end}"
                      id="${slotId}"
-                     onclick="selectTimeSlot('${day.date}', '${slot.start}', '${slot.end}', '${slotId}')">
+                     ${userBookingAttr}
+                     ${onclickAttr}
+                     ${titleAttr}>
                     <span class="timetable-slot-time">${slot.display}</span>
-                    <span class="timetable-slot-duration">${duration}h</span>
+                    ${attendeesInfo ? `<span class="timetable-slot-attendees">${attendeesInfo}</span>` : ''}
                 </div>
             `;
         });
@@ -1343,30 +1657,100 @@ function renderTimetable(days, slots, facilityId, facilityCapacity) {
     container.innerHTML = html;
 }
 
-// Select time slot
-window.selectTimeSlot = function(date, start, end, slotId) {
+// Select time slot (supports multi-selection)
+window.selectTimeSlot = async function(date, start, end, slotId) {
     const slot = document.getElementById(slotId);
-    if (slot.classList.contains('booked')) {
+    if (slot.classList.contains('booked') || slot.classList.contains('disabled') || slot.classList.contains('user-booked') || slot.classList.contains('unavailable')) {
         return;
     }
     
-    // Remove previous selection
-    document.querySelectorAll('.timetable-slot.selected').forEach(s => {
-        s.classList.remove('selected');
-    });
+    const maxBookingHours = window.currentFacilityMaxBookingHours || 1;
+    const facilitySelect = document.getElementById('bookingFacility');
+    const facilityId = facilitySelect ? facilitySelect.value : null;
     
-    // Add selection
-    slot.classList.add('selected');
-    selectedTimeSlot = { date, start, end };
+    // Check if slot is already selected
+    const slotIndex = selectedTimeSlots.findIndex(s => 
+        s.date === date && s.start === start && s.end === end
+    );
     
-    // Update hidden inputs
-    const dateInput = document.getElementById('selectedBookingDate');
-    const startInput = document.getElementById('bookingStartTime');
-    const endInput = document.getElementById('bookingEndTime');
+    let newSelectedSlots = [];
+    if (slotIndex >= 0) {
+        // Deselect: remove from array
+        selectedTimeSlots.splice(slotIndex, 1);
+        slot.classList.remove('selected');
+        newSelectedSlots = [...selectedTimeSlots];
+    } else {
+        // Select: add to array
+        const newSlot = { date, start, end };
+        
+        // Calculate total selected slots for this date
+        const sameDateSlots = selectedTimeSlots.filter(s => s.date === date);
+        const totalSelectedSlots = sameDateSlots.length + 1; // +1 for the new slot being added
+        
+        // Check max_booking_hours limit BEFORE adding the slot
+        // max_booking_hours limits the total number of hours (slots) user can book
+        if (facilityId) {
+            try {
+                const bookingsResult = await API.get('/bookings/user/my-bookings');
+                if (bookingsResult.success) {
+                    const userBookings = bookingsResult.data.data?.data || bookingsResult.data.data || [];
+                    const bookingsOnDate = userBookings.filter(b => {
+                        const bookingDate = b.booking_date || '';
+                        const bookingFacilityId = b.facility_id || b.facility?.id;
+                        return bookingDate === date && bookingFacilityId == facilityId && 
+                               (b.status === 'pending' || b.status === 'approved');
+                    });
+                    
+                    const existingBookingHours = bookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+                    const selectedSlotsHours = totalSelectedSlots; // Each slot is 1 hour
+                    const totalAfterSelection = existingBookingHours + selectedSlotsHours;
+                    
+                    if (totalAfterSelection > maxBookingHours) {
+                        alert(`You have reached the maximum booking limit for this facility on this date.\n\nMaximum allowed: ${maxBookingHours} hour(s)\nYour current bookings: ${existingBookingHours} hour(s)\nSelected slots: ${sameDateSlots.length} hour(s)\nAfter selecting this slot: ${totalAfterSelection} hour(s)`);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking booking limit:', error);
+            }
+        }
+        
+        // Add to selection
+        selectedTimeSlots.push(newSlot);
+        slot.classList.add('selected');
+        newSelectedSlots = [...selectedTimeSlots];
+    }
     
-    if (dateInput) dateInput.value = date;
-    if (startInput) startInput.value = `${date} ${start}:00`;
-    if (endInput) endInput.value = `${date} ${end}:00`;
+    // Update hidden inputs based on selected slots
+    if (newSelectedSlots.length > 0) {
+        // Filter slots for the same date
+        const sameDateSlots = newSelectedSlots.filter(s => s.date === date);
+        if (sameDateSlots.length > 0) {
+            // Sort by start time
+            sameDateSlots.sort((a, b) => a.start.localeCompare(b.start));
+            
+            // Get earliest start and latest end
+            const earliestStart = sameDateSlots[0].start;
+            const latestEnd = sameDateSlots[sameDateSlots.length - 1].end;
+            
+            const dateInput = document.getElementById('selectedBookingDate');
+            const startInput = document.getElementById('bookingStartTime');
+            const endInput = document.getElementById('bookingEndTime');
+            
+            if (dateInput) dateInput.value = date;
+            if (startInput) startInput.value = `${date} ${earliestStart}:00`;
+            if (endInput) endInput.value = `${date} ${latestEnd}:00`;
+        }
+    } else {
+        // Clear inputs if no selection
+        const dateInput = document.getElementById('selectedBookingDate');
+        const startInput = document.getElementById('bookingStartTime');
+        const endInput = document.getElementById('bookingEndTime');
+        
+        if (dateInput) dateInput.value = '';
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
     
     // Clear error
     const errorDiv = document.getElementById('timeSlotError');
@@ -1381,7 +1765,11 @@ function clearTimetable() {
     if (container) {
         container.innerHTML = '<div class="timetable-no-slots">Please select a facility to view available time slots</div>';
     }
-    selectedTimeSlot = null;
+    selectedTimeSlots = [];
+    // Clear all selected slots visually
+    document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+        s.classList.remove('selected');
+    });
 }
 
 // Handle facility change
@@ -1429,26 +1817,16 @@ async function updateTimeInputConstraints(facilityId) {
                 endTimeInput.max = endTime;
             }
             
-            // Store facility time range globally
+            // Store facility time range and max booking hours globally
+            const maxBookingHours = facility.max_booking_hours || 1;
             window.currentFacilityTimeRange = { start: startTime, end: endTime };
+            window.currentFacilityMaxBookingHours = maxBookingHours;
         }
     } catch (error) {
         console.error('Error loading facility for time constraints:', error);
     }
 }
 
-// Listen to duration changes
-document.addEventListener('DOMContentLoaded', function() {
-    const durationInputs = document.querySelectorAll('input[name="bookingDuration"]');
-    durationInputs.forEach(input => {
-        input.addEventListener('change', function() {
-            const facilitySelect = document.getElementById('bookingFacility');
-            if (facilitySelect && facilitySelect.value) {
-                loadTimetable(facilitySelect.value);
-            }
-        });
-    });
-});
 
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
@@ -1558,10 +1936,10 @@ function bindBookingForm() {
     submitBtn.textContent = 'Submitting...';
 
     // Validate time slot selection
-    if (!selectedTimeSlot) {
+    if (!selectedTimeSlots || selectedTimeSlots.length === 0) {
         const errorDiv = document.getElementById('timeSlotError');
         if (errorDiv) {
-            errorDiv.textContent = 'Please select a time slot from the timetable';
+            errorDiv.textContent = 'Please select at least one time slot from the timetable';
             errorDiv.style.display = 'block';
         }
         submitBtn.disabled = false;
@@ -1569,79 +1947,118 @@ function bindBookingForm() {
         return;
     }
     
-    const date = selectedTimeSlot.date;
-    const startTime = `${date} ${selectedTimeSlot.start}:00`;
-    const endTime = `${date} ${selectedTimeSlot.end}:00`;
+    // Get all selected slots for the same date (should be continuous)
+    const facilitySelect = document.getElementById('bookingFacility');
     
-    // Validation - time slot is already validated above
-    if (!date || !startTime || !endTime) {
-        alert('Please select a time slot from the timetable');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
+    // Group slots by date
+    const slotsByDate = {};
+    selectedTimeSlots.forEach(slot => {
+        if (!slotsByDate[slot.date]) {
+            slotsByDate[slot.date] = [];
         }
+        slotsByDate[slot.date].push(slot);
+    });
+    
+    // For now, we'll use the first date's slots (can be extended for multi-day)
+    const dates = Object.keys(slotsByDate);
+    if (dates.length === 0) {
+        alert('Please select at least one time slot');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
         return;
     }
-
-    const facilityId = document.getElementById('bookingFacility').value;
+    
+    const date = dates[0];
+    const dateSlots = slotsByDate[date].sort((a, b) => a.start.localeCompare(b.start));
+    
+    // Get facility ID and check max_booking_hours limit
+    const facilityId = facilitySelect ? facilitySelect.value : null;
     if (!facilityId) {
         alert('Please select a facility');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
         return;
     }
-
+    
     const purpose = document.getElementById('bookingPurpose').value;
     if (!purpose) {
         alert('Please enter a purpose for the booking');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
         return;
     }
-
-    // Final validation: Ensure start time is before end time
-    const startDateTime = new Date(startTime);
-    const endDateTime = new Date(endTime);
     
-    if (startDateTime >= endDateTime) {
-        alert('Error: Start time must be before end time. Please check your time selection.\n\nStart: ' + startTime + '\nEnd: ' + endTime);
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
-        return;
-    }
-
-    const data = {
-        facility_id: parseInt(facilityId),
-        booking_date: date,
-        start_time: startTime,
-        end_time: endTime,
-        purpose: purpose,
-        expected_attendees: document.getElementById('bookingAttendees').value ? parseInt(document.getElementById('bookingAttendees').value) : null
-    };
-
-
+    // Check max_booking_hours limit (total hours from all selected slots)
+    const maxBookingHours = window.currentFacilityMaxBookingHours || 1;
     try {
-        let result;
-        if (bookingId) {
-            // Update existing booking
-            result = await API.put(`/bookings/${bookingId}`, data);
-        } else {
-            // Create new booking
-            result = await API.post('/bookings', data);
+        const bookingsResult = await API.get('/bookings/user/my-bookings');
+        if (bookingsResult.success) {
+            const userBookings = bookingsResult.data.data?.data || bookingsResult.data.data || [];
+            const bookingsOnDate = userBookings.filter(b => {
+                const bookingDate = b.booking_date || '';
+                const bookingFacilityId = b.facility_id || b.facility?.id;
+                return bookingDate === date && bookingFacilityId == facilityId && 
+                       (b.status === 'pending' || b.status === 'approved');
+            });
+            
+            const totalHours = bookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+            const newBookingHours = dateSlots.length; // Each slot is 1 hour
+            
+            if (totalHours + newBookingHours > maxBookingHours) {
+                alert(`You have reached the maximum booking limit for this facility on this date.\n\nMaximum allowed: ${maxBookingHours} hour(s)\nYour current bookings: ${totalHours} hour(s)\nAfter this booking: ${totalHours + newBookingHours} hour(s)`);
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                return;
+            }
         }
-
+    } catch (error) {
+        console.error('Error checking booking limit:', error);
+    }
+    
+    // Create a separate booking for each selected time slot
+    // This allows non-continuous time slots (e.g., 8-9 and 11-12)
+    const expectedAttendees = document.getElementById('bookingAttendees').value ? parseInt(document.getElementById('bookingAttendees').value) : null;
+    
+    try {
+        let successCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        
+        // Create bookings for each slot
+        for (const slot of dateSlots) {
+            const slotStartTime = `${date} ${slot.start}:00`;
+            const slotEndTime = `${date} ${slot.end}:00`;
+            
+            const data = {
+                facility_id: parseInt(facilityId),
+                booking_date: date,
+                start_time: slotStartTime,
+                end_time: slotEndTime,
+                purpose: purpose,
+                expected_attendees: expectedAttendees
+            };
+            
+            try {
+                const result = await API.post('/bookings', data);
+                if (result.success) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                    const errorMsg = result.error || result.data?.message || 'Unknown error';
+                    errors.push(`${slot.start}-${slot.end}: ${errorMsg}`);
+                }
+            } catch (error) {
+                errorCount++;
+                errors.push(`${slot.start}-${slot.end}: ${error.message}`);
+            }
+        }
+        
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
         }
-
-        if (result.success) {
+        
+        if (successCount > 0) {
             window.closeModal();
             loadBookings();
             
@@ -1658,29 +2075,20 @@ function bindBookingForm() {
             if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
             if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
             
-            alert(bookingId ? 'Booking updated successfully!' : 'Booking created successfully!');
-        } else {
-            // Show detailed error message
-            let errorMsg = 'Error creating booking';
-            if (result.error) {
-                errorMsg = result.error;
-            } else if (result.data?.message) {
-                errorMsg = result.data.message;
-            } else if (result.data?.errors) {
-                // Handle validation errors
-                const errors = result.data.errors;
-                const errorList = Object.values(errors).flat().join('\n');
-                errorMsg = 'Validation errors:\n' + errorList;
+            if (errorCount === 0) {
+                alert(`Successfully created ${successCount} booking(s)!`);
+            } else {
+                alert(`Created ${successCount} booking(s), but ${errorCount} failed:\n\n${errors.join('\n')}`);
             }
-            alert('Error: ' + errorMsg);
-            console.error('Booking error:', result); // Debug
+        } else {
+            alert(`Failed to create bookings:\n\n${errors.join('\n')}`);
         }
     } catch (error) {
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
         }
-        alert('Error creating booking: ' + error.message);
+        alert('Error creating bookings: ' + error.message);
         console.error('Booking submission error:', error);
     }
         });
@@ -1891,14 +2299,14 @@ function bindBookingForm() {
     align-items: center;
 }
 
-/* Dropdown Menu Styles */
+/* Dropdown Menu Styles - Only for booking page dropdowns, not navigation */
 .dropdown-menu-container {
     position: relative;
     display: inline-block;
 }
 
-
-.dropdown-menu {
+/* Only style dropdowns inside dropdown-menu-container, not user dropdown in navigation */
+.dropdown-menu-container .dropdown-menu {
     display: none;
     position: fixed;
     background: white;
@@ -1912,7 +2320,7 @@ function bindBookingForm() {
     animation: slideDown 0.2s ease;
 }
 
-.dropdown-menu.dropdown-up {
+.dropdown-menu-container .dropdown-menu.dropdown-up {
     margin-top: 0;
     margin-bottom: 5px;
     animation: slideUp 0.2s ease;
@@ -1940,7 +2348,7 @@ function bindBookingForm() {
     }
 }
 
-.dropdown-menu.show {
+.dropdown-menu-container .dropdown-menu.show {
     display: block;
 }
 
@@ -2108,7 +2516,7 @@ function bindBookingForm() {
         flex-direction: column;
     }
     
-    .dropdown-menu {
+    .dropdown-menu-container .dropdown-menu {
         right: auto;
         left: 0;
     }
@@ -2426,6 +2834,37 @@ function bindBookingForm() {
     color: #a01a2a;
 }
 
+/* Unavailable day styles */
+.timetable-day.unavailable-day {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    opacity: 0.7;
+}
+
+.timetable-day.unavailable-day .timetable-day-title {
+    color: #6c757d;
+}
+
+.timetable-day.unavailable-day .timetable-day-date {
+    color: #6c757d;
+}
+
+.timetable-day-unavailable-badge {
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: #dc3545;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+    width:300px;
+}
+
+.timetable-day-unavailable-badge i {
+    margin-right: 4px;
+}
+
 .timetable-slots {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -2463,7 +2902,7 @@ function bindBookingForm() {
     background: #c3e6cb;
 }
 
-.timetable-slot.booked {
+.timetable-slot.booked:not(.user-booked) {
     border-color: #dc3545;
     background: #f8d7da;
     color: #721c24;
@@ -2479,16 +2918,123 @@ function bindBookingForm() {
     box-shadow: 0 4px 12px rgba(203, 45, 62, 0.4);
 }
 
+.timetable-slot.user-booked {
+    border-color: #ffc107 !important;
+    background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%) !important;
+    color: #212529 !important;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(255, 193, 7, 0.6) !important;
+    animation: pulse-glow 2s ease-in-out infinite;
+    position: relative;
+    cursor: default;
+    opacity: 1 !important;
+}
+
+.timetable-slot.user-booked::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(135deg, #ffc107, #ffb300, #ffc107);
+    border-radius: 6px;
+    z-index: -1;
+    opacity: 0.7;
+    animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(255, 193, 7, 0.6);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8);
+        transform: scale(1.02);
+    }
+}
+
+@keyframes glow-pulse {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.timetable-slot.user-booked:hover {
+    border-color: #ffb300 !important;
+    background: linear-gradient(135deg, #ffb300 0%, #ffa000 100%) !important;
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8) !important;
+    transform: translateY(-2px) scale(1.02);
+    opacity: 1 !important;
+}
+
 .timetable-slot-time {
     display: block;
     font-size: 0.9rem;
 }
 
-.timetable-slot-duration {
+.timetable-slot-attendees {
     display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 4px;
+    opacity: 0.9;
+}
+
+.timetable-slot.available .timetable-slot-attendees {
+    color: #0d4e1a;
+}
+
+.timetable-slot.booked .timetable-slot-attendees {
+    color: #8b1a1a;
+}
+
+.timetable-slot.selected .timetable-slot-attendees {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.timetable-slot.user-booked .timetable-slot-attendees {
+    color: #856404;
+    font-weight: 700;
+}
+
+/* Unavailable slot styles */
+.timetable-slot.unavailable {
+    border-color: #adb5bd;
+    background: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+    position: relative;
+}
+
+.timetable-slot.unavailable:hover {
+    border-color: #adb5bd;
+    background: #e9ecef;
+    transform: none;
+    box-shadow: none;
+}
+
+.timetable-slot-unavailable-text {
+    display: inline-block;
     font-size: 0.75rem;
-    opacity: 0.8;
-    margin-top: 2px;
+    font-weight: 600;
+    margin-top: 6px;
+    color: #6c757d;
+    font-style: italic;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    padding: 4px 12px;
+    background-color: #dee2e6;
+    border-radius: 4px;
+    text-align: center;
+    width: auto;
+    min-width: 80%;
+    max-width: 95%;
 }
 
 .timetable-no-slots {

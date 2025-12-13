@@ -17,21 +17,23 @@ class FacilityController extends Controller
         // Get booking date from request if provided
         $bookingDate = $request->get('booking_date');
         
-        // Add approved bookings count and total expected attendees for each facility
+        // Add bookings count and total expected attendees for each facility
+        // Include both pending and approved bookings in the count
         $facilities->getCollection()->transform(function ($facility) use ($bookingDate) {
-            $approvedBookingsQuery = $facility->bookings()
-                ->where('status', 'approved');
+            $bookingsQuery = $facility->bookings()
+                ->whereIn('status', ['pending', 'approved']); // Include pending and approved
             
             // If booking date is provided, filter by date
             if ($bookingDate) {
-                $approvedBookingsQuery->whereDate('booking_date', $bookingDate);
+                $bookingsQuery->whereDate('booking_date', $bookingDate);
             }
             
-            $approvedBookings = $approvedBookingsQuery->get();
+            $bookings = $bookingsQuery->get();
             
-            $facility->approved_bookings_count = $approvedBookings->count();
-            // Sum expected_attendees, treating null as 0
-            $facility->total_approved_attendees = $approvedBookings->sum(function($booking) {
+            $facility->approved_bookings_count = $bookings->where('status', 'approved')->count();
+            $facility->pending_bookings_count = $bookings->where('status', 'pending')->count();
+            // Sum expected_attendees for both pending and approved bookings
+            $facility->total_approved_attendees = $bookings->sum(function($booking) {
                 return $booking->expected_attendees ?? 0;
             });
             $facility->is_at_capacity = ($facility->total_approved_attendees >= $facility->capacity);
@@ -91,16 +93,17 @@ class FacilityController extends Controller
         $endTime = $request->end_time;
         $expectedAttendees = $request->input('expected_attendees', 1); // Default to 1
 
-        // Get all approved bookings for this facility on the given date
-        $approvedBookings = $facility->bookings()
+        // Get all pending and approved bookings for this facility on the given date
+        // Include pending bookings in capacity count
+        $bookings = $facility->bookings()
             ->whereDate('booking_date', $date)
-            ->where('status', 'approved') // Only count approved bookings
+            ->whereIn('status', ['pending', 'approved']) // Include pending and approved
             ->get();
 
         // If specific time range provided, check capacity
         if ($startTime && $endTime) {
-            // Find overlapping approved bookings
-            $overlappingBookings = $approvedBookings->filter(function($booking) use ($startTime, $endTime) {
+            // Find overlapping bookings (pending and approved)
+            $overlappingBookings = $bookings->filter(function($booking) use ($startTime, $endTime) {
                 $bookingStart = $booking->start_time->format('H:i');
                 $bookingEnd = $booking->end_time->format('H:i');
                 
@@ -145,7 +148,7 @@ class FacilityController extends Controller
                 'facility_id' => $facility->id,
                 'facility_capacity' => $facility->capacity,
                 'date' => $date,
-                'bookings' => $approvedBookings->map(function($booking) {
+                'bookings' => $bookings->map(function($booking) {
                     return [
                         'id' => $booking->id,
                         'start_time' => $booking->start_time->format('H:i'),
@@ -154,7 +157,7 @@ class FacilityController extends Controller
                         'expected_attendees' => $booking->expected_attendees ?? 1,
                     ];
                 }),
-                'total_booked_attendees' => $approvedBookings->sum(function($booking) {
+                'total_booked_attendees' => $bookings->sum(function($booking) {
                     return $booking->expected_attendees ?? 1;
                 }),
             ],

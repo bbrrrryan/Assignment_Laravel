@@ -57,6 +57,20 @@ class BookingController extends Controller
 
         $facility = Facility::findOrFail($validated['facility_id']);
         
+        // Check if booking date is within facility's available days
+        $bookingDate = \Carbon\Carbon::parse($validated['booking_date']);
+        $dayOfWeek = strtolower($bookingDate->format('l')); // e.g., 'monday', 'tuesday'
+        
+        if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
+            // Check if the day of week is in the available days array
+            if (!in_array($dayOfWeek, $facility->available_day)) {
+                $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
+                return response()->json([
+                    'message' => "This facility is not available on {$bookingDate->format('l, F j, Y')}. Available days: {$availableDaysStr}",
+                ], 422);
+            }
+        }
+        
         // Get facility available time range (default to 08:00-20:00 if not set)
         $minTime = '08:00';
         $maxTime = '20:00';
@@ -103,6 +117,23 @@ class BookingController extends Controller
             ], 400);
         }
 
+        // Check max_booking_hours limit for the user on this date
+        $maxBookingHours = $facility->max_booking_hours ?? 1;
+        $userBookingsOnDate = Booking::where('user_id', auth()->id())
+            ->where('facility_id', $validated['facility_id'])
+            ->whereDate('booking_date', $validated['booking_date'])
+            ->whereIn('status', ['pending', 'approved'])
+            ->get();
+        
+        $totalUserBookingHours = $userBookingsOnDate->sum('duration_hours');
+        $totalAfterBooking = $totalUserBookingHours + $durationHours;
+        
+        if ($totalAfterBooking > $maxBookingHours) {
+            return response()->json([
+                'message' => "You have reached the maximum booking limit for this facility on this date. Maximum allowed: {$maxBookingHours} hour(s), Your current bookings: {$totalUserBookingHours} hour(s), After this booking: {$totalAfterBooking} hour(s)",
+            ], 400);
+        }
+
         // Check capacity - use request input to safely access nullable field
         $expectedAttendees = $request->input('expected_attendees') ?? 1; // Default to 1 if not provided
         if ($expectedAttendees > $facility->capacity) {
@@ -111,31 +142,20 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check capacity for overlapping bookings in the same time slot
-        // Find all approved bookings that overlap with the requested time slot
-        $overlappingBookings = Booking::where('facility_id', $validated['facility_id'])
-            ->whereDate('booking_date', $validated['booking_date'])
-            ->where('status', 'approved') // Only count approved bookings
-            ->where(function($query) use ($validated) {
-                $query->whereBetween('start_time', [$validated['start_time'], $validated['end_time']])
-                      ->orWhereBetween('end_time', [$validated['start_time'], $validated['end_time']])
-                      ->orWhere(function($q) use ($validated) {
-                          $q->where('start_time', '<=', $validated['start_time'])
-                            ->where('end_time', '>=', $validated['end_time']);
-                      });
-            })
-            ->get();
-
-        // Calculate total expected attendees for overlapping bookings
-        $totalAttendees = $overlappingBookings->sum(function($booking) {
-            return $booking->expected_attendees ?? 1;
-        });
-
-        // Check if adding this booking would exceed capacity
-        $totalAfterBooking = $totalAttendees + $expectedAttendees;
-        if ($totalAfterBooking > $facility->capacity) {
+        // Check capacity for overlapping bookings - check by hour segments
+        // This ensures accurate capacity checking for 1-hour and 2-hour bookings
+        $capacityCheck = $this->checkCapacityByTimeSegments(
+            $facility,
+            $validated['facility_id'],
+            $validated['booking_date'],
+            $validated['start_time'],
+            $validated['end_time'],
+            $expectedAttendees
+        );
+        
+        if (!$capacityCheck['available']) {
             return response()->json([
-                'message' => 'Booking would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after booking: ' . $totalAfterBooking,
+                'message' => $capacityCheck['message'],
             ], 409);
         }
 
@@ -301,6 +321,23 @@ class BookingController extends Controller
             $facilityId = $validated['facility_id'] ?? $booking->facility_id;
             $facility = Facility::findOrFail($facilityId);
             
+            // Get booking date (use existing or updated value)
+            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
+            
+            // Check if booking date is within facility's available days
+            $bookingDateCarbon = \Carbon\Carbon::parse($bookingDate);
+            $dayOfWeek = strtolower($bookingDateCarbon->format('l')); // e.g., 'monday', 'tuesday'
+            
+            if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
+                // Check if the day of week is in the available days array
+                if (!in_array($dayOfWeek, $facility->available_day)) {
+                    $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
+                    return response()->json([
+                        'message' => "This facility is not available on {$bookingDateCarbon->format('l, F j, Y')}. Available days: {$availableDaysStr}",
+                    ], 422);
+                }
+            }
+            
             // Get facility available time range (default to 08:00-20:00 if not set)
             $minTime = '08:00';
             $maxTime = '20:00';
@@ -384,31 +421,20 @@ class BookingController extends Controller
             // Check capacity for overlapping bookings if status is being set to approved
             // or if time/attendees are being changed
             if ($newStatus === 'approved' || isset($validated['start_time']) || isset($validated['end_time']) || isset($validated['expected_attendees'])) {
-                // Find all approved bookings that overlap with this booking's time slot (excluding current booking)
-                $overlappingBookings = Booking::where('facility_id', $facilityId)
-                    ->where('id', '!=', $booking->id)
-                    ->whereDate('booking_date', $bookingDate)
-                    ->where('status', 'approved') // Only count approved bookings
-                    ->where(function($query) use ($startTime, $endTime) {
-                        $query->whereBetween('start_time', [$startTime, $endTime])
-                              ->orWhereBetween('end_time', [$startTime, $endTime])
-                              ->orWhere(function($q) use ($startTime, $endTime) {
-                                  $q->where('start_time', '<=', $startTime)
-                                    ->where('end_time', '>=', $endTime);
-                              });
-                    })
-                    ->get();
-
-                // Calculate total expected attendees for overlapping bookings
-                $totalAttendees = $overlappingBookings->sum(function($b) {
-                    return $b->expected_attendees ?? 1;
-                });
-
-                // Check if this booking would exceed capacity
-                $totalAfterUpdate = $totalAttendees + $expectedAttendees;
-                if ($totalAfterUpdate > $facility->capacity) {
+                // Use hourly segment capacity check for accurate validation
+                $capacityCheck = $this->checkCapacityByTimeSegments(
+                    $facility,
+                    $facilityId,
+                    $bookingDate,
+                    $startTime,
+                    $endTime,
+                    $expectedAttendees,
+                    $booking->id // Exclude current booking from check
+                );
+                
+                if (!$capacityCheck['available']) {
                     return response()->json([
-                        'message' => 'This update would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after update: ' . $totalAfterUpdate,
+                        'message' => $capacityCheck['message'],
                     ], 409);
                 }
             }
@@ -475,35 +501,23 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check capacity before approving
+        // Check capacity before approving using hourly segment check
         $facility = $booking->facility;
         $expectedAttendees = $booking->expected_attendees ?? 1;
         
-        // Find all approved bookings that overlap with this booking's time slot
-        $overlappingBookings = Booking::where('facility_id', $booking->facility_id)
-            ->where('id', '!=', $booking->id)
-            ->whereDate('booking_date', $booking->booking_date)
-            ->where('status', 'approved') // Only count approved bookings
-            ->where(function($query) use ($booking) {
-                $query->whereBetween('start_time', [$booking->start_time, $booking->end_time])
-                      ->orWhereBetween('end_time', [$booking->start_time, $booking->end_time])
-                      ->orWhere(function($q) use ($booking) {
-                          $q->where('start_time', '<=', $booking->start_time)
-                            ->where('end_time', '>=', $booking->end_time);
-                      });
-            })
-            ->get();
-
-        // Calculate total expected attendees for overlapping bookings
-        $totalAttendees = $overlappingBookings->sum(function($b) {
-            return $b->expected_attendees ?? 1;
-        });
-
-        // Check if approving this booking would exceed capacity
-        $totalAfterApproval = $totalAttendees + $expectedAttendees;
-        if ($totalAfterApproval > $facility->capacity) {
+        $capacityCheck = $this->checkCapacityByTimeSegments(
+            $facility,
+            $booking->facility_id,
+            $booking->booking_date->format('Y-m-d'),
+            $booking->start_time->format('Y-m-d H:i:s'),
+            $booking->end_time->format('Y-m-d H:i:s'),
+            $expectedAttendees,
+            $booking->id // Exclude current booking from check
+        );
+        
+        if (!$capacityCheck['available']) {
             return response()->json([
-                'message' => 'Cannot approve: Approving this booking would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after approval: ' . $totalAfterApproval,
+                'message' => 'Cannot approve: ' . $capacityCheck['message'],
             ], 409);
         }
 
@@ -631,13 +645,30 @@ class BookingController extends Controller
             ]);
         }
 
+        // Check if booking date is within facility's available days
+        $bookingDate = \Carbon\Carbon::parse($request->date);
+        $dayOfWeek = strtolower($bookingDate->format('l')); // e.g., 'monday', 'tuesday'
+        
+        if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
+            // Check if the day of week is in the available days array
+            if (!in_array($dayOfWeek, $facility->available_day)) {
+                $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
+                return response()->json([
+                    'is_available' => false,
+                    'message' => "This facility is not available on {$bookingDate->format('l, F j, Y')}. Available days: {$availableDaysStr}",
+                    'reason' => 'day_not_available',
+                ]);
+            }
+        }
+
         // Check capacity for overlapping bookings
         $expectedAttendees = $request->input('expected_attendees') ?? 1;
         
-        // Find all approved bookings that overlap with the requested time slot
+        // Find all pending and approved bookings that overlap with the requested time slot
+        // Include pending bookings in capacity count
         $overlappingBookings = Booking::where('facility_id', $facilityId)
             ->whereDate('booking_date', $request->date)
-            ->where('status', 'approved') // Only count approved bookings
+            ->whereIn('status', ['pending', 'approved']) // Include pending and approved
             ->where(function($query) use ($request) {
                 $query->whereBetween('start_time', [$request->start_time, $request->end_time])
                       ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
@@ -723,6 +754,107 @@ class BookingController extends Controller
                 'count' => $count,
             ],
         ]);
+    }
+
+    /**
+     * Check capacity by time segments (hourly) to ensure accurate capacity checking
+     * for 1-hour and 2-hour bookings
+     * 
+     * @param Facility $facility
+     * @param int $facilityId
+     * @param string $bookingDate
+     * @param string $startTime
+     * @param string $endTime
+     * @param int $expectedAttendees
+     * @param int|null $excludeBookingId Exclude this booking ID from the check (for updates)
+     * @return array ['available' => bool, 'message' => string]
+     */
+    private function checkCapacityByTimeSegments(
+        Facility $facility,
+        int $facilityId,
+        string $bookingDate,
+        string $startTime,
+        string $endTime,
+        int $expectedAttendees,
+        ?int $excludeBookingId = null
+    ): array {
+        // Get all pending and approved bookings for this facility on this date
+        // Include pending bookings in capacity count
+        $query = Booking::where('facility_id', $facilityId)
+            ->whereDate('booking_date', $bookingDate)
+            ->whereIn('status', ['pending', 'approved']); // Include pending and approved
+        
+        // Exclude current booking if updating
+        if ($excludeBookingId) {
+            $query->where('id', '!=', $excludeBookingId);
+        }
+        
+        $bookings = $query->get();
+
+        // Parse the requested time range
+        $requestStart = \Carbon\Carbon::parse($startTime);
+        $requestEnd = \Carbon\Carbon::parse($endTime);
+        
+        // Create hourly time segments for the requested time range
+        $timeSegments = [];
+        $current = $requestStart->copy();
+        
+        while ($current < $requestEnd) {
+            $segmentStart = $current->copy();
+            $segmentEnd = $current->copy()->addHour();
+            
+            // Don't go beyond the requested end time
+            if ($segmentEnd > $requestEnd) {
+                $segmentEnd = $requestEnd->copy();
+            }
+            
+            $timeSegments[] = [
+                'start' => $segmentStart,
+                'end' => $segmentEnd,
+            ];
+            
+            $current = $segmentEnd;
+        }
+        
+        // Check each time segment
+        foreach ($timeSegments as $segment) {
+            $segmentStart = $segment['start'];
+            $segmentEnd = $segment['end'];
+            
+            // Find all bookings that overlap with this segment
+            $overlappingBookings = $bookings->filter(function($booking) use ($segmentStart, $segmentEnd) {
+                $bookingStart = \Carbon\Carbon::parse($booking->start_time);
+                $bookingEnd = \Carbon\Carbon::parse($booking->end_time);
+                
+                // Check if booking overlaps with this segment
+                // Overlap occurs when: bookingStart < segmentEnd AND bookingEnd > segmentStart
+                return $bookingStart < $segmentEnd && $bookingEnd > $segmentStart;
+            });
+            
+            // Calculate total attendees in this segment (existing bookings + new booking)
+            $totalAttendees = $overlappingBookings->sum(function($booking) {
+                return $booking->expected_attendees ?? 1;
+            }) + $expectedAttendees;
+            
+            // Check if this segment would exceed capacity
+            if ($totalAttendees > $facility->capacity) {
+                $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
+                $existingAttendees = $totalAttendees - $expectedAttendees;
+                
+                return [
+                    'available' => false,
+                    'message' => "Booking would exceed facility capacity during {$segmentTimeStr}. " .
+                                "Capacity: {$facility->capacity}, " .
+                                "Current attendees: {$existingAttendees}, " .
+                                "After booking: {$totalAttendees}"
+                ];
+            }
+        }
+        
+        return [
+            'available' => true,
+            'message' => 'Capacity check passed'
+        ];
     }
 
     /**
