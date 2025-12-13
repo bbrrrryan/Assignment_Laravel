@@ -134,21 +134,17 @@ class BookingController extends Controller
             }
         }
 
-        // Determine booking status based on user role
-        // Students always create pending bookings that require admin approval
-        // Admin can create approved bookings directly (if facility doesn't require approval)
+        // Only students can create bookings
         $user = auth()->user();
         
-        if ($user->isStudent()) {
-            // Students always create pending bookings that require admin approval
-            $bookingStatus = 'pending';
-        } elseif ($user->isAdmin()) {
-            // Admin can create approved bookings if facility doesn't require approval
-            $bookingStatus = $facility->requires_approval ? 'pending' : 'approved';
-        } else {
-            // Default to pending for other roles (staff, etc.)
-            $bookingStatus = 'pending';
+        if (!$user->isStudent()) {
+            return response()->json([
+                'message' => 'Only students can create bookings',
+            ], 403);
         }
+        
+        // Students always create pending bookings that require admin/staff approval
+        $bookingStatus = 'pending';
 
         $booking = Booking::create([
             'user_id' => auth()->id(),
@@ -228,15 +224,15 @@ class BookingController extends Controller
             $booking = Booking::findOrFail($id);
             $user = auth()->user();
 
-            // Check permissions: Admin can modify any booking, users can only modify their own pending bookings
-            if (!$user->isAdmin() && $booking->user_id !== $user->id) {
+            // Check permissions: Admin and Staff can modify any booking, users can only modify their own pending bookings
+            if (!$user->isAdmin() && !$user->isStaff() && $booking->user_id !== $user->id) {
                 return response()->json([
                     'message' => 'You do not have permission to modify this booking',
                 ], 403);
             }
 
-            // Users can only modify their own pending bookings
-            if (!$user->isAdmin() && $booking->status !== 'pending') {
+            // Users can only modify their own pending bookings (admin/staff can modify any)
+            if (!$user->isAdmin() && !$user->isStaff() && $booking->status !== 'pending') {
                 return response()->json([
                     'message' => 'You can only modify pending bookings',
                 ], 400);
@@ -377,10 +373,15 @@ class BookingController extends Controller
             // Create status history if status changed
             if (isset($validated['status']) && $validated['status'] !== $booking->getOriginal('status')) {
                 try {
+                    $user = auth()->user();
+                    $notes = 'Booking modified by user';
+                    if ($user->isAdmin() || $user->isStaff()) {
+                        $notes = 'Booking modified by ' . ($user->isAdmin() ? 'admin' : 'staff');
+                    }
                     $booking->statusHistory()->create([
                         'status' => $validated['status'],
                         'changed_by' => auth()->id(),
-                        'notes' => $user->isAdmin() ? 'Booking modified by admin' : 'Booking modified by user',
+                        'notes' => $notes,
                     ]);
                 } catch (\Exception $e) {
                     \Log::warning('Failed to create booking status history: ' . $e->getMessage());
@@ -456,10 +457,12 @@ class BookingController extends Controller
         ]);
 
         // Create status history
+        $user = auth()->user();
+        $notes = 'Booking approved by ' . ($user->isAdmin() ? 'admin' : 'staff');
         $booking->statusHistory()->create([
             'status' => 'approved',
             'changed_by' => auth()->id(),
-            'notes' => 'Booking approved by admin',
+            'notes' => $notes,
         ]);
 
         // Send notification to user
@@ -495,10 +498,12 @@ class BookingController extends Controller
 
         // Create status history
         try {
+            $user = auth()->user();
+            $notes = 'Booking rejected by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
             $booking->statusHistory()->create([
                 'status' => 'rejected',
                 'changed_by' => auth()->id(),
-                'notes' => 'Booking rejected by admin. Reason: ' . $request->reason,
+                'notes' => $notes,
             ]);
         } catch (\Exception $e) {
             \Log::warning('Failed to create booking status history: ' . $e->getMessage());
