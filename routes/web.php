@@ -44,6 +44,9 @@ Route::middleware('auth')->group(function () {
         // Facility Management
         Route::resource('facilities', FacilityController::class);
         
+        // Booking Management
+        Route::get('/bookings', [PageController::class, 'adminBookings'])->name('bookings.index');
+        
         // Announcement Management
         Route::get('/announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
         Route::get('/announcements/{id}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
@@ -59,7 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/facilities', [PageController::class, 'facilities'])->name('facilities.index');
     Route::get('/facilities/{id}', [PageController::class, 'showFacility'])->name('facilities.show');
 
-    // Bookings Routes
+    // Bookings Routes (User)
     Route::get('/bookings', [PageController::class, 'bookings'])->name('bookings.index');
     Route::get('/bookings/{id}', [PageController::class, 'showBooking'])->name('bookings.show');
 

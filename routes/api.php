@@ -147,11 +147,11 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Admin only routes - specific routes before parameterized routes
         Route::middleware('admin')->group(function () {
-            Route::get('/', [BookingController::class, 'index']);
-            Route::get('/pending', [BookingController::class, 'getPendingBookings']); // Must be before /{id}
-            Route::put('/{id}/approve', [BookingController::class, 'approve']);
-            Route::put('/{id}/reject', [BookingController::class, 'reject']);
-            Route::put('/{id}', [BookingController::class, 'update']);
+            Route::get('/', [\App\Http\Controllers\Admin\AdminBookingController::class, 'index']);
+            Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); // Must be before /{id}
+            Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
+            Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
+            Route::put('/{id}', [\App\Http\Controllers\Admin\AdminBookingController::class, 'update']);
         });
         
         // User routes - parameterized routes at the end
