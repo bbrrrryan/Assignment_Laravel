@@ -181,6 +181,21 @@ function displayBookingDetails(booking) {
                     <span class="detail-label">Expected Attendees:</span>
                     <span class="detail-value">${booking.expected_attendees || 'N/A'}</span>
                 </div>
+                ${booking.attendees && booking.attendees.length > 0 ? `
+                <div class="detail-row">
+                    <span class="detail-label">Attendees Passport:</span>
+                    <span class="detail-value">
+                        <div class="attendees-list">
+                            ${booking.attendees.map((attendee, index) => `
+                                <div class="attendee-item">
+                                    <span class="attendee-number">${index + 1}.</span>
+                                    <span class="attendee-passport">${attendee.student_passport || 'N/A'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </span>
+                </div>
+                ` : ''}
                 ${booking.special_requirements ? `
                 <div class="detail-row">
                     <span class="detail-label">Special Requirements:</span>
@@ -221,10 +236,52 @@ function formatDate(dateString) {
     return date.toLocaleDateString();
 }
 
+function formatTimeNoSeconds(date) {
+    if (!date) return 'N/A';
+    
+    // If date is a string, extract time directly to avoid timezone conversion issues
+    if (typeof date === 'string') {
+        // Try to extract time from various formats:
+        // - "2025-12-15 08:00:00" (local format)
+        // - "2025-12-15T08:00:00.000000Z" (ISO format with Z)
+        // - "2025-12-15T08:00:00" (ISO format without timezone)
+        let timeStr = '';
+        if (date.includes('T')) {
+            const timeMatch = date.match(/T(\d{2}:\d{2}:\d{2})/);
+            if (timeMatch) {
+                timeStr = timeMatch[1];
+            }
+        } else if (date.includes(' ')) {
+            const parts = date.split(' ');
+            if (parts.length > 1) {
+                timeStr = parts[1];
+            }
+        }
+        
+        if (timeStr) {
+            const [hours, minutes] = timeStr.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+    }
+    
+    // Fallback to Date object parsing
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // Check if the date string includes 'Z' (UTC indicator)
+    const isUTC = typeof date === 'string' && date.includes('Z');
+    const hours = isUTC ? d.getUTCHours() : d.getHours();
+    const minutes = String(isUTC ? d.getUTCMinutes() : d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+}
+
 function formatTime(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString();
+    return formatTimeNoSeconds(dateString);
 }
 
 let currentBookingId = null;
@@ -799,6 +856,45 @@ async function confirmCancelBooking() {
         width: 100%;
         justify-content: center;
     }
+}
+
+/* Attendees List Styles */
+.attendees-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.attendee-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.attendee-item:hover {
+    background: #e9ecef;
+    border-color: #cb2d3e;
+    transform: translateX(3px);
+}
+
+.attendee-number {
+    font-weight: 600;
+    color: #cb2d3e;
+    min-width: 25px;
+    font-size: 0.95rem;
+}
+
+.attendee-passport {
+    color: #333;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
 }
 </style>
 @endsection

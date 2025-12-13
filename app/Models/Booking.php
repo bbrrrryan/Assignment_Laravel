@@ -62,4 +62,9 @@ class Booking extends Model
     {
         return $this->hasMany(Feedback::class);
     }
+
+    public function attendees()
+    {
+        return $this->hasMany(Attendee::class);
+    }
 }

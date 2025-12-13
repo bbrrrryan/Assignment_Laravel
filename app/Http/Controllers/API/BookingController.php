@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendee;
 use App\Models\Booking;
 use App\Models\Facility;
 use App\Models\Notification;
@@ -24,15 +25,59 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         try {
+            // Get facility first to check enable_multi_attendees setting
+            $facilityId = $request->input('facility_id');
+            if (!$facilityId) {
+                return response()->json([
+                    'message' => 'Facility ID is required',
+                ], 422);
+            }
+            
+            $facility = Facility::find($facilityId);
+            if (!$facility) {
+                return response()->json([
+                    'message' => 'Facility not found',
+                ], 404);
+            }
+            
+            // Adjust validation rules based on facility's enable_multi_attendees setting
+            $expectedAttendeesRule = 'nullable|integer|min:1';
+            if ($facility->enable_multi_attendees) {
+                // If multi-attendees is enabled, expected_attendees should be required
+                $expectedAttendeesRule = 'required|integer|min:1';
+                if ($facility->max_attendees) {
+                    $expectedAttendeesRule .= '|max:' . $facility->max_attendees;
+                }
+            }
+            
             $validated = $request->validate([
-            'facility_id' => 'required|exists:facilities,id',
-                'booking_date' => 'required|date|after:today', // Users can only book from tomorrow onwards
+                'facility_id' => 'required|exists:facilities,id',
+                'booking_date' => [
+                    'required',
+                    'date',
+                    function ($attribute, $value, $fail) {
+                        $bookingDate = \Carbon\Carbon::parse($value)->startOfDay();
+                        $today = \Carbon\Carbon::today()->startOfDay();
+                        if ($bookingDate->lte($today)) {
+                            $fail('You can only book from tomorrow onwards. Please select a future date.');
+                        }
+                    },
+                ],
                 'start_time' => 'required|string',
                 'end_time' => 'required|string',
                 'purpose' => 'required|string|max:500',
-                'expected_attendees' => 'nullable|integer|min:1',
+                'expected_attendees' => $expectedAttendeesRule,
                 'special_requirements' => 'nullable',
+                'attendees_passports' => 'nullable|array',
+                'attendees_passports.*' => 'nullable|string|max:255',
             ]);
+            
+            // Normalize expected_attendees: if not provided and multi-attendees is disabled, set to 1
+            if (!isset($validated['expected_attendees']) || $validated['expected_attendees'] === null) {
+                if (!$facility->enable_multi_attendees) {
+                    $validated['expected_attendees'] = 1;
+                }
+            }
 
             // Parse and normalize datetime formats
             try {
@@ -55,10 +100,13 @@ class BookingController extends Controller
                 ], 422);
             }
 
-        $facility = Facility::findOrFail($validated['facility_id']);
-        
+        // Facility already loaded above, use it
         // Check if booking date is within facility's available days
-        $bookingDate = \Carbon\Carbon::parse($validated['booking_date']);
+        // Parse booking_date as a date-only string (YYYY-MM-DD) and ensure it's treated as a date, not datetime
+        // Use createFromFormat with explicit timezone to avoid timezone issues
+        $bookingDate = \Carbon\Carbon::createFromFormat('Y-m-d', $validated['booking_date'], config('app.timezone'))
+            ->setTime(0, 0, 0)
+            ->setTimezone(config('app.timezone'));
         $dayOfWeek = strtolower($bookingDate->format('l')); // e.g., 'monday', 'tuesday'
         
         if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
@@ -134,8 +182,25 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check capacity - use request input to safely access nullable field
-        $expectedAttendees = $request->input('expected_attendees') ?? 1; // Default to 1 if not provided
+        // Check capacity and multi-attendees setting
+        $expectedAttendees = $request->input('expected_attendees');
+        
+        // If facility doesn't enable multi-attendees, default to 1
+        if (!$facility->enable_multi_attendees) {
+            $expectedAttendees = 1;
+        } else {
+            // If multi-attendees is enabled, use provided value or default to 1
+            $expectedAttendees = $expectedAttendees ?? 1;
+            
+            // Check against max_attendees if set
+            if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
+                return response()->json([
+                    'message' => "Expected attendees ({$expectedAttendees}) exceed maximum allowed ({$facility->max_attendees}) for this facility",
+                ], 400);
+            }
+        }
+        
+        // Always check against facility capacity
         if ($expectedAttendees > $facility->capacity) {
             return response()->json([
                 'message' => 'Expected attendees exceed facility capacity',
@@ -206,6 +271,17 @@ class BookingController extends Controller
 
         $booking = Booking::create($bookingData);
 
+        // Save attendees if provided
+        if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
+            foreach ($request->attendees_passports as $passport) {
+                if (!empty(trim($passport))) {
+                    $booking->attendees()->create([
+                        'student_passport' => trim($passport),
+                    ]);
+                }
+            }
+        }
+
         // Create status history
         try {
             $booking->statusHistory()->create([
@@ -227,7 +303,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking created successfully',
-            'data' => $booking->load(['user', 'facility']),
+            'data' => $booking->load(['user', 'facility', 'attendees']),
         ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -245,7 +321,7 @@ class BookingController extends Controller
     public function show(string $id)
     {
         try {
-            $booking = Booking::with(['user', 'facility', 'statusHistory'])->findOrFail($id);
+            $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees'])->findOrFail($id);
             return response()->json(['data' => $booking]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -292,6 +368,8 @@ class BookingController extends Controller
                 'purpose' => 'sometimes|required|string|max:500',
                 'expected_attendees' => 'nullable|integer|min:1',
                 'status' => 'sometimes|required|in:pending,approved,rejected,cancelled',
+                'attendees_passports' => 'nullable|array',
+                'attendees_passports.*' => 'nullable|string|max:255',
             ]);
 
             // Parse datetime if provided
@@ -408,15 +486,35 @@ class BookingController extends Controller
             $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
             $startTime = $validated['start_time'] ?? $booking->start_time;
             $endTime = $validated['end_time'] ?? $booking->end_time;
-            $expectedAttendees = $validated['expected_attendees'] ?? $booking->expected_attendees ?? 1;
+            
+            // Handle expected_attendees based on facility's enable_multi_attendees setting
+            $expectedAttendees = $request->input('expected_attendees');
+            if (!$facility->enable_multi_attendees) {
+                // If facility doesn't enable multi-attendees, always use 1
+                $expectedAttendees = 1;
+            } else {
+                // If multi-attendees is enabled, use provided value or keep existing
+                $expectedAttendees = $expectedAttendees ?? $booking->expected_attendees ?? 1;
+                
+                // Check against max_attendees if set
+                if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
+                    return response()->json([
+                        'message' => "Expected attendees ({$expectedAttendees}) exceed maximum allowed ({$facility->max_attendees}) for this facility",
+                    ], 400);
+                }
+            }
+            
             $newStatus = $validated['status'] ?? $booking->status;
 
-            // Check capacity if expected_attendees is provided
+            // Always check against facility capacity
             if ($expectedAttendees > $facility->capacity) {
                 return response()->json([
                     'message' => 'Expected attendees exceed facility capacity',
                 ], 400);
             }
+            
+            // Update validated array with the correct expected_attendees value
+            $validated['expected_attendees'] = $expectedAttendees;
 
             // Check capacity for overlapping bookings if status is being set to approved
             // or if time/attendees are being changed
@@ -442,6 +540,21 @@ class BookingController extends Controller
             // Update booking
             $booking->update($validated);
 
+            // Update attendees if provided
+            if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
+                // Delete existing attendees
+                $booking->attendees()->delete();
+                
+                // Create new attendees
+                foreach ($request->attendees_passports as $passport) {
+                    if (!empty(trim($passport))) {
+                        $booking->attendees()->create([
+                            'student_passport' => trim($passport),
+                        ]);
+                    }
+                }
+            }
+
             // Create status history if status changed
             if (isset($validated['status']) && $validated['status'] !== $booking->getOriginal('status')) {
                 try {
@@ -462,7 +575,7 @@ class BookingController extends Controller
 
             return response()->json([
                 'message' => 'Booking updated successfully',
-                'data' => $booking->load(['user', 'facility', 'statusHistory']),
+                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees']),
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -541,7 +654,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking approved successfully',
-            'data' => $booking->load(['user', 'facility', 'approver']),
+            'data' => $booking->load(['user', 'facility', 'approver', 'attendees']),
         ]);
     }
 
@@ -585,7 +698,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking rejected successfully',
-            'data' => $booking->load(['user', 'facility']),
+            'data' => $booking->load(['user', 'facility', 'attendees']),
         ]);
     }
 
@@ -619,7 +732,7 @@ class BookingController extends Controller
 
     public function myBookings()
     {
-        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility'])->get()]);
+        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility', 'attendees'])->get()]);
     }
 
     /**
@@ -662,7 +775,24 @@ class BookingController extends Controller
         }
 
         // Check capacity for overlapping bookings
-        $expectedAttendees = $request->input('expected_attendees') ?? 1;
+        // Handle expected_attendees based on facility's enable_multi_attendees setting
+        $expectedAttendees = $request->input('expected_attendees');
+        if (!$facility->enable_multi_attendees) {
+            // If facility doesn't enable multi-attendees, always use 1
+            $expectedAttendees = 1;
+        } else {
+            // If multi-attendees is enabled, use provided value or default to 1
+            $expectedAttendees = $expectedAttendees ?? 1;
+            
+            // Check against max_attendees if set
+            if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
+                return response()->json([
+                    'is_available' => false,
+                    'message' => "Expected attendees ({$expectedAttendees}) exceed maximum allowed ({$facility->max_attendees}) for this facility",
+                    'reason' => 'max_attendees_exceeded',
+                ]);
+            }
+        }
         
         // Find all pending and approved bookings that overlap with the requested time slot
         // Include pending bookings in capacity count
@@ -680,13 +810,30 @@ class BookingController extends Controller
             ->get();
 
         // Calculate total expected attendees for overlapping bookings
-        $totalAttendees = $overlappingBookings->sum(function($booking) {
+        // If facility has enable_multi_attendees, each booking occupies the full capacity
+        $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility) {
+            // If this facility has enable_multi_attendees, each booking occupies full capacity
+            if ($facility->enable_multi_attendees) {
+                return $facility->capacity;
+            }
+            // Otherwise, use expected_attendees
             return $booking->expected_attendees ?? 1;
         });
 
+        // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
+        $newBookingAttendees = $facility->enable_multi_attendees 
+            ? $facility->capacity 
+            : $expectedAttendees;
+
         // Check if adding this booking would exceed capacity
-        $totalAfterBooking = $totalAttendees + $expectedAttendees;
-        $isAvailable = $totalAfterBooking <= $facility->capacity;
+        // If multi_attendees is enabled, only one booking per time slot is allowed
+        if ($facility->enable_multi_attendees) {
+            $isAvailable = $overlappingBookings->count() === 0;
+            $totalAfterBooking = $isAvailable ? $facility->capacity : $facility->capacity;
+        } else {
+            $totalAfterBooking = $totalAttendees + $newBookingAttendees;
+            $isAvailable = $totalAfterBooking <= $facility->capacity;
+        }
         $availableCapacity = max(0, $facility->capacity - $totalAttendees);
 
         return response()->json([
@@ -832,22 +979,50 @@ class BookingController extends Controller
             });
             
             // Calculate total attendees in this segment (existing bookings + new booking)
-            $totalAttendees = $overlappingBookings->sum(function($booking) {
+            // If facility has enable_multi_attendees, each booking occupies the full capacity
+            $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility) {
+                // If this facility has enable_multi_attendees, each booking occupies full capacity
+                if ($facility->enable_multi_attendees) {
+                    return $facility->capacity;
+                }
+                // Otherwise, use expected_attendees
                 return $booking->expected_attendees ?? 1;
-            }) + $expectedAttendees;
+            });
+            
+            // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
+            $newBookingAttendees = $facility->enable_multi_attendees 
+                ? $facility->capacity 
+                : $expectedAttendees;
+            
+            $totalAttendees += $newBookingAttendees;
             
             // Check if this segment would exceed capacity
-            if ($totalAttendees > $facility->capacity) {
-                $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
-                $existingAttendees = $totalAttendees - $expectedAttendees;
-                
-                return [
-                    'available' => false,
-                    'message' => "Booking would exceed facility capacity during {$segmentTimeStr}. " .
-                                "Capacity: {$facility->capacity}, " .
-                                "Current attendees: {$existingAttendees}, " .
-                                "After booking: {$totalAttendees}"
-                ];
+            // Since each booking with multi_attendees occupies full capacity, 
+            // we can only have one booking per time segment
+            if ($facility->enable_multi_attendees) {
+                // If multi_attendees is enabled, check if there's already a booking in this segment
+                if ($overlappingBookings->count() > 0) {
+                    $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
+                    return [
+                        'available' => false,
+                        'message' => "This time slot ({$segmentTimeStr}) is already booked. " .
+                                    "When multi-attendees is enabled, each booking occupies the entire facility capacity."
+                    ];
+                }
+            } else {
+                // Normal capacity check for non-multi-attendees facilities
+                if ($totalAttendees > $facility->capacity) {
+                    $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
+                    $existingAttendees = $totalAttendees - $newBookingAttendees;
+                    
+                    return [
+                        'available' => false,
+                        'message' => "Booking would exceed facility capacity during {$segmentTimeStr}. " .
+                                    "Capacity: {$facility->capacity}, " .
+                                    "Current attendees: {$existingAttendees}, " .
+                                    "After booking: {$totalAttendees}"
+                    ];
+                }
             }
         }
         

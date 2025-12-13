@@ -112,14 +112,32 @@ class FacilityController extends Controller
             });
 
             // Calculate total expected attendees for overlapping bookings
-            $totalAttendees = $overlappingBookings->sum(function($booking) {
+            // If facility has enable_multi_attendees, each booking occupies the full capacity
+            $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility) {
+                // If this facility has enable_multi_attendees, each booking occupies full capacity
+                if ($facility->enable_multi_attendees) {
+                    return $facility->capacity;
+                }
+                // Otherwise, use expected_attendees
                 return $booking->expected_attendees ?? 1;
             });
 
+            // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
+            $newBookingAttendees = $facility->enable_multi_attendees 
+                ? $facility->capacity 
+                : $expectedAttendees;
+
             // Check if adding this booking would exceed capacity
-            $totalAfterBooking = $totalAttendees + $expectedAttendees;
-            $isAvailable = $totalAfterBooking <= $facility->capacity;
-            $availableCapacity = max(0, $facility->capacity - $totalAttendees);
+            // If multi_attendees is enabled, only one booking per time slot is allowed
+            if ($facility->enable_multi_attendees) {
+                $isAvailable = $overlappingBookings->count() === 0;
+                $availableCapacity = $isAvailable ? $facility->capacity : 0;
+                $totalAfterBooking = $isAvailable ? $facility->capacity : $facility->capacity;
+            } else {
+                $totalAfterBooking = $totalAttendees + $newBookingAttendees;
+                $isAvailable = $totalAfterBooking <= $facility->capacity;
+                $availableCapacity = max(0, $facility->capacity - $totalAttendees);
+            }
             
             return response()->json([
                 'message' => 'Availability checked',

@@ -175,10 +175,15 @@
                                 <textarea id="bookingPurpose" class="form-control" required rows="3" placeholder="Enter the purpose of this booking..."></textarea>
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="bookingAttendees" class="form-label">Expected Attendees</label>
-                                <input type="number" id="bookingAttendees" class="form-control" min="1" placeholder="Number of attendees">
-                                <small class="form-text text-muted">Optional: Number of people expected to attend</small>
+                            <div class="col-12" id="attendeesFieldContainer" style="display: none;">
+                                <label class="form-label">Attendees Passport <span class="text-danger">*</span></label>
+                                <small class="form-text text-muted d-block mb-2">Enter passport numbers for each attendee</small>
+                                <div id="attendeesList">
+                                    <!-- Attendee inputs will be dynamically added here -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addAttendeeBtn" onclick="addAttendeeField()" style="display: none;">
+                                    <i class="fas fa-plus me-1"></i> Add Attendee
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -231,6 +236,24 @@ window.showCreateModal = function() {
     if (startTimeInput) startTimeInput.value = '';
     if (endTimeInput) endTimeInput.value = '';
     if (selectedDateInput) selectedDateInput.value = '';
+    
+    // Reset attendees field - hide by default, will show when facility is selected
+    const attendeesContainer = document.getElementById('attendeesFieldContainer');
+    const attendeesList = document.getElementById('attendeesList');
+    const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+    if (attendeesContainer) {
+        attendeesContainer.style.display = 'none';
+    }
+    if (attendeesList) {
+        attendeesList.innerHTML = ''; // Clear all attendee fields
+    }
+    if (addAttendeeBtn) {
+        addAttendeeBtn.style.display = 'none';
+    }
+    
+    // Reset facility multi-attendees settings
+    window.currentFacilityEnableMultiAttendees = false;
+    window.currentFacilityMaxAttendees = null;
     
     // Clear timetable and show placeholder
     clearTimetable();
@@ -859,7 +882,32 @@ window.editBooking = async function(id) {
     }
     
     document.getElementById('bookingPurpose').value = booking.purpose || '';
-    document.getElementById('bookingAttendees').value = booking.expected_attendees || '';
+    
+    // Handle attendees field based on facility settings
+    // updateTimeInputConstraints will be called above, which will set up the field visibility
+    // Load attendees if available
+    const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
+    const attendeesList = document.getElementById('attendeesList');
+    
+    if (enableMultiAttendees && attendeesList) {
+        // Clear existing fields
+        attendeesList.innerHTML = '';
+        
+        // Load attendees from booking if available
+        if (booking.attendees && Array.isArray(booking.attendees) && booking.attendees.length > 0) {
+            booking.attendees.forEach(attendee => {
+                addAttendeeField();
+                const lastField = attendeesList.lastElementChild;
+                const input = lastField.querySelector('.attendee-passport-input');
+                if (input && attendee.student_passport) {
+                    input.value = attendee.student_passport;
+                }
+            });
+        } else {
+            // Add one empty field
+            addAttendeeField();
+        }
+    }
     
     // Store booking ID for update
     document.getElementById('bookingForm').dataset.bookingId = id;
@@ -1083,7 +1131,11 @@ function getNextThreeDays() {
         const month = monthNames[date.getMonth()];
         const day = date.getDate();
         const year = date.getFullYear();
-        const dateStr = date.toISOString().split('T')[0];
+        
+        // Format date as YYYY-MM-DD using local time (not UTC) to avoid timezone issues
+        const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+        const dateStr = `${year}-${monthStr}-${dayStr}`;
         
         days.push({
             date: dateStr,
@@ -1234,6 +1286,39 @@ async function loadTimetable(facilityId) {
                     }
                 }
                 
+                // Handle multi-attendees feature in loadTimetable
+                const enableMultiAttendees = facility.enable_multi_attendees || false;
+                const maxAttendees = facility.max_attendees || facility.capacity || 1000;
+                
+                // Store facility multi-attendees settings globally
+                window.currentFacilityEnableMultiAttendees = enableMultiAttendees;
+                window.currentFacilityMaxAttendees = maxAttendees;
+                window.currentFacilityEnableMultiAttendeesForTimetable = enableMultiAttendees;
+                
+                // Update attendees field visibility
+                const attendeesContainer = document.getElementById('attendeesFieldContainer');
+                const attendeesList = document.getElementById('attendeesList');
+                const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+                if (attendeesContainer && attendeesList) {
+                    if (enableMultiAttendees) {
+                        // Show attendees field if multi-attendees is enabled
+                        attendeesContainer.style.display = 'block';
+                        if (addAttendeeBtn) {
+                            addAttendeeBtn.style.display = 'inline-block';
+                        }
+                        // Add first attendee field
+                        attendeesList.innerHTML = '';
+                        addAttendeeField();
+                    } else {
+                        // Hide attendees field if multi-attendees is disabled
+                        attendeesContainer.style.display = 'none';
+                        if (addAttendeeBtn) {
+                            addAttendeeBtn.style.display = 'none';
+                        }
+                        attendeesList.innerHTML = '';
+                    }
+                }
+                
                 // Get available_day from facility
                 if (facility.available_day && Array.isArray(facility.available_day) && facility.available_day.length > 0) {
                     facilityAvailableDays = facility.available_day.map(day => day.toLowerCase()); // Ensure lowercase
@@ -1343,8 +1428,20 @@ async function loadTimetable(facilityId) {
             console.error('Error loading user bookings:', error);
         }
         
+        // Get enable_multi_attendees from facility
+        let enableMultiAttendees = false;
+        try {
+            const facilityResult = await API.get(`/facilities/${facilityId}`);
+            if (facilityResult.success && facilityResult.data) {
+                const facility = facilityResult.data.data || facilityResult.data;
+                enableMultiAttendees = facility.enable_multi_attendees || false;
+            }
+        } catch (error) {
+            console.error('Error loading facility info for multi-attendees:', error);
+        }
+        
         // Render timetable with user bookings info and available days
-        renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours, userBookingsByDate, facilityAvailableDays);
+        renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours, userBookingsByDate, facilityAvailableDays, enableMultiAttendees);
     } catch (error) {
         console.error('Error loading timetable:', error);
         container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
@@ -1352,7 +1449,7 @@ async function loadTimetable(facilityId) {
 }
 
 // Render timetable
-function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours = 1, userBookingsByDate = {}, facilityAvailableDays = null) {
+function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours = 1, userBookingsByDate = {}, facilityAvailableDays = null, enableMultiAttendees = false) {
     const container = document.getElementById('timetableContainer');
     if (!container) {
         console.error('Timetable container not found');
@@ -1401,6 +1498,7 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             
             // Calculate total attendees for overlapping bookings in this time slot
             let totalAttendees = 0;
+            let hasOverlappingBookings = false;
             const slotStart = new Date(`${day.date} ${slot.start}:00`);
             const slotEnd = new Date(`${day.date} ${slot.end}:00`);
             
@@ -1415,7 +1513,13 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
                     
                     // Check if booking overlaps with this slot
                     if (slotStart < bookingEnd && slotEnd > bookingStart) {
-                        totalAttendees += booking.expected_attendees || 1;
+                        hasOverlappingBookings = true;
+                        // If enable_multi_attendees, each booking occupies full capacity
+                        if (enableMultiAttendees) {
+                            totalAttendees = facilityCapacity; // Full capacity occupied
+                        } else {
+                            totalAttendees += booking.expected_attendees || 1;
+                        }
                     }
                 } catch (error) {
                     console.error('Error processing booking:', booking, error);
@@ -1425,7 +1529,10 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             // Check if slot is available based on capacity
             // If no capacity info, fall back to conflict check
             let isAvailable = true;
-            if (facilityCapacity !== null) {
+            if (enableMultiAttendees) {
+                // If multi-attendees is enabled, any booking makes the slot unavailable
+                isAvailable = !hasOverlappingBookings;
+            } else if (facilityCapacity !== null) {
                 // Based on capacity: available if total attendees < capacity
                 isAvailable = totalAttendees < facilityCapacity;
             } else {
@@ -1611,9 +1718,14 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             }
             
             // Display attendees count (X/Capacity)
+            // If enable_multi_attendees and has bookings, show as full capacity
+            let displayAttendees = totalAttendees;
+            if (enableMultiAttendees && hasOverlappingBookings) {
+                displayAttendees = facilityCapacity; // Show as full capacity when multi-attendees is enabled
+            }
             const attendeesInfo = facilityCapacity !== null 
-                ? `${totalAttendees}/${facilityCapacity}` 
-                : (totalAttendees > 0 ? `${totalAttendees}` : '');
+                ? `${displayAttendees}/${facilityCapacity}` 
+                : (displayAttendees > 0 ? `${displayAttendees}` : '');
             
             const onclickAttr = isDisabled ? '' : `onclick="selectTimeSlot('${day.date}', '${slot.start}', '${slot.end}', '${slotId}')"`;
             let titleAttr = '';
@@ -1772,6 +1884,83 @@ function clearTimetable() {
     });
 }
 
+// Add attendee passport input field
+window.addAttendeeField = function() {
+    const attendeesList = document.getElementById('attendeesList');
+    const maxAttendees = window.currentFacilityMaxAttendees || 1000;
+    
+    if (!attendeesList) return;
+    
+    // Check if we've reached max attendees
+    const currentCount = attendeesList.querySelectorAll('.attendee-field').length;
+    if (currentCount >= maxAttendees) {
+        alert(`Maximum ${maxAttendees} attendees allowed for this facility.`);
+        return;
+    }
+    
+    const fieldIndex = currentCount + 1;
+    const attendeeField = document.createElement('div');
+    attendeeField.className = 'attendee-field mb-2';
+    attendeeField.innerHTML = `
+        <div class="input-group">
+            <span class="input-group-text">${fieldIndex}</span>
+            <input type="text" class="form-control attendee-passport-input" 
+                   placeholder="Enter passport number" 
+                   required
+                   data-index="${fieldIndex}">
+            <button type="button" class="btn btn-outline-danger" onclick="removeAttendeeField(this)" ${currentCount === 0 ? 'disabled' : ''}>
+                <i class="fas fa-times"></i> Remove
+            </button>
+        </div>
+    `;
+    
+    attendeesList.appendChild(attendeeField);
+    
+    // Update field numbers and enable/disable remove buttons
+    updateAttendeeFieldNumbers();
+}
+
+// Remove attendee passport input field
+window.removeAttendeeField = function(button) {
+    const attendeeField = button.closest('.attendee-field');
+    if (attendeeField) {
+        attendeeField.remove();
+        updateAttendeeFieldNumbers();
+    }
+}
+
+// Update attendee field numbers
+function updateAttendeeFieldNumbers() {
+    const attendeesList = document.getElementById('attendeesList');
+    if (!attendeesList) return;
+    
+    const fields = attendeesList.querySelectorAll('.attendee-field');
+    const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+    const maxAttendees = window.currentFacilityMaxAttendees || 1000;
+    
+    fields.forEach((field, index) => {
+        const numberSpan = field.querySelector('.input-group-text');
+        const removeBtn = field.querySelector('button');
+        const input = field.querySelector('.attendee-passport-input');
+        
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+        if (input) {
+            input.setAttribute('data-index', index + 1);
+        }
+        // Enable remove button if there's more than one field
+        if (removeBtn) {
+            removeBtn.disabled = fields.length <= 1;
+        }
+    });
+    
+    // Disable add button if max reached
+    if (addAttendeeBtn) {
+        addAttendeeBtn.disabled = fields.length >= maxAttendees;
+    }
+}
+
 // Handle facility change
 window.handleFacilityChange = function(select) {
     console.log('Facility changed to:', select.value);
@@ -1783,6 +1972,21 @@ window.handleFacilityChange = function(select) {
         clearTimetable();
         // Reset to default time range
         window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
+        
+        // Hide attendees field when no facility is selected
+        const attendeesContainer = document.getElementById('attendeesFieldContainer');
+        const attendeesInput = document.getElementById('bookingAttendees');
+        if (attendeesContainer) {
+            attendeesContainer.style.display = 'none';
+        }
+        if (attendeesInput) {
+            attendeesInput.value = '1'; // Set default to 1
+            attendeesInput.removeAttribute('required');
+        }
+        
+        // Reset facility multi-attendees settings
+        window.currentFacilityEnableMultiAttendees = false;
+        window.currentFacilityMaxAttendees = null;
     }
 };
 
@@ -1821,6 +2025,38 @@ async function updateTimeInputConstraints(facilityId) {
             const maxBookingHours = facility.max_booking_hours || 1;
             window.currentFacilityTimeRange = { start: startTime, end: endTime };
             window.currentFacilityMaxBookingHours = maxBookingHours;
+            
+            // Handle multi-attendees feature
+            const attendeesContainer = document.getElementById('attendeesFieldContainer');
+            const attendeesList = document.getElementById('attendeesList');
+            const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+            const enableMultiAttendees = facility.enable_multi_attendees || false;
+            const maxAttendees = facility.max_attendees || facility.capacity || 1000;
+            
+            // Store facility multi-attendees settings globally
+            window.currentFacilityEnableMultiAttendees = enableMultiAttendees;
+            window.currentFacilityMaxAttendees = maxAttendees;
+            
+            if (attendeesContainer && attendeesList) {
+                if (enableMultiAttendees) {
+                    // Show attendees field if multi-attendees is enabled
+                    attendeesContainer.style.display = 'block';
+                    if (addAttendeeBtn) {
+                        addAttendeeBtn.style.display = 'inline-block';
+                    }
+                    // Add first attendee field if list is empty
+                    if (attendeesList.children.length === 0) {
+                        addAttendeeField();
+                    }
+                } else {
+                    // Hide attendees field if multi-attendees is disabled
+                    attendeesContainer.style.display = 'none';
+                    if (addAttendeeBtn) {
+                        addAttendeeBtn.style.display = 'none';
+                    }
+                    attendeesList.innerHTML = '';
+                }
+            }
         }
     } catch (error) {
         console.error('Error loading facility for time constraints:', error);
@@ -2017,25 +2253,69 @@ function bindBookingForm() {
     
     // Create a separate booking for each selected time slot
     // This allows non-continuous time slots (e.g., 8-9 and 11-12)
-    const expectedAttendees = document.getElementById('bookingAttendees').value ? parseInt(document.getElementById('bookingAttendees').value) : null;
+    // Get attendees passports: if multi-attendees is enabled, collect all passport inputs; otherwise default to 1
+    let expectedAttendees = 1; // Default to 1
+    let attendeesPassports = []; // Array to store passport numbers
+    const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
+    
+    if (enableMultiAttendees) {
+        // Collect all passport inputs
+        const passportInputs = document.querySelectorAll('.attendee-passport-input');
+        passportInputs.forEach(input => {
+            const passport = input.value.trim();
+            if (passport) {
+                attendeesPassports.push(passport);
+            }
+        });
+        
+        if (attendeesPassports.length === 0) {
+            alert('Please enter at least one attendee passport number.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            return;
+        }
+        
+        expectedAttendees = attendeesPassports.length;
+    } else {
+        // If multi-attendees is disabled, expectedAttendees is already set to 1
+        expectedAttendees = 1;
+    }
+    
+    // Ensure expectedAttendees is always a valid integer
+    expectedAttendees = parseInt(expectedAttendees) || 1;
     
     try {
         let successCount = 0;
         let errorCount = 0;
         const errors = [];
         
+        // Ensure date is in YYYY-MM-DD format first (before the loop)
+        let bookingDate = date;
+        if (date instanceof Date) {
+            // If date is a Date object, convert to YYYY-MM-DD
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            bookingDate = `${year}-${month}-${day}`;
+        } else if (typeof date === 'string') {
+            // If date is a string, ensure it's in YYYY-MM-DD format
+            // Remove any time portion if present
+            bookingDate = date.split('T')[0].split(' ')[0];
+        }
+        
         // Create bookings for each slot
         for (const slot of dateSlots) {
-            const slotStartTime = `${date} ${slot.start}:00`;
-            const slotEndTime = `${date} ${slot.end}:00`;
+            const slotStartTime = `${bookingDate} ${slot.start}:00`;
+            const slotEndTime = `${bookingDate} ${slot.end}:00`;
             
             const data = {
                 facility_id: parseInt(facilityId),
-                booking_date: date,
+                booking_date: bookingDate,
                 start_time: slotStartTime,
                 end_time: slotEndTime,
                 purpose: purpose,
-                expected_attendees: expectedAttendees
+                expected_attendees: expectedAttendees,
+                attendees_passports: enableMultiAttendees ? attendeesPassports : []
             };
             
             try {
@@ -2044,7 +2324,12 @@ function bindBookingForm() {
                     successCount++;
                 } else {
                     errorCount++;
-                    const errorMsg = result.error || result.data?.message || 'Unknown error';
+                    // Show detailed error message including validation errors
+                    let errorMsg = result.error || result.data?.message || 'Unknown error';
+                    if (result.data?.errors) {
+                        const validationErrors = Object.values(result.data.errors).flat().join(', ');
+                        errorMsg = validationErrors || errorMsg;
+                    }
                     errors.push(`${slot.start}-${slot.end}: ${errorMsg}`);
                 }
             } catch (error) {
@@ -2065,6 +2350,21 @@ function bindBookingForm() {
             // Reset form
             document.getElementById('bookingForm').reset();
             delete document.getElementById('bookingForm').dataset.bookingId;
+            
+            // Reset attendees field
+            const attendeesContainer = document.getElementById('attendeesFieldContainer');
+            const attendeesInput = document.getElementById('bookingAttendees');
+            if (attendeesContainer) {
+                attendeesContainer.style.display = 'none';
+            }
+            if (attendeesInput) {
+                attendeesInput.value = '1'; // Set default to 1
+                attendeesInput.removeAttribute('required');
+            }
+            
+            // Reset facility multi-attendees settings
+            window.currentFacilityEnableMultiAttendees = false;
+            window.currentFacilityMaxAttendees = null;
             
             // Reset modal title and button
             const modalTitle = document.getElementById('modalTitle');
