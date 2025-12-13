@@ -561,25 +561,12 @@
             
             try {
                 const isAdmin = API.isAdmin();
+                const isStaff = API.isStaff();
+                const isStudent = API.isStudent();
                 
-                if (isAdmin) {
-                    // For admin, get pending bookings count
-                    const result = await API.get('/bookings/pending?limit=0');
-                    if (result.success && result.data && result.data.count !== undefined) {
-                        const count = result.data.count;
-                        const badge = document.getElementById('notificationNavBadge');
-                        if (badge) {
-                            if (count > 0) {
-                                badge.textContent = count > 99 ? '99+' : count;
-                                badge.style.display = 'flex';
-                            } else {
-                                badge.style.display = 'none';
-                            }
-                        }
-                    }
-                } else {
-                    // For regular users, get unread announcements and notifications count
-                    const result = await API.get('/notifications/user/unread-items?limit=0');
+                if (isStudent) {
+                    // For students, get unread announcements and notifications count
+                    const result = await API.get('/notifications/user/unread-items?limit=0&only_unread=true');
                     if (result.success && result.data && result.data.counts) {
                         const totalCount = result.data.counts.total || 0;
                         const badge = document.getElementById('notificationNavBadge');
@@ -590,6 +577,33 @@
                             } else {
                                 badge.style.display = 'none';
                             }
+                        }
+                    }
+                } else if (isAdmin || isStaff) {
+                    // For admin/staff: get pending bookings count
+                    const result = await API.get('/bookings/pending?limit=0');
+                    let count = 0;
+                    if (result && result.success !== false) {
+                        // API returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
+                        // Or directly: { success: true, data: { bookings: [], count: ... } }
+                        if (result.data && result.data.data && result.data.data.count !== undefined) {
+                            count = result.data.data.count;
+                        } else if (result.data && result.data.count !== undefined) {
+                            count = result.data.count;
+                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
+                            count = result.data.bookings.length;
+                        } else if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
+                            count = result.data.data.bookings.length;
+                        }
+                    }
+                    
+                    const badge = document.getElementById('notificationNavBadge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count > 99 ? '99+' : count;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
                         }
                     }
                 }
@@ -654,52 +668,23 @@
             
             try {
                 const isAdmin = API.isAdmin();
+                const isStaff = API.isStaff();
+                const isStudent = API.isStudent();
+                const viewAllLink = document.getElementById('viewAllLink');
                 
-                if (isAdmin) {
-                    // For admin, show pending bookings
-                    if (titleElement) {
-                        titleElement.textContent = 'Pending Bookings';
-                    }
-                    
-                    const result = await API.get('/bookings/pending?limit=10');
-                    if (result.success && result.data && result.data.bookings) {
-                        const bookings = result.data.bookings;
-                        
-                        if (bookings.length === 0) {
-                            listContainer.innerHTML = '<div class="notification-empty">No pending bookings</div>';
-                            return;
-                        }
-                        
-                        listContainer.innerHTML = bookings.map(booking => `
-                            <div class="notification-item unread" onclick="window.handleBookingClick(${booking.id})">
-                                <div class="notification-item-title">
-                                    <i class="fas fa-calendar-check"></i> ${booking.facility_name}
-                                </div>
-                                <div class="notification-item-message">
-                                    Booking #${booking.booking_number} from ${booking.user_name}<br>
-                                    ${booking.booking_date} ${booking.start_time} - ${booking.end_time}
-                                </div>
-                                <div class="notification-item-time">${window.formatTimeAgo(booking.created_at)}</div>
-                                <div class="notification-item-actions" onclick="event.stopPropagation()">
-                                    <button class="btn-approve" onclick="window.approveBooking(${booking.id}, event)" title="Approve">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    <button class="btn-reject" onclick="window.rejectBooking(${booking.id}, event)" title="Reject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('');
-                    } else {
-                        listContainer.innerHTML = '<div class="notification-empty">Error loading bookings</div>';
-                    }
-                } else {
-                    // For regular users, show unread announcements and notifications
+                // Student: show Announcements & Notifications
+                // Staff/Admin: show only pending bookings
+                if (isStudent) {
+                    // For students: show unread announcements and notifications
                     if (titleElement) {
                         titleElement.textContent = 'Announcements & Notifications';
                     }
+                    if (viewAllLink) {
+                        viewAllLink.href = '/notifications';
+                    }
                     
-                    const result = await API.get('/notifications/user/unread-items?limit=10');
+                    // Only show unread items in bell dropdown
+                    const result = await API.get('/notifications/user/unread-items?limit=10&only_unread=true');
                     console.log('Unread items API result (full):', JSON.stringify(result, null, 2));
                     
                     // Extract items from response
@@ -743,18 +728,73 @@
                         const isRead = item.is_read === true || item.is_read === 1;
                         const itemClass = isRead ? 'notification-item' : 'notification-item unread';
                         
-                            return `
-                                <div class="${itemClass}" onclick="window.handleItemClick('${item.type}', ${item.id}, '${url}', ${isRead})">
-                                    <div class="notification-item-title">
-                                        <i class="fas fa-${icon}"></i> ${typeLabel}: ${item.title}
-                                    </div>
-                                    <div class="notification-item-message">
-                                        ${item.content ? (item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content) : 'No content'}
-                                    </div>
-                                    <div class="notification-item-time">${window.formatTimeAgo(item.created_at || item.pivot_created_at)}</div>
+                        return `
+                            <div class="${itemClass}" onclick="window.handleItemClick('${item.type}', ${item.id}, '${url}', ${isRead})">
+                                <div class="notification-item-title">
+                                    <i class="fas fa-${icon}"></i> ${typeLabel}: ${item.title}
                                 </div>
-                            `;
+                                <div class="notification-item-message">
+                                    ${item.content ? (item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content) : 'No content'}
+                                </div>
+                                <div class="notification-item-time">${window.formatTimeAgo(item.created_at || item.pivot_created_at)}</div>
+                            </div>
+                        `;
                     }).join('');
+                } else if (isAdmin || isStaff) {
+                    // For admin/staff: ONLY show pending bookings (no announcements)
+                    if (titleElement) {
+                        titleElement.textContent = 'Pending Bookings';
+                    }
+                    if (viewAllLink) {
+                        viewAllLink.href = '/bookings';
+                    }
+                    
+                    // Admin/Staff bell only displays user booking requests
+                    const result = await API.get('/bookings/pending?limit=10');
+                    console.log('Pending bookings API result:', result);
+                    
+                    // Handle response - check both result.success and direct data access
+                    // API.get returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
+                    let bookings = [];
+                    if (result && result.success !== false) {
+                        if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
+                            bookings = result.data.data.bookings;
+                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
+                            bookings = result.data.bookings;
+                        } else if (result.data && Array.isArray(result.data)) {
+                            bookings = result.data;
+                        } else if (Array.isArray(result.bookings)) {
+                            bookings = result.bookings;
+                        }
+                    }
+                    
+                    console.log('Bookings extracted:', bookings.length);
+                    
+                    if (!bookings || bookings.length === 0) {
+                        listContainer.innerHTML = '<div class="notification-empty">No pending bookings</div>';
+                        return;
+                    }
+                    
+                    listContainer.innerHTML = bookings.map(booking => `
+                        <div class="notification-item unread" onclick="window.handleBookingClick(${booking.id})">
+                            <div class="notification-item-title">
+                                <i class="fas fa-calendar-check"></i> ${booking.facility_name}
+                            </div>
+                            <div class="notification-item-message">
+                                Booking #${booking.booking_number} from ${booking.user_name}<br>
+                                ${booking.booking_date} ${booking.start_time} - ${booking.end_time}
+                            </div>
+                            <div class="notification-item-time">${window.formatTimeAgo(booking.created_at)}</div>
+                            <div class="notification-item-actions" onclick="event.stopPropagation()">
+                                <button class="btn-approve" onclick="window.approveBooking(${booking.id}, event)" title="Approve">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn-reject" onclick="window.rejectBooking(${booking.id}, event)" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
                 }
             } catch (error) {
                 console.error('Error loading notification dropdown content:', error);
@@ -893,7 +933,7 @@
                             <div class="notification-menu" id="notificationMenu">
                                 <div class="notification-header">
                                     <h3 id="notificationMenuTitle">Notifications</h3>
-                                    <a href="{{ route('notifications.index') }}" class="view-all-link">View All</a>
+                                    <a href="{{ route('notifications.index') }}" id="viewAllLink" class="view-all-link">View All</a>
                                 </div>
                                 <div class="notification-list" id="notificationList">
                                     <div class="notification-loading">Loading...</div>

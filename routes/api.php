@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/my-announcements', [AnnouncementController::class, 'myAnnouncements']);
         Route::get('/user/unread-count', [AnnouncementController::class, 'unreadCount']);
         Route::put('/{id}/read', [AnnouncementController::class, 'markAsRead']);
+        Route::put('/{id}/unread', [AnnouncementController::class, 'markAsUnread']);
     });
 
     // Loyalty Management Routes
@@ -140,20 +141,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Booking & Scheduling Routes
     Route::prefix('bookings')->group(function () {
-        // User routes
-        Route::post('/', [BookingController::class, 'store']);
-        Route::get('/{id}', [BookingController::class, 'show']);
-        Route::put('/{id}/cancel', [BookingController::class, 'cancel']);
+        // Specific routes must come before parameterized routes
         Route::get('/user/my-bookings', [BookingController::class, 'myBookings']);
         Route::get('/facility/{facilityId}/availability', [BookingController::class, 'checkAvailability']);
         
-        // Admin only routes
+        // Admin only routes - specific routes before parameterized routes
         Route::middleware('admin')->group(function () {
             Route::get('/', [BookingController::class, 'index']);
-            Route::get('/pending', [BookingController::class, 'getPendingBookings']);
-            Route::put('/{id}', [BookingController::class, 'update']);
+            Route::get('/pending', [BookingController::class, 'getPendingBookings']); // Must be before /{id}
             Route::put('/{id}/approve', [BookingController::class, 'approve']);
             Route::put('/{id}/reject', [BookingController::class, 'reject']);
+            Route::put('/{id}', [BookingController::class, 'update']);
         });
+        
+        // User routes - parameterized routes at the end
+        Route::post('/', [BookingController::class, 'store']);
+        Route::put('/{id}/cancel', [BookingController::class, 'cancel']);
+        Route::get('/{id}', [BookingController::class, 'show']);
     });
 });

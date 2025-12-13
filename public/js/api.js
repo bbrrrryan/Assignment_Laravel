@@ -64,6 +64,38 @@ const API = {
         return false;
     },
     
+    // Check if user is staff
+    isStaff() {
+        const user = this.getUser();
+        if (!user) return false;
+        
+        if (typeof user.role === 'string') {
+            return user.role.toLowerCase() === 'staff';
+        }
+        
+        if (user.role && typeof user.role === 'object' && user.role !== null) {
+            return user.role.name?.toLowerCase() === 'staff';
+        }
+        
+        return false;
+    },
+    
+    // Check if user is student
+    isStudent() {
+        const user = this.getUser();
+        if (!user) return false;
+        
+        if (typeof user.role === 'string') {
+            return user.role.toLowerCase() === 'student';
+        }
+        
+        if (user.role && typeof user.role === 'object' && user.role !== null) {
+            return user.role.name?.toLowerCase() === 'student';
+        }
+        
+        return false;
+    },
+    
     // Check if user is authenticated
     isAuthenticated() {
         return !!this.getToken();

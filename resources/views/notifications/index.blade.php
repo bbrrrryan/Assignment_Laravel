@@ -64,15 +64,42 @@ async function loadNotifications() {
             // For regular users: show announcements and notifications
             document.getElementById('pageTitle').textContent = 'Announcements & Notifications';
             
+            // Get all items (both read and unread) for the full page view
+            // Note: only_unread defaults to false, so we don't need to pass it
             const result = await API.get('/notifications/user/unread-items?limit=100');
-            console.log('Unread items API Response:', result);
+            console.log('Unread items API Response (full):', result);
+            console.log('API Response structure:', JSON.stringify(result, null, 2));
             
-            if (result.success && result.data && result.data.items) {
-                items = result.data.items;
+            if (result && result.success) {
+                // Check multiple possible response structures
+                if (result.data && Array.isArray(result.data.items)) {
+                    items = result.data.items;
+                    console.log('Items found in result.data.items:', items.length);
+                } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
+                    items = result.data.data.items;
+                    console.log('Items found in result.data.data.items:', items.length);
+                } else {
+                    console.error('Unexpected API response structure:', result);
+                    console.error('result.data:', result.data);
+                    console.error('result.data.items:', result.data?.items);
+                }
+                
+                // Log debug info if available
+                if (result.data && result.data.debug) {
+                    console.log('Debug info:', result.data.debug);
+                }
+            } else {
+                console.error('API call failed or returned unsuccessful result:', result);
             }
         }
         
         console.log('Items to display:', items.length);
+        console.log('Items array:', items);
+        
+        if (items.length === 0) {
+            console.warn('No items found! This might be a problem.');
+        }
+        
         displayNotifications(items, isAdmin);
         
     } catch (error) {
@@ -222,22 +249,23 @@ window.markAsUnread = async function(type, id, event) {
     }
     
     try {
+        let result;
         if (type === 'announcement') {
-            // Announcements don't have unread endpoint, just reload
-            loadNotifications();
-            showToast('Please refresh to update status', 'info');
+            result = await API.put(`/announcements/${id}/unread`, {});
         } else {
-            const result = await API.put(`/notifications/${id}/unread`, {});
-            if (result.success) {
-                loadNotifications();
-                showToast('Notification marked as unread', 'success');
-            } else {
-                showToast('Error: ' + (result.error || 'Unknown error'), 'error');
-            }
+            result = await API.put(`/notifications/${id}/unread`, {});
+        }
+        
+        if (result && result.success !== false) {
+            loadNotifications();
+            const typeLabel = type === 'announcement' ? 'Announcement' : 'Notification';
+            showToast(`${typeLabel} marked as unread`, 'success');
+        } else {
+            showToast('Error: ' + (result?.message || result?.error || 'Unknown error'), 'error');
         }
     } catch (error) {
         console.error('Error marking as unread:', error);
-        showToast('Error marking as unread', 'error');
+        showToast('Error marking as unread: ' + (error.message || 'Unknown error'), 'error');
     }
 };
 

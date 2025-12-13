@@ -282,7 +282,9 @@ class NotificationController extends Controller
     {
         $user = auth()->user();
         $limit = $request->get('limit', 10);
-        $onlyUnread = $request->get('only_unread', false);
+        // Handle both string and boolean values for only_unread
+        $onlyUnreadParam = $request->get('only_unread', false);
+        $onlyUnread = filter_var($onlyUnreadParam, FILTER_VALIDATE_BOOLEAN);
         
         // Get announcements - Get all published announcements that match user's audience
         // Then filter by checking if announcement should be visible to this user
