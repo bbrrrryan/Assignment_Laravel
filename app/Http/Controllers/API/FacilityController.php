@@ -83,21 +83,24 @@ class FacilityController extends Controller
             'date' => 'required|date',
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
         $date = $request->date;
         $startTime = $request->start_time;
         $endTime = $request->end_time;
+        $expectedAttendees = $request->input('expected_attendees', 1); // Default to 1
 
-        // Get all bookings for this facility on the given date
-        $bookings = $facility->bookings()
+        // Get all approved bookings for this facility on the given date
+        $approvedBookings = $facility->bookings()
             ->whereDate('booking_date', $date)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'approved') // Only count approved bookings
             ->get();
 
-        // If specific time range provided, check conflicts
+        // If specific time range provided, check capacity
         if ($startTime && $endTime) {
-            $conflicts = $bookings->filter(function($booking) use ($startTime, $endTime) {
+            // Find overlapping approved bookings
+            $overlappingBookings = $approvedBookings->filter(function($booking) use ($startTime, $endTime) {
                 $bookingStart = $booking->start_time->format('H:i');
                 $bookingEnd = $booking->end_time->format('H:i');
                 
@@ -105,36 +108,54 @@ class FacilityController extends Controller
                 return ($startTime < $bookingEnd && $endTime > $bookingStart);
             });
 
-            $isAvailable = $conflicts->isEmpty();
+            // Calculate total expected attendees for overlapping bookings
+            $totalAttendees = $overlappingBookings->sum(function($booking) {
+                return $booking->expected_attendees ?? 1;
+            });
+
+            // Check if adding this booking would exceed capacity
+            $totalAfterBooking = $totalAttendees + $expectedAttendees;
+            $isAvailable = $totalAfterBooking <= $facility->capacity;
+            $availableCapacity = max(0, $facility->capacity - $totalAttendees);
             
             return response()->json([
                 'message' => 'Availability checked',
                 'data' => [
                     'facility_id' => $facility->id,
+                    'facility_capacity' => $facility->capacity,
                     'date' => $date,
                     'time_range' => [
                         'start' => $startTime,
                         'end' => $endTime,
                     ],
+                    'expected_attendees' => $expectedAttendees,
+                    'current_booked_attendees' => $totalAttendees,
+                    'available_capacity' => $availableCapacity,
+                    'total_after_booking' => $totalAfterBooking,
                     'is_available' => $isAvailable,
-                    'conflicting_bookings' => $conflicts->count(),
+                    'overlapping_bookings_count' => $overlappingBookings->count(),
                 ],
             ]);
         }
 
-        // Return all bookings for the day
+        // Return all bookings for the day with capacity information
         return response()->json([
             'message' => 'Availability retrieved',
             'data' => [
                 'facility_id' => $facility->id,
+                'facility_capacity' => $facility->capacity,
                 'date' => $date,
-                'bookings' => $bookings->map(function($booking) {
+                'bookings' => $approvedBookings->map(function($booking) {
                     return [
                         'id' => $booking->id,
                         'start_time' => $booking->start_time->format('H:i'),
                         'end_time' => $booking->end_time->format('H:i'),
                         'status' => $booking->status,
+                        'expected_attendees' => $booking->expected_attendees ?? 1,
                     ];
+                }),
+                'total_booked_attendees' => $approvedBookings->sum(function($booking) {
+                    return $booking->expected_attendees ?? 1;
                 }),
             ],
         ]);

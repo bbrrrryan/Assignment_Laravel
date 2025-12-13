@@ -54,52 +54,42 @@ class BookingController extends Controller
                     'message' => 'End time must be after start time',
                 ], 422);
             }
-            
-            // Validate time range: must be between 8:00 AM and 8:00 PM
-            $startHour = $startTime->format('H:i');
-            $endHour = $endTime->format('H:i');
-            $minTime = '08:00';
-            $maxTime = '20:00';
-            
-            if ($startHour < $minTime || $startHour > $maxTime) {
-                return response()->json([
-                    'message' => 'Start time must be between 8:00 AM and 8:00 PM',
-                ], 422);
-            }
-            
-            if ($endHour < $minTime || $endHour > $maxTime) {
-                return response()->json([
-                    'message' => 'End time must be between 8:00 AM and 8:00 PM',
-                ], 422);
-            }
 
         $facility = Facility::findOrFail($validated['facility_id']);
+        
+        // Get facility available time range (default to 08:00-20:00 if not set)
+        $minTime = '08:00';
+        $maxTime = '20:00';
+        if ($facility->available_time && is_array($facility->available_time)) {
+            if (isset($facility->available_time['start']) && !empty($facility->available_time['start'])) {
+                $minTime = $facility->available_time['start'];
+            }
+            if (isset($facility->available_time['end']) && !empty($facility->available_time['end'])) {
+                $maxTime = $facility->available_time['end'];
+            }
+        }
+        
+        // Validate time range: must be within facility's available time
+        $startHour = $startTime->format('H:i');
+        $endHour = $endTime->format('H:i');
+        
+        if ($startHour < $minTime || $startHour > $maxTime) {
+            return response()->json([
+                'message' => "Start time must be between {$minTime} and {$maxTime} (facility operating hours)",
+            ], 422);
+        }
+        
+        if ($endHour < $minTime || $endHour > $maxTime) {
+            return response()->json([
+                'message' => "End time must be between {$minTime} and {$maxTime} (facility operating hours)",
+            ], 422);
+        }
 
         // Check if facility is available
         if ($facility->status !== 'available') {
             return response()->json([
                 'message' => 'Facility is not available for booking',
             ], 400);
-        }
-
-        // Check for conflicts
-        $conflicts = Booking::where('facility_id', $validated['facility_id'])
-            ->whereDate('booking_date', $validated['booking_date'])
-            ->where('status', '!=', 'cancelled')
-            ->where(function($query) use ($validated) {
-                $query->whereBetween('start_time', [$validated['start_time'], $validated['end_time']])
-                      ->orWhereBetween('end_time', [$validated['start_time'], $validated['end_time']])
-                      ->orWhere(function($q) use ($validated) {
-                          $q->where('start_time', '<=', $validated['start_time'])
-                            ->where('end_time', '>=', $validated['end_time']);
-                      });
-            })
-            ->exists();
-
-        if ($conflicts) {
-            return response()->json([
-                'message' => 'Time slot is already booked. Please choose a different time.',
-            ], 409);
         }
 
         // Calculate duration
@@ -114,11 +104,39 @@ class BookingController extends Controller
         }
 
         // Check capacity - use request input to safely access nullable field
-        $expectedAttendees = $request->input('expected_attendees');
-        if ($expectedAttendees && $expectedAttendees > $facility->capacity) {
+        $expectedAttendees = $request->input('expected_attendees') ?? 1; // Default to 1 if not provided
+        if ($expectedAttendees > $facility->capacity) {
             return response()->json([
                 'message' => 'Expected attendees exceed facility capacity',
             ], 400);
+        }
+
+        // Check capacity for overlapping bookings in the same time slot
+        // Find all approved bookings that overlap with the requested time slot
+        $overlappingBookings = Booking::where('facility_id', $validated['facility_id'])
+            ->whereDate('booking_date', $validated['booking_date'])
+            ->where('status', 'approved') // Only count approved bookings
+            ->where(function($query) use ($validated) {
+                $query->whereBetween('start_time', [$validated['start_time'], $validated['end_time']])
+                      ->orWhereBetween('end_time', [$validated['start_time'], $validated['end_time']])
+                      ->orWhere(function($q) use ($validated) {
+                          $q->where('start_time', '<=', $validated['start_time'])
+                            ->where('end_time', '>=', $validated['end_time']);
+                      });
+            })
+            ->get();
+
+        // Calculate total expected attendees for overlapping bookings
+        $totalAttendees = $overlappingBookings->sum(function($booking) {
+            return $booking->expected_attendees ?? 1;
+        });
+
+        // Check if adding this booking would exceed capacity
+        $totalAfterBooking = $totalAttendees + $expectedAttendees;
+        if ($totalAfterBooking > $facility->capacity) {
+            return response()->json([
+                'message' => 'Booking would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after booking: ' . $totalAfterBooking,
+            ], 409);
         }
 
         // Handle special_requirements safely
@@ -150,7 +168,7 @@ class BookingController extends Controller
             $bookingStatus = 'pending';
         }
 
-        $booking = Booking::create([
+        $bookingData = [
             'user_id' => auth()->id(),
             'facility_id' => $validated['facility_id'],
             'booking_number' => 'BK-' . time() . '-' . rand(1000, 9999),
@@ -162,7 +180,15 @@ class BookingController extends Controller
             'expected_attendees' => $expectedAttendees,
             'special_requirements' => $specialRequirements,
             'status' => $bookingStatus,
-        ]);
+        ];
+
+        // If approved by admin, set approved_by and approved_at
+        if ($bookingStatus === 'approved') {
+            $bookingData['approved_by'] = auth()->id();
+            $bookingData['approved_at'] = now();
+        }
+
+        $booking = Booking::create($bookingData);
 
         // Create status history
         try {
@@ -275,6 +301,22 @@ class BookingController extends Controller
                 }
             }
 
+            // Get facility (use existing or new one) - needed for time validation
+            $facilityId = $validated['facility_id'] ?? $booking->facility_id;
+            $facility = Facility::findOrFail($facilityId);
+            
+            // Get facility available time range (default to 08:00-20:00 if not set)
+            $minTime = '08:00';
+            $maxTime = '20:00';
+            if ($facility->available_time && is_array($facility->available_time)) {
+                if (isset($facility->available_time['start']) && !empty($facility->available_time['start'])) {
+                    $minTime = $facility->available_time['start'];
+                }
+                if (isset($facility->available_time['end']) && !empty($facility->available_time['end'])) {
+                    $maxTime = $facility->available_time['end'];
+                }
+            }
+            
             // Validate time range if both times are provided
             if (isset($validated['start_time']) && isset($validated['end_time'])) {
                 $startTime = \Carbon\Carbon::parse($validated['start_time']);
@@ -286,21 +328,19 @@ class BookingController extends Controller
                     ], 422);
                 }
                 
-                // Validate time range: must be between 8:00 AM and 8:00 PM
+                // Validate time range: must be within facility's available time
                 $startHour = $startTime->format('H:i');
                 $endHour = $endTime->format('H:i');
-                $minTime = '08:00';
-                $maxTime = '20:00';
                 
                 if ($startHour < $minTime || $startHour > $maxTime) {
                     return response()->json([
-                        'message' => 'Start time must be between 8:00 AM and 8:00 PM',
+                        'message' => "Start time must be between {$minTime} and {$maxTime} (facility operating hours)",
                     ], 422);
                 }
                 
                 if ($endHour < $minTime || $endHour > $maxTime) {
                     return response()->json([
-                        'message' => 'End time must be between 8:00 AM and 8:00 PM',
+                        'message' => "End time must be between {$minTime} and {$maxTime} (facility operating hours)",
                     ], 422);
                 }
 
@@ -311,12 +351,10 @@ class BookingController extends Controller
             if (isset($validated['start_time']) && !isset($validated['end_time'])) {
                 $startTime = \Carbon\Carbon::parse($validated['start_time']);
                 $startHour = $startTime->format('H:i');
-                $minTime = '08:00';
-                $maxTime = '20:00';
                 
                 if ($startHour < $minTime || $startHour > $maxTime) {
                     return response()->json([
-                        'message' => 'Start time must be between 8:00 AM and 8:00 PM',
+                        'message' => "Start time must be between {$minTime} and {$maxTime} (facility operating hours)",
                     ], 422);
                 }
             }
@@ -325,50 +363,58 @@ class BookingController extends Controller
             if (isset($validated['end_time']) && !isset($validated['start_time'])) {
                 $endTime = \Carbon\Carbon::parse($validated['end_time']);
                 $endHour = $endTime->format('H:i');
-                $minTime = '08:00';
-                $maxTime = '20:00';
                 
                 if ($endHour < $minTime || $endHour > $maxTime) {
                     return response()->json([
-                        'message' => 'End time must be between 8:00 AM and 8:00 PM',
+                        'message' => "End time must be between {$minTime} and {$maxTime} (facility operating hours)",
                     ], 422);
                 }
             }
 
-            // Get facility (use existing or new one)
-            $facilityId = $validated['facility_id'] ?? $booking->facility_id;
-            $facility = Facility::findOrFail($facilityId);
+            // Get booking details (use existing or updated values)
+            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
+            $startTime = $validated['start_time'] ?? $booking->start_time;
+            $endTime = $validated['end_time'] ?? $booking->end_time;
+            $expectedAttendees = $validated['expected_attendees'] ?? $booking->expected_attendees ?? 1;
+            $newStatus = $validated['status'] ?? $booking->status;
 
             // Check capacity if expected_attendees is provided
-            if (isset($validated['expected_attendees']) && $validated['expected_attendees'] > $facility->capacity) {
+            if ($expectedAttendees > $facility->capacity) {
                 return response()->json([
                     'message' => 'Expected attendees exceed facility capacity',
                 ], 400);
             }
 
-            // Check for conflicts (exclude current booking and cancelled bookings)
-            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
-            $startTime = $validated['start_time'] ?? $booking->start_time;
-            $endTime = $validated['end_time'] ?? $booking->end_time;
+            // Check capacity for overlapping bookings if status is being set to approved
+            // or if time/attendees are being changed
+            if ($newStatus === 'approved' || isset($validated['start_time']) || isset($validated['end_time']) || isset($validated['expected_attendees'])) {
+                // Find all approved bookings that overlap with this booking's time slot (excluding current booking)
+                $overlappingBookings = Booking::where('facility_id', $facilityId)
+                    ->where('id', '!=', $booking->id)
+                    ->whereDate('booking_date', $bookingDate)
+                    ->where('status', 'approved') // Only count approved bookings
+                    ->where(function($query) use ($startTime, $endTime) {
+                        $query->whereBetween('start_time', [$startTime, $endTime])
+                              ->orWhereBetween('end_time', [$startTime, $endTime])
+                              ->orWhere(function($q) use ($startTime, $endTime) {
+                                  $q->where('start_time', '<=', $startTime)
+                                    ->where('end_time', '>=', $endTime);
+                              });
+                    })
+                    ->get();
 
-            $conflicts = Booking::where('facility_id', $facilityId)
-                ->where('id', '!=', $booking->id)
-                ->whereDate('booking_date', $bookingDate)
-                ->where('status', '!=', 'cancelled')
-                ->where(function($query) use ($startTime, $endTime) {
-                    $query->whereBetween('start_time', [$startTime, $endTime])
-                          ->orWhereBetween('end_time', [$startTime, $endTime])
-                          ->orWhere(function($q) use ($startTime, $endTime) {
-                              $q->where('start_time', '<=', $startTime)
-                                ->where('end_time', '>=', $endTime);
-                          });
-                })
-                ->exists();
+                // Calculate total expected attendees for overlapping bookings
+                $totalAttendees = $overlappingBookings->sum(function($b) {
+                    return $b->expected_attendees ?? 1;
+                });
 
-            if ($conflicts) {
-                return response()->json([
-                    'message' => 'Time slot conflicts with existing booking',
-                ], 409);
+                // Check if this booking would exceed capacity
+                $totalAfterUpdate = $totalAttendees + $expectedAttendees;
+                if ($totalAfterUpdate > $facility->capacity) {
+                    return response()->json([
+                        'message' => 'This update would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after update: ' . $totalAfterUpdate,
+                    ], 409);
+                }
             }
 
             // Update booking
@@ -428,11 +474,15 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check for conflicts before approving
-        $conflicts = Booking::where('facility_id', $booking->facility_id)
+        // Check capacity before approving
+        $facility = $booking->facility;
+        $expectedAttendees = $booking->expected_attendees ?? 1;
+        
+        // Find all approved bookings that overlap with this booking's time slot
+        $overlappingBookings = Booking::where('facility_id', $booking->facility_id)
             ->where('id', '!=', $booking->id)
             ->whereDate('booking_date', $booking->booking_date)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'approved') // Only count approved bookings
             ->where(function($query) use ($booking) {
                 $query->whereBetween('start_time', [$booking->start_time, $booking->end_time])
                       ->orWhereBetween('end_time', [$booking->start_time, $booking->end_time])
@@ -441,11 +491,18 @@ class BookingController extends Controller
                             ->where('end_time', '>=', $booking->end_time);
                       });
             })
-            ->exists();
+            ->get();
 
-        if ($conflicts) {
+        // Calculate total expected attendees for overlapping bookings
+        $totalAttendees = $overlappingBookings->sum(function($b) {
+            return $b->expected_attendees ?? 1;
+        });
+
+        // Check if approving this booking would exceed capacity
+        $totalAfterApproval = $totalAttendees + $expectedAttendees;
+        if ($totalAfterApproval > $facility->capacity) {
             return response()->json([
-                'message' => 'Cannot approve: Time slot conflicts with existing booking',
+                'message' => 'Cannot approve: Approving this booking would exceed facility capacity. Current capacity: ' . $facility->capacity . ', Total after approval: ' . $totalAfterApproval,
             ], 409);
         }
 
@@ -557,6 +614,7 @@ class BookingController extends Controller
             'date' => 'required|date|after:today', // Users can only book from tomorrow onwards
             'start_time' => 'required|date_format:Y-m-d H:i:s',
             'end_time' => 'required|date_format:Y-m-d H:i:s|after:start_time',
+            'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
         $facility = Facility::findOrFail($facilityId);
@@ -570,10 +628,13 @@ class BookingController extends Controller
             ]);
         }
 
-        // Check for conflicts
-        $conflicts = Booking::where('facility_id', $facilityId)
+        // Check capacity for overlapping bookings
+        $expectedAttendees = $request->input('expected_attendees') ?? 1;
+        
+        // Find all approved bookings that overlap with the requested time slot
+        $overlappingBookings = Booking::where('facility_id', $facilityId)
             ->whereDate('booking_date', $request->date)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'approved') // Only count approved bookings
             ->where(function($query) use ($request) {
                 $query->whereBetween('start_time', [$request->start_time, $request->end_time])
                       ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
@@ -584,24 +645,40 @@ class BookingController extends Controller
             })
             ->get();
 
-        $isAvailable = $conflicts->isEmpty();
+        // Calculate total expected attendees for overlapping bookings
+        $totalAttendees = $overlappingBookings->sum(function($booking) {
+            return $booking->expected_attendees ?? 1;
+        });
+
+        // Check if adding this booking would exceed capacity
+        $totalAfterBooking = $totalAttendees + $expectedAttendees;
+        $isAvailable = $totalAfterBooking <= $facility->capacity;
+        $availableCapacity = max(0, $facility->capacity - $totalAttendees);
 
         return response()->json([
             'is_available' => $isAvailable,
-            'message' => $isAvailable ? 'Time slot is available' : 'Time slot is already booked',
+            'message' => $isAvailable 
+                ? 'Time slot is available. Capacity allows this booking.' 
+                : 'Time slot capacity would be exceeded. Available capacity: ' . $availableCapacity . ', Requested: ' . $expectedAttendees,
             'data' => [
                 'facility_id' => $facilityId,
+                'facility_capacity' => $facility->capacity,
                 'date' => $request->date,
                 'time_range' => [
                     'start' => $request->start_time,
                     'end' => $request->end_time,
                 ],
-                'conflicting_bookings' => $conflicts->map(function($booking) {
+                'expected_attendees' => $expectedAttendees,
+                'current_booked_attendees' => $totalAttendees,
+                'available_capacity' => $availableCapacity,
+                'total_after_booking' => $totalAfterBooking,
+                'overlapping_bookings' => $overlappingBookings->map(function($booking) {
                     return [
                         'id' => $booking->id,
                         'start_time' => $booking->start_time->format('Y-m-d H:i:s'),
                         'end_time' => $booking->end_time->format('Y-m-d H:i:s'),
                         'status' => $booking->status,
+                        'expected_attendees' => $booking->expected_attendees ?? 1,
                     ];
                 }),
             ],

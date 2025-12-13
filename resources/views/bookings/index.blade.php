@@ -30,6 +30,15 @@
                 
                 <div class="filter-select-wrapper">
                     <div class="filter-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <select id="facilityFilter" class="filter-select" onchange="filterBookings()">
+                        <option value="">All Facilities</option>
+                    </select>
+                </div>
+                
+                <div class="filter-select-wrapper">
+                    <div class="filter-icon">
                         <i class="fas fa-filter"></i>
                     </div>
                     <select id="statusFilter" class="filter-select" onchange="filterBookings()">
@@ -209,6 +218,7 @@
 <script>
 let bookings = [];
 let facilities = [];
+let sortOrder = null; // 'date-asc', 'date-desc', 'created-asc', 'created-desc', or null
 
 // Define global functions FIRST so they're available for onclick handlers
 window.showCreateModal = function() {
@@ -290,30 +300,42 @@ window.validateTimeRange = function() {
         return true; // Allow empty values during input
     }
     
-    const startTime = startTimeInput.value;
-    const endTime = endTimeInput.value;
-    const minTime = '08:00';
-    const maxTime = '20:00';
+    // Get facility time range (default to 08:00-20:00 if not set)
+    const facilityTimeRange = window.currentFacilityTimeRange || { start: '08:00', end: '20:00' };
+    const minTime = facilityTimeRange.start || '08:00';
+    const maxTime = facilityTimeRange.end || '20:00';
     
-    // Validate start time is within allowed range (8:00 - 20:00)
+    // Extract time from datetime string if needed
+    let startTime = startTimeInput.value;
+    let endTime = endTimeInput.value;
+    
+    // If it's a datetime string, extract just the time part
+    if (startTime.includes(' ')) {
+        startTime = startTime.split(' ')[1].substring(0, 5); // Extract HH:mm
+    }
+    if (endTime.includes(' ')) {
+        endTime = endTime.split(' ')[1].substring(0, 5); // Extract HH:mm
+    }
+    
+    // Validate start time is within allowed range
     if (startTime < minTime || startTime > maxTime) {
         if (startTimeError) {
-            startTimeError.textContent = 'Start time must be between 8:00 AM and 8:00 PM';
+            startTimeError.textContent = `Start time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`;
             startTimeError.style.display = 'block';
         }
         startTimeInput.classList.add('is-invalid');
-        startTimeInput.setCustomValidity('Start time must be between 8:00 AM and 8:00 PM');
+        startTimeInput.setCustomValidity(`Start time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`);
         return false;
     }
     
-    // Validate end time is within allowed range (8:00 - 20:00)
+    // Validate end time is within allowed range
     if (endTime < minTime || endTime > maxTime) {
         if (endTimeError) {
-            endTimeError.textContent = 'End time must be between 8:00 AM and 8:00 PM';
+            endTimeError.textContent = `End time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`;
             endTimeError.style.display = 'block';
         }
         endTimeInput.classList.add('is-invalid');
-        endTimeInput.setCustomValidity('End time must be between 8:00 AM and 8:00 PM');
+        endTimeInput.setCustomValidity(`End time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`);
         return false;
     }
     
@@ -420,23 +442,116 @@ window.closeModal = function() {
     }
 };
 
+window.sortByDate = function() {
+    // Toggle sort order: asc -> desc -> asc (only two states)
+    // If currently sorting by date, toggle between asc and desc
+    // Otherwise, start with asc
+    if (sortOrder === 'date-asc') {
+        sortOrder = 'date-desc';
+    } else if (sortOrder === 'date-desc') {
+        sortOrder = 'date-asc';
+    } else {
+        // First click or switching from other column - start with asc
+        sortOrder = 'date-asc';
+    }
+    
+    // Re-apply filters and sorting
+    filterBookings();
+};
+
+window.sortByCreatedDate = function() {
+    // Toggle sort order: desc -> asc -> desc (only two states)
+    // Start with desc on first click to show immediate change
+    const previousSort = sortOrder;
+    
+    if (sortOrder === 'created-desc') {
+        sortOrder = 'created-asc';
+    } else if (sortOrder === 'created-asc') {
+        sortOrder = 'created-desc';
+    } else {
+        // First click or switching from other column - start with desc to show change
+        sortOrder = 'created-desc';
+    }
+    
+    console.log('sortByCreatedDate: Changed from', previousSort, 'to', sortOrder);
+    
+    // Re-apply filters and sorting
+    filterBookings();
+};
+
 window.filterBookings = function() {
     const search = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter');
+    const facilityFilter = document.getElementById('facilityFilter');
     if (!statusFilter) return;
     const status = statusFilter.value;
+    const facilityId = facilityFilter ? facilityFilter.value : '';
     
-    const filtered = bookings.filter(b => {
+    let filtered = bookings.filter(b => {
         const matchSearch = !search || 
             (b.booking_number && b.booking_number.toLowerCase().includes(search)) ||
             (b.facility?.name && b.facility.name.toLowerCase().includes(search)) ||
             (b.purpose && b.purpose.toLowerCase().includes(search));
         const matchStatus = !status || b.status === status;
-        return matchSearch && matchStatus;
+        const matchFacility = !facilityId || b.facility_id == facilityId;
+        return matchSearch && matchStatus && matchFacility;
     });
+    
+    // Apply sorting if sortOrder is set
+    if (sortOrder) {
+        console.log('Sorting with order:', sortOrder, 'Filtered bookings count:', filtered.length);
+        
+        // Log first few bookings before sort
+        if (filtered.length > 0) {
+            console.log('Before sort - First booking created_at:', filtered[0].created_at, 'Last booking created_at:', filtered[filtered.length - 1].created_at);
+            console.log('Before sort - All created_at values:', filtered.map(b => b.created_at));
+        }
+        
+        // Create a copy to avoid mutating the original array during sort
+        const sortedArray = [...filtered].sort((a, b) => {
+            if (sortOrder.startsWith('date-')) {
+                const dateA = new Date(a.booking_date);
+                const dateB = new Date(b.booking_date);
+                
+                if (sortOrder === 'date-asc') {
+                    return dateA.getTime() - dateB.getTime();
+                } else if (sortOrder === 'date-desc') {
+                    return dateB.getTime() - dateA.getTime();
+                }
+            } else if (sortOrder.startsWith('created-')) {
+                // Handle created_at sorting with null checks
+                const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+                const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+                
+                // Get timestamps, use 0 for invalid dates
+                const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+                const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+                
+                console.log(`Comparing: ${a.id} (${timeA}) vs ${b.id} (${timeB})`);
+                
+                if (sortOrder === 'created-asc') {
+                    return timeA - timeB;
+                } else if (sortOrder === 'created-desc') {
+                    return timeB - timeA;
+                }
+            }
+            return 0;
+        });
+        
+        // Replace filtered array with sorted array
+        filtered = sortedArray;
+        
+        // Log first few bookings after sort
+        if (filtered.length > 0) {
+            console.log('After sort - First booking created_at:', filtered[0].created_at, 'Last booking created_at:', filtered[filtered.length - 1].created_at);
+            console.log('After sort - All created_at values:', filtered.map(b => b.created_at));
+        }
+    }
     
     if (typeof displayBookings === 'function') {
         displayBookings(filtered);
+    } else {
+        console.error('displayBookings function not found!');
     }
 };
 
@@ -575,17 +690,51 @@ document.addEventListener('click', function(event) {
 window.toggleDropdown = function(id) {
     event.stopPropagation();
     const dropdown = document.getElementById(`dropdown-${id}`);
+    const button = event.target.closest('button');
     const allDropdowns = document.querySelectorAll('.dropdown-menu');
     
     // Close all other dropdowns
     allDropdowns.forEach(menu => {
         if (menu.id !== `dropdown-${id}`) {
             menu.classList.remove('show');
+            menu.classList.remove('dropdown-up');
         }
     });
     
     // Toggle current dropdown
-    dropdown.classList.toggle('show');
+    const isShowing = dropdown.classList.contains('show');
+    
+    if (!isShowing) {
+        // Calculate position
+        const buttonRect = button.getBoundingClientRect();
+        const dropdownHeight = 90; // Approximate height of dropdown (2 items)
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        
+        // Show dropdown first to get its dimensions
+        dropdown.style.display = 'block';
+        dropdown.style.position = 'fixed';
+        dropdown.style.right = `${window.innerWidth - buttonRect.right}px`;
+        dropdown.style.top = `${buttonRect.bottom + 5}px`;
+        
+        // Check if dropdown would be cut off at bottom
+        const dropdownRect = dropdown.getBoundingClientRect();
+        const spaceBelow = viewportHeight - dropdownRect.bottom;
+        const spaceAbove = buttonRect.top;
+        
+        // If not enough space below but enough space above, show above
+        if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+            dropdown.classList.add('dropdown-up');
+            dropdown.style.top = `${buttonRect.top - dropdownHeight - 5}px`;
+        } else {
+            dropdown.classList.remove('dropdown-up');
+        }
+        
+        dropdown.classList.add('show');
+    } else {
+        dropdown.classList.remove('show');
+        dropdown.classList.remove('dropdown-up');
+        dropdown.style.display = 'none';
+    }
 };
 
 window.approveBooking = async function(id) {
@@ -672,21 +821,41 @@ window.editBooking = async function(id) {
     }
     
     // Populate form with booking data
-    document.getElementById('bookingFacility').value = booking.facility_id || '';
+    const facilityId = booking.facility_id || '';
+    document.getElementById('bookingFacility').value = facilityId;
     
-    // Extract time from datetime strings
-    if (booking.start_time) {
-        const startDate = new Date(booking.start_time);
-        const hours = String(startDate.getHours()).padStart(2, '0');
-        const minutes = String(startDate.getMinutes()).padStart(2, '0');
-        document.getElementById('bookingStartTime').value = `${hours}:${minutes}`;
+    // Update time input constraints and load timetable based on facility
+    if (facilityId) {
+        await updateTimeInputConstraints(facilityId);
+        if (typeof loadTimetable === 'function') {
+            await loadTimetable(facilityId);
+        }
     }
     
-    if (booking.end_time) {
+    // Extract time from datetime strings and set selected time slot
+    if (booking.start_time && booking.end_time) {
+        const startDate = new Date(booking.start_time);
         const endDate = new Date(booking.end_time);
-        const hours = String(endDate.getHours()).padStart(2, '0');
-        const minutes = String(endDate.getMinutes()).padStart(2, '0');
-        document.getElementById('bookingEndTime').value = `${hours}:${minutes}`;
+        const startHours = String(startDate.getHours()).padStart(2, '0');
+        const startMinutes = String(startDate.getMinutes()).padStart(2, '0');
+        const endHours = String(endDate.getHours()).padStart(2, '0');
+        const endMinutes = String(endDate.getMinutes()).padStart(2, '0');
+        
+        const startTime = `${startHours}:${startMinutes}`;
+        const endTime = `${endHours}:${endMinutes}`;
+        const bookingDateStr = booking.booking_date || bookingDate;
+        
+        // Set hidden inputs
+        document.getElementById('selectedBookingDate').value = bookingDateStr;
+        document.getElementById('bookingStartTime').value = `${bookingDateStr} ${startTime}:00`;
+        document.getElementById('bookingEndTime').value = `${bookingDateStr} ${endTime}:00`;
+        
+        // Set selected time slot
+        selectedTimeSlot = {
+            date: bookingDateStr,
+            start: startTime,
+            end: endTime
+        };
     }
     
     document.getElementById('bookingPurpose').value = booking.purpose || '';
@@ -759,7 +928,8 @@ function initBookings() {
         dateInput.min = tomorrow.toISOString().split('T')[0];
     }
     
-    // Set time input constraints (8:00 AM - 8:00 PM)
+    // Time input constraints will be set dynamically based on selected facility
+    // Default values are set here, but will be updated when facility is selected
     const startTimeInput = document.getElementById('bookingStartTime');
     const endTimeInput = document.getElementById('bookingEndTime');
     if (startTimeInput) {
@@ -770,6 +940,9 @@ function initBookings() {
         endTimeInput.min = '08:00';
         endTimeInput.max = '20:00';
     }
+    
+    // Initialize facility time range
+    window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
     
     // Update title based on user role
     if (API.isAdmin()) {
@@ -794,6 +967,7 @@ function initBookings() {
     
     loadBookings();
     loadFacilities();
+    loadFacilitiesForFilter();
 }
 
 async function loadBookings() {
@@ -814,6 +988,23 @@ async function loadBookings() {
         const errorMsg = result.error || result.data?.message || 'Failed to load bookings';
         showError(document.getElementById('bookingsList'), errorMsg);
         console.error('Load bookings error:', result); // Debug
+    }
+}
+
+// Load facilities for filter dropdown
+async function loadFacilitiesForFilter() {
+    const result = await API.get('/facilities');
+    
+    if (result.success) {
+        const facilitiesList = result.data.data?.data || result.data.data || [];
+        const filterSelect = document.getElementById('facilityFilter');
+        
+        if (filterSelect && facilitiesList.length > 0) {
+            filterSelect.innerHTML = '<option value="">All Facilities</option>' +
+                facilitiesList.map(f => 
+                    `<option value="${f.id}">${f.name}</option>`
+                ).join('');
+        }
     }
 }
 
@@ -892,25 +1083,35 @@ function getNextThreeDays() {
     return days;
 }
 
-// Generate time slots (8:00 AM to 8:00 PM)
-function generateTimeSlots(duration = 1) {
+// Generate time slots based on facility available time
+function generateTimeSlots(duration = 1, startTime = '08:00', endTime = '20:00') {
     const slots = [];
-    const startHour = 8;
-    const endHour = 20;
     
-    for (let hour = startHour; hour < endHour; hour++) {
-        const startTime = `${hour.toString().padStart(2, '0')}:00`;
-        const endHourTime = hour + duration;
-        const endTime = `${endHourTime.toString().padStart(2, '0')}:00`;
+    // Parse start and end times
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    // Convert to minutes for easier calculation
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    const durationMinutes = duration * 60;
+    
+    // Generate slots
+    for (let currentMinutes = startMinutes; currentMinutes + durationMinutes <= endMinutes; currentMinutes += 60) {
+        const slotStartHour = Math.floor(currentMinutes / 60);
+        const slotStartMin = currentMinutes % 60;
+        const slotEndMinutes = currentMinutes + durationMinutes;
+        const slotEndHour = Math.floor(slotEndMinutes / 60);
+        const slotEndMin = slotEndMinutes % 60;
         
-        // Only add slot if it doesn't exceed 20:00
-        if (endHourTime <= endHour) {
-            slots.push({
-                start: startTime,
-                end: endTime,
-                display: `${formatTime12(startTime)} - ${formatTime12(endTime)}`
-            });
-        }
+        const slotStart = `${slotStartHour.toString().padStart(2, '0')}:${slotStartMin.toString().padStart(2, '0')}`;
+        const slotEnd = `${slotEndHour.toString().padStart(2, '0')}:${slotEndMin.toString().padStart(2, '0')}`;
+        
+        slots.push({
+            start: slotStart,
+            end: slotEnd,
+            display: `${formatTime12(slotStart)} - ${formatTime12(slotEnd)}`
+        });
     }
     
     return slots;
@@ -923,6 +1124,28 @@ function formatTime12(time24) {
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour % 12 || 12;
     return `${hour12}:${minutes} ${ampm}`;
+}
+
+// Format Date object to 12-hour format without seconds
+function formatTimeNoSeconds(date) {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    return d.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+    });
+}
+
+// Format DateTime to show both date and time
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return 'N/A';
+    const d = new Date(dateTimeString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    const date = formatDate(dateTimeString);
+    const time = formatTimeNoSeconds(dateTimeString);
+    return `${date} ${time}`;
 }
 
 // Load timetable for selected facility
@@ -942,7 +1165,40 @@ async function loadTimetable(facilityId) {
         }
         const days = getNextThreeDays();
         const duration = parseInt(document.querySelector('input[name="bookingDuration"]:checked')?.value || '1');
-        const slots = generateTimeSlots(duration);
+        
+        // Load facility info to get capacity and available_time
+        let facilityCapacity = null;
+        let facilityStartTime = '08:00'; // Default start time
+        let facilityEndTime = '20:00';   // Default end time
+        
+        try {
+            const facilityResult = await API.get(`/facilities/${facilityId}`);
+            if (facilityResult.success && facilityResult.data) {
+                const facility = facilityResult.data.data || facilityResult.data;
+                facilityCapacity = facility.capacity;
+                
+                // Get available_time from facility
+                if (facility.available_time && typeof facility.available_time === 'object') {
+                    if (facility.available_time.start) {
+                        facilityStartTime = facility.available_time.start;
+                    }
+                    if (facility.available_time.end) {
+                        facilityEndTime = facility.available_time.end;
+                    }
+                }
+                
+                // Store facility time range globally for validation
+                window.currentFacilityTimeRange = {
+                    start: facilityStartTime,
+                    end: facilityEndTime
+                };
+            }
+        } catch (error) {
+            console.error('Error loading facility info:', error);
+        }
+        
+        // Generate time slots based on facility available time
+        const slots = generateTimeSlots(duration, facilityStartTime, facilityEndTime);
         
         // Load booked slots for each day
         bookedSlots = {};
@@ -972,7 +1228,8 @@ async function loadTimetable(facilityId) {
                     
                     return {
                         start_time: `${day.date} ${startTime}:00`,
-                        end_time: `${day.date} ${endTime}:00`
+                        end_time: `${day.date} ${endTime}:00`,
+                        expected_attendees: booking.expected_attendees || 1
                     };
                 });
             } catch (error) {
@@ -985,7 +1242,7 @@ async function loadTimetable(facilityId) {
         await Promise.all(availabilityPromises);
         
         // Render timetable
-        renderTimetable(days, slots, facilityId);
+        renderTimetable(days, slots, facilityId, facilityCapacity);
     } catch (error) {
         console.error('Error loading timetable:', error);
         container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
@@ -993,7 +1250,7 @@ async function loadTimetable(facilityId) {
 }
 
 // Render timetable
-function renderTimetable(days, slots, facilityId) {
+function renderTimetable(days, slots, facilityId, facilityCapacity) {
     const container = document.getElementById('timetableContainer');
     if (!container) {
         console.error('Timetable container not found');
@@ -1006,29 +1263,6 @@ function renderTimetable(days, slots, facilityId) {
     
     days.forEach(day => {
         const dayBookedSlots = bookedSlots[day.date] || [];
-        const bookedTimes = new Set();
-        
-        dayBookedSlots.forEach(booking => {
-            try {
-                const start = new Date(booking.start_time);
-                const end = new Date(booking.end_time);
-                
-                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                    console.warn('Invalid date for booking:', booking);
-                    return;
-                }
-                
-                let current = new Date(start);
-                
-                while (current < end) {
-                    const timeStr = `${current.getHours().toString().padStart(2, '0')}:00`;
-                    bookedTimes.add(timeStr);
-                    current.setHours(current.getHours() + 1);
-                }
-            } catch (error) {
-                console.error('Error processing booking:', booking, error);
-            }
-        });
         
         html += `
             <div class="timetable-day" data-date="${day.date}">
@@ -1040,9 +1274,41 @@ function renderTimetable(days, slots, facilityId) {
         `;
         
         slots.forEach(slot => {
-            const isBooked = bookedTimes.has(slot.start) || 
-                           (duration === 2 && bookedTimes.has(slot.end.split(':')[0] + ':00'));
-            const slotClass = isBooked ? 'booked' : 'available';
+            // Calculate total attendees for overlapping bookings in this time slot
+            let totalAttendees = 0;
+            const slotStart = new Date(`${day.date} ${slot.start}:00`);
+            const slotEnd = new Date(`${day.date} ${slot.end}:00`);
+            
+            dayBookedSlots.forEach(booking => {
+                try {
+                    const bookingStart = new Date(booking.start_time);
+                    const bookingEnd = new Date(booking.end_time);
+                    
+                    if (isNaN(bookingStart.getTime()) || isNaN(bookingEnd.getTime())) {
+                        return;
+                    }
+                    
+                    // Check if booking overlaps with this slot
+                    if (slotStart < bookingEnd && slotEnd > bookingStart) {
+                        totalAttendees += booking.expected_attendees || 1;
+                    }
+                } catch (error) {
+                    console.error('Error processing booking:', booking, error);
+                }
+            });
+            
+            // Check if slot is available based on capacity
+            // If no capacity info, fall back to conflict check
+            let isAvailable = true;
+            if (facilityCapacity !== null) {
+                // Based on capacity: available if total attendees < capacity
+                isAvailable = totalAttendees < facilityCapacity;
+            } else {
+                // Fallback: if there are any bookings, consider it booked
+                isAvailable = totalAttendees === 0;
+            }
+            
+            const slotClass = isAvailable ? 'available' : 'booked';
             const slotId = `slot-${day.date}-${slot.start}`;
             
             html += `
@@ -1113,11 +1379,54 @@ function clearTimetable() {
 window.handleFacilityChange = function(select) {
     console.log('Facility changed to:', select.value);
     if (select && select.value) {
+        // Update time input constraints based on facility
+        updateTimeInputConstraints(select.value);
         loadTimetable(select.value);
     } else {
         clearTimetable();
+        // Reset to default time range
+        window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
     }
 };
+
+// Update time input constraints based on facility
+async function updateTimeInputConstraints(facilityId) {
+    try {
+        const facilityResult = await API.get(`/facilities/${facilityId}`);
+        if (facilityResult.success && facilityResult.data) {
+            const facility = facilityResult.data.data || facilityResult.data;
+            let startTime = '08:00';
+            let endTime = '20:00';
+            
+            // Get available_time from facility
+            if (facility.available_time && typeof facility.available_time === 'object') {
+                if (facility.available_time.start) {
+                    startTime = facility.available_time.start;
+                }
+                if (facility.available_time.end) {
+                    endTime = facility.available_time.end;
+                }
+            }
+            
+            // Update time input constraints
+            const startTimeInput = document.getElementById('bookingStartTime');
+            const endTimeInput = document.getElementById('bookingEndTime');
+            if (startTimeInput) {
+                startTimeInput.min = startTime;
+                startTimeInput.max = endTime;
+            }
+            if (endTimeInput) {
+                endTimeInput.min = startTime;
+                endTimeInput.max = endTime;
+            }
+            
+            // Store facility time range globally
+            window.currentFacilityTimeRange = { start: startTime, end: endTime };
+        }
+    } catch (error) {
+        console.error('Error loading facility for time constraints:', error);
+    }
+}
 
 // Listen to duration changes
 document.addEventListener('DOMContentLoaded', function() {
@@ -1145,11 +1454,21 @@ function displayBookings(bookingsToShow) {
                 <tr>
                     <th>Booking #</th>
                     <th>Facility</th>
-                    <th>Date</th>
+                    <th>
+                        <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="sortByDate()">
+                            <span>Date</span>
+                            <i class="fas ${sortOrder === 'date-asc' ? 'fa-sort-up' : 'fa-sort-down'} sort-arrow ${sortOrder && sortOrder.startsWith('date-') ? 'active' : ''}"></i>
+                        </div>
+                    </th>
                     <th>Time</th>
-                    <th>Purpose</th>
                     <th>Attendees</th>
                     <th>Status</th>
+                    <th>
+                        <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="sortByCreatedDate()">
+                            <span>Created Date</span>
+                            <i class="fas ${sortOrder === 'created-asc' ? 'fa-sort-up' : 'fa-sort-down'} sort-arrow ${sortOrder && sortOrder.startsWith('created-') ? 'active' : ''}"></i>
+                        </div>
+                    </th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -1159,14 +1478,14 @@ function displayBookings(bookingsToShow) {
                         <td>${booking.booking_number}</td>
                         <td>${booking.facility?.name || 'N/A'}</td>
                         <td>${formatDate(booking.booking_date)}</td>
-                        <td>${new Date(booking.start_time).toLocaleTimeString()} - ${new Date(booking.end_time).toLocaleTimeString()}</td>
-                        <td>${booking.purpose ? (booking.purpose.length > 30 ? booking.purpose.substring(0, 30) + '...' : booking.purpose) : 'N/A'}</td>
+                        <td>${formatTimeNoSeconds(booking.start_time)} - ${formatTimeNoSeconds(booking.end_time)}</td>
                         <td>${booking.expected_attendees || 'N/A'}</td>
                         <td>
                             <span class="badge badge-${booking.status === 'approved' ? 'success' : (booking.status === 'pending' ? 'warning' : (booking.status === 'rejected' ? 'danger' : 'secondary'))}">
                                 ${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                             </span>
                         </td>
+                        <td>${formatDateTime(booking.created_at)}</td>
                         <td class="actions">
                             <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
                                 <i class="fas fa-eye"></i>
@@ -1489,8 +1808,14 @@ function bindBookingForm() {
     background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    overflow: hidden;
     border: 1px solid #e9ecef;
+    position: relative;
+    overflow: visible;
+}
+
+.table-container .data-table {
+    overflow: hidden;
+    border-radius: 12px;
 }
 
 .data-table {
@@ -1525,6 +1850,31 @@ function bindBookingForm() {
     background-color: #f8f9fa;
 }
 
+/* Sort arrow styling */
+.sort-arrow {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #495057;
+    transition: all 0.2s ease;
+    margin-left: 8px;
+    display: inline-block;
+    line-height: 1;
+}
+
+.sort-arrow.active {
+    color: #667eea;
+    font-weight: 900;
+}
+
+.sort-arrow:hover {
+    color: #667eea;
+    transform: scale(1.1);
+}
+
+.data-table th div:hover .sort-arrow {
+    color: #667eea;
+}
+
 .data-table .actions {
     display: flex;
     gap: 5px;
@@ -1541,24 +1891,39 @@ function bindBookingForm() {
 
 .dropdown-menu {
     display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
+    position: fixed;
     background: white;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     min-width: 160px;
-    z-index: 1000;
+    z-index: 10000;
     margin-top: 5px;
     overflow: hidden;
     animation: slideDown 0.2s ease;
+}
+
+.dropdown-menu.dropdown-up {
+    margin-top: 0;
+    margin-bottom: 5px;
+    animation: slideUp 0.2s ease;
 }
 
 @keyframes slideDown {
     from {
         opacity: 0;
         transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
