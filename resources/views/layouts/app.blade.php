@@ -302,7 +302,7 @@
             color: #a31f37;
         }
         
-        .notification-icon-link .notification-badge {
+        .notification-button .notification-badge {
             position: absolute;
             top: -5px;
             right: -5px;
@@ -316,6 +316,39 @@
             justify-content: center;
             font-size: 0.7rem;
             font-weight: bold;
+        }
+
+        .notification-item-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .btn-approve, .btn-reject {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: #218838;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #c82333;
         }
     </style>
     <script>
@@ -527,9 +560,43 @@
             if (typeof API === 'undefined') return;
             
             try {
-                const result = await API.get('/notifications/user/unread-count');
-                if (result.success && result.data && result.data.count !== undefined) {
-                    const count = result.data.count;
+                const isAdmin = API.isAdmin();
+                const isStaff = API.isStaff();
+                const isStudent = API.isStudent();
+                
+                if (isStudent) {
+                    // For students, get unread announcements and notifications count
+                    const result = await API.get('/notifications/user/unread-items?limit=0&only_unread=true');
+                    if (result.success && result.data && result.data.counts) {
+                        const totalCount = result.data.counts.total || 0;
+                        const badge = document.getElementById('notificationNavBadge');
+                        if (badge) {
+                            if (totalCount > 0) {
+                                badge.textContent = totalCount > 99 ? '99+' : totalCount;
+                                badge.style.display = 'flex';
+                            } else {
+                                badge.style.display = 'none';
+                            }
+                        }
+                    }
+                } else if (isAdmin || isStaff) {
+                    // For admin/staff: get pending bookings count
+                    const result = await API.get('/bookings/pending?limit=0');
+                    let count = 0;
+                    if (result && result.success !== false) {
+                        // API returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
+                        // Or directly: { success: true, data: { bookings: [], count: ... } }
+                        if (result.data && result.data.data && result.data.data.count !== undefined) {
+                            count = result.data.data.count;
+                        } else if (result.data && result.data.count !== undefined) {
+                            count = result.data.count;
+                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
+                            count = result.data.bookings.length;
+                        } else if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
+                            count = result.data.data.bookings.length;
+                        }
+                    }
+                    
                     const badge = document.getElementById('notificationNavBadge');
                     if (badge) {
                         if (count > 0) {
@@ -543,6 +610,290 @@
             } catch (error) {
                 console.error('Error loading notification count:', error);
             }
+        }
+
+        // Toggle notification dropdown menu - make it global
+        window.toggleNotificationMenu = function(event) {
+            try {
+                if (event) {
+                    event.stopPropagation();
+                    event.preventDefault();
+                }
+                
+                const dropdown = document.getElementById('notificationDropdown');
+                if (!dropdown) {
+                    console.error('Notification dropdown not found!');
+                    return;
+                }
+                
+                if (dropdown.classList.contains('active')) {
+                    dropdown.classList.remove('active');
+                } else {
+                    dropdown.classList.add('active');
+                    if (typeof window.loadNotificationDropdownContent === 'function') {
+                        window.loadNotificationDropdownContent();
+                    } else {
+                        console.error('loadNotificationDropdownContent function not found!');
+                    }
+                }
+            } catch (error) {
+                console.error('Error in toggleNotificationMenu:', error);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('notificationDropdown');
+            if (dropdown && !dropdown.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        // Load notification dropdown content - make it global
+        window.loadNotificationDropdownContent = async function() {
+            if (typeof API === 'undefined') {
+                console.error('API is not defined!');
+                return;
+            }
+            
+            const listContainer = document.getElementById('notificationList');
+            const titleElement = document.getElementById('notificationMenuTitle');
+            
+            if (!listContainer) {
+                console.error('Notification list container not found!');
+                return;
+            }
+            
+            listContainer.innerHTML = '<div class="notification-loading">Loading...</div>';
+            
+            try {
+                const isAdmin = API.isAdmin();
+                const isStaff = API.isStaff();
+                const isStudent = API.isStudent();
+                const viewAllLink = document.getElementById('viewAllLink');
+                
+                // Student: show Announcements & Notifications
+                // Staff/Admin: show only pending bookings
+                if (isStudent) {
+                    // For students: show unread announcements and notifications
+                    if (titleElement) {
+                        titleElement.textContent = 'Announcements & Notifications';
+                    }
+                    if (viewAllLink) {
+                        viewAllLink.href = '/notifications';
+                    }
+                    
+                    // Only show unread items in bell dropdown
+                    const result = await API.get('/notifications/user/unread-items?limit=10&only_unread=true');
+                    console.log('Unread items API result (full):', JSON.stringify(result, null, 2));
+                    
+                    // Extract items from response
+                    let items = [];
+                    if (result && result.success) {
+                        // Direct access to result.data.items
+                        if (result.data && Array.isArray(result.data.items)) {
+                            items = result.data.items;
+                        } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
+                            items = result.data.data.items;
+                        }
+                        
+                        console.log('Debug info:', result.data?.debug);
+                        console.log('Items extracted:', items.length, 'items');
+                        console.log('Items array:', items);
+                        
+                        if (result.data && result.data.counts) {
+                            console.log('Announcements count:', result.data.counts.announcements || 0);
+                            console.log('Notifications count:', result.data.counts.notifications || 0);
+                        }
+                    } else {
+                        console.error('API call failed:', result);
+                    }
+                    
+                    if (!items || items.length === 0) {
+                        listContainer.innerHTML = '<div class="notification-empty">No items found</div>';
+                        if (result && result.data && result.data.debug) {
+                            console.log('Debug: All announcements:', result.data.debug.announcements_total);
+                            console.log('Debug: Filtered announcements:', result.data.debug.announcements_filtered);
+                            console.log('Debug: Combined count:', result.data.debug.combined_count);
+                            console.log('Debug: Items count:', result.data.debug.items_count);
+                        }
+                        return;
+                    }
+                    
+                    // Display items
+                    listContainer.innerHTML = items.map(item => {
+                        const icon = item.type === 'announcement' ? 'bullhorn' : 'bell';
+                        const typeLabel = item.type === 'announcement' ? 'Announcement' : 'Notification';
+                        const url = item.type === 'announcement' ? `/announcements/${item.id}` : `/notifications/${item.id}`;
+                        const isRead = item.is_read === true || item.is_read === 1;
+                        const itemClass = isRead ? 'notification-item' : 'notification-item unread';
+                        
+                        return `
+                            <div class="${itemClass}" onclick="window.handleItemClick('${item.type}', ${item.id}, '${url}', ${isRead})">
+                                <div class="notification-item-title">
+                                    <i class="fas fa-${icon}"></i> ${typeLabel}: ${item.title}
+                                </div>
+                                <div class="notification-item-message">
+                                    ${item.content ? (item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content) : 'No content'}
+                                </div>
+                                <div class="notification-item-time">${window.formatTimeAgo(item.created_at || item.pivot_created_at)}</div>
+                            </div>
+                        `;
+                    }).join('');
+                } else if (isAdmin || isStaff) {
+                    // For admin/staff: ONLY show pending bookings (no announcements)
+                    if (titleElement) {
+                        titleElement.textContent = 'Pending Bookings';
+                    }
+                    if (viewAllLink) {
+                        viewAllLink.href = '/bookings';
+                    }
+                    
+                    // Admin/Staff bell only displays user booking requests
+                    const result = await API.get('/bookings/pending?limit=10');
+                    console.log('Pending bookings API result:', result);
+                    
+                    // Handle response - check both result.success and direct data access
+                    // API.get returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
+                    let bookings = [];
+                    if (result && result.success !== false) {
+                        if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
+                            bookings = result.data.data.bookings;
+                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
+                            bookings = result.data.bookings;
+                        } else if (result.data && Array.isArray(result.data)) {
+                            bookings = result.data;
+                        } else if (Array.isArray(result.bookings)) {
+                            bookings = result.bookings;
+                        }
+                    }
+                    
+                    console.log('Bookings extracted:', bookings.length);
+                    
+                    if (!bookings || bookings.length === 0) {
+                        listContainer.innerHTML = '<div class="notification-empty">No pending bookings</div>';
+                        return;
+                    }
+                    
+                    listContainer.innerHTML = bookings.map(booking => `
+                        <div class="notification-item unread" onclick="window.handleBookingClick(${booking.id})">
+                            <div class="notification-item-title">
+                                <i class="fas fa-calendar-check"></i> ${booking.facility_name}
+                            </div>
+                            <div class="notification-item-message">
+                                Booking #${booking.booking_number} from ${booking.user_name}<br>
+                                ${booking.booking_date} ${booking.start_time} - ${booking.end_time}
+                            </div>
+                            <div class="notification-item-time">${window.formatTimeAgo(booking.created_at)}</div>
+                            <div class="notification-item-actions" onclick="event.stopPropagation()">
+                                <button class="btn-approve" onclick="window.approveBooking(${booking.id}, event)" title="Approve">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn-reject" onclick="window.rejectBooking(${booking.id}, event)" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading notification dropdown content:', error);
+                listContainer.innerHTML = '<div class="notification-empty">Error loading content: ' + error.message + '</div>';
+            }
+        };
+
+        // Handle item click (announcement or notification) - make it global
+        window.handleItemClick = async function(type, id, url, isRead) {
+            // Mark as read only if not already read
+            if (!isRead) {
+                try {
+                    if (type === 'announcement') {
+                        await API.put(`/announcements/${id}/read`, {});
+                    } else {
+                        await API.put(`/notifications/${id}/read`, {});
+                    }
+                    // Refresh badge count
+                    loadNotificationCount();
+                } catch (error) {
+                    console.error('Error marking as read:', error);
+                }
+            }
+            
+            // Navigate to detail page
+            window.location.href = url;
+        };
+
+        // Handle booking click (admin) - make it global
+        window.handleBookingClick = function(bookingId) {
+            window.location.href = `/bookings/${bookingId}`;
+        };
+
+        // Approve booking (admin) - make it global
+        window.approveBooking = async function(bookingId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            
+            if (!confirm('Are you sure you want to approve this booking?')) {
+                return;
+            }
+            
+            try {
+                const result = await API.put(`/bookings/${bookingId}/approve`, {});
+                if (result.success) {
+                    showToast('Booking approved successfully', 'success');
+                    window.loadNotificationDropdownContent();
+                    loadNotificationCount();
+                } else {
+                    showToast('Error approving booking: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error approving booking:', error);
+                showToast('Error approving booking', 'error');
+            }
+        };
+
+        // Reject booking (admin) - make it global
+        window.rejectBooking = async function(bookingId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            
+            const reason = prompt('Please enter rejection reason:');
+            if (!reason || reason.trim() === '') {
+                return;
+            }
+            
+            try {
+                const result = await API.put(`/bookings/${bookingId}/reject`, { reason: reason.trim() });
+                if (result.success) {
+                    showToast('Booking rejected successfully', 'success');
+                    window.loadNotificationDropdownContent();
+                    loadNotificationCount();
+                } else {
+                    showToast('Error rejecting booking: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error rejecting booking:', error);
+                showToast('Error rejecting booking', 'error');
+            }
+        };
+
+        // Format time ago - make it global
+        window.formatTimeAgo = function(dateString) {
+            if (!dateString) return 'Unknown';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+            if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+            return date.toLocaleDateString();
         }
     </script>
 </head>
@@ -573,11 +924,22 @@
                 @endguest
                 <li id="authLinks">
                     @auth
-                        <!-- Notification Icon Link - All authenticated users -->
-                        <a href="{{ route('notifications.index') }}" class="notification-icon-link" title="Notifications">
-                            <i class="fas fa-bell"></i>
-                            <span class="notification-badge" id="notificationNavBadge" style="display: none;">0</span>
-                        </a>
+                        <!-- Notification Dropdown - All authenticated users -->
+                        <div class="notification-dropdown" id="notificationDropdown">
+                            <button class="notification-button" onclick="window.toggleNotificationMenu(event)" title="Notifications">
+                                <i class="fas fa-bell"></i>
+                                <span class="notification-badge" id="notificationNavBadge" style="display: none;">0</span>
+                            </button>
+                            <div class="notification-menu" id="notificationMenu">
+                                <div class="notification-header">
+                                    <h3 id="notificationMenuTitle">Notifications</h3>
+                                    <a href="{{ route('notifications.index') }}" id="viewAllLink" class="view-all-link">View All</a>
+                                </div>
+                                <div class="notification-list" id="notificationList">
+                                    <div class="notification-loading">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="user-dropdown">
                             <button class="user-button" onclick="toggleUserMenu()">
                                 <i class="fas fa-user-circle"></i>

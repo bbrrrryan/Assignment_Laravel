@@ -945,23 +945,30 @@ function initBookings() {
     window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
     
     // Update title based on user role
-    if (API.isAdmin()) {
+    const isAdmin = API.isAdmin();
+    const isStaff = API.isStaff();
+    const isStudent = API.isStudent();
+    const isManager = isAdmin || isStaff; // Admin and Staff can manage bookings
+    
+    if (isManager) {
+        // Admin and Staff: Booking Management (manage all bookings)
         document.getElementById('bookingsTitle').textContent = 'Booking Management';
         document.getElementById('bookingsSubtitle').textContent = 'Manage all bookings in the system';
-        // Hide "New Booking" button for admin - admin can only manage existing bookings
+        // Hide "New Booking" button for admin/staff - they can only manage existing bookings
         const newBookingBtn = document.getElementById('newBookingBtn');
         if (newBookingBtn) {
             newBookingBtn.style.display = 'none';
         }
     } else {
+        // Student: My Bookings (only their own bookings)
         document.getElementById('bookingsTitle').textContent = 'My Bookings';
         document.getElementById('bookingsSubtitle').textContent = 'Manage your facility bookings';
-        // Show "New Booking" button for students
+        // Show "New Booking" button for students only
         const newBookingBtn = document.getElementById('newBookingBtn');
         if (newBookingBtn) {
             newBookingBtn.style.display = 'block';
         }
-        // Bind form submit event only for non-admin users
+        // Bind form submit event only for students
         bindBookingForm();
     }
     
@@ -973,8 +980,10 @@ function initBookings() {
 async function loadBookings() {
     showLoading(document.getElementById('bookingsList'));
     
-    // If user is not admin, load only their own bookings
-    const endpoint = API.isAdmin() ? '/bookings' : '/bookings/user/my-bookings';
+    // Admin and Staff can view all bookings, Students can only view their own
+    const isAdmin = API.isAdmin();
+    const isStaff = API.isStaff();
+    const endpoint = (isAdmin || isStaff) ? '/bookings' : '/bookings/user/my-bookings';
     const result = await API.get(endpoint);
     
     if (result.success) {
@@ -1490,7 +1499,7 @@ function displayBookings(bookingsToShow) {
                             <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            ${API.isAdmin() ? `
+                            ${(API.isAdmin() || API.isStaff()) ? `
                                 <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>

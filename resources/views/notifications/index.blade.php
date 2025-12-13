@@ -5,13 +5,13 @@
 @section('content')
 <div class="page-container">
     <div class="page-header">
-        <h1>Notification</h1>
+        <h1 id="pageTitle">Announcements & Notifications</h1>
     </div>
 
     <hr class="notification-divider">
 
     <div id="notificationsList" class="notifications-container">
-        <p>Loading notifications...</p>
+        <p>Loading...</p>
     </div>
 </div>
 
@@ -35,100 +35,172 @@ function initNotifications() {
 
 async function loadNotifications() {
     const container = document.getElementById('notificationsList');
-    container.innerHTML = '<p>Loading notifications...</p>';
+    container.innerHTML = '<p>Loading...</p>';
     
-    // Admin sees all notifications, regular users see only their own
-    const endpoint = API.isAdmin() ? '/notifications' : '/notifications/user/my-notifications';
-
+    const isAdmin = API.isAdmin();
+    
     try {
-        const result = await API.get(endpoint);
+        let items = [];
         
-        console.log('Notification API Response:', result);
-        
-        if (result.success) {
-            // Handle paginated response: result.data.data is the pagination object
-            // result.data.data.data is the actual array of notifications
-            let notifications = [];
+        if (isAdmin) {
+            // For admin: show pending bookings
+            document.getElementById('pageTitle').textContent = 'Pending Bookings';
             
-            if (result.data && result.data.data) {
-                // Check if it's a paginated response
-                if (Array.isArray(result.data.data)) {
-                    // Direct array response
-                    notifications = result.data.data;
-                } else if (result.data.data.data && Array.isArray(result.data.data.data)) {
-                    // Paginated response
-                    notifications = result.data.data.data;
-                } else if (result.data.data.data && Array.isArray(result.data.data)) {
-                    // Alternative structure
-                    notifications = result.data.data;
-                }
+            const bookingsResult = await API.get('/bookings/pending?limit=100');
+            console.log('Bookings API Response:', bookingsResult);
+            
+            if (bookingsResult.success && bookingsResult.data && bookingsResult.data.bookings) {
+                const bookings = bookingsResult.data.bookings;
+                items = bookings.map(booking => ({
+                    id: booking.id,
+                    type: 'booking',
+                    title: `Booking Request - ${booking.facility_name}`,
+                    content: `Booking #${booking.booking_number} from ${booking.user_name} for ${booking.booking_date} ${booking.start_time} - ${booking.end_time}`,
+                    created_at: booking.created_at,
+                    booking: booking,
+                }));
             }
-            
-            console.log('Parsed notifications:', notifications);
-            console.log('Notifications count:', notifications.length);
-            
-            displayNotifications(notifications);
         } else {
-            container.innerHTML = `<p style="color: red;">Error: ${result.error || 'Failed to load notifications'}</p>`;
-            console.error('Error loading notifications:', result);
+            // For regular users: show announcements and notifications
+            document.getElementById('pageTitle').textContent = 'Announcements & Notifications';
+            
+            // Get all items (both read and unread) for the full page view
+            // Note: only_unread defaults to false, so we don't need to pass it
+            const result = await API.get('/notifications/user/unread-items?limit=100');
+            console.log('Unread items API Response (full):', result);
+            console.log('API Response structure:', JSON.stringify(result, null, 2));
+            
+            if (result && result.success) {
+                // Check multiple possible response structures
+                if (result.data && Array.isArray(result.data.items)) {
+                    items = result.data.items;
+                    console.log('Items found in result.data.items:', items.length);
+                } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
+                    items = result.data.data.items;
+                    console.log('Items found in result.data.data.items:', items.length);
+                } else {
+                    console.error('Unexpected API response structure:', result);
+                    console.error('result.data:', result.data);
+                    console.error('result.data.items:', result.data?.items);
+                }
+                
+                // Log debug info if available
+                if (result.data && result.data.debug) {
+                    console.log('Debug info:', result.data.debug);
+                }
+            } else {
+                console.error('API call failed or returned unsuccessful result:', result);
+            }
         }
+        
+        console.log('Items to display:', items.length);
+        console.log('Items array:', items);
+        
+        if (items.length === 0) {
+            console.warn('No items found! This might be a problem.');
+        }
+        
+        displayNotifications(items, isAdmin);
+        
     } catch (error) {
-        container.innerHTML = `<p style="color: red;">Error loading notifications: ${error.message}</p>`;
-        console.error('Exception loading notifications:', error);
+        container.innerHTML = `<p style="color: red;">Error loading data: ${error.message}</p>`;
+        console.error('Exception loading data:', error);
     }
 }
 
-function displayNotifications(notifications) {
+function displayNotifications(items, isAdmin) {
     const container = document.getElementById('notificationsList');
 
-    if (notifications.length === 0) {
-        container.innerHTML = '<p>No notifications found</p>';
+    if (items.length === 0) {
+        container.innerHTML = '<p>No items found</p>';
         return;
     }
-
-    const isAdmin = API.isAdmin();
     
-    container.innerHTML = `
-        <table class="notification-table">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Sender</th>
-                    ${isAdmin ? '<th>Target Audience</th>' : ''}
-                    <th>Date</th>
-                    ${!isAdmin ? '<th>Mark as Unread</th>' : ''}
-                </tr>
-            </thead>
-            <tbody>
-                ${notifications.map(notif => {
-                    // Admin viewing all notifications may not have pivot data
-                    // Regular users viewing their notifications will have pivot data
-                    const isRead = notif.pivot?.is_read || false;
-                    const sender = notif.creator?.name || 'System';
-                    const date = formatDateTime(notif.created_at);
-                    const isAdmin = API.isAdmin();
-                    const hasPivot = notif.pivot !== undefined && notif.pivot !== null;
-                    
-                    return `
-                    <tr class="notification-row ${isRead ? 'read' : 'unread'}" onclick="handleRowClick(event, ${notif.id}, ${isRead})">
-                        <td class="notification-title ${isRead ? 'read-text' : ''}">
-                            <i class="fas fa-${getNotificationIcon(notif.type)} notification-type-icon type-${notif.type}"></i>
-                            ${notif.title}
-                        </td>
-                        <td class="notification-sender ${isRead ? 'read-text' : ''}">${sender}</td>
-                        ${isAdmin ? `<td class="notification-audience ${isRead ? 'read-text' : ''}">${notif.target_audience ? notif.target_audience.charAt(0).toUpperCase() + notif.target_audience.slice(1) : 'All'}</td>` : ''}
-                        <td class="notification-date ${isRead ? 'read-text' : ''}">${date}</td>
-                        ${!isAdmin ? `<td class="notification-actions" onclick="event.stopPropagation()">
-                            ${hasPivot && isRead ? `<button class="btn-unread-icon" onclick="markAsUnread(${notif.id}, event)" title="Mark as Unread">
-                                <i class="fas fa-envelope-open"></i>
-                            </button>` : ''}
-                        </td>` : ''}
+    if (isAdmin) {
+        // Display bookings for admin
+        container.innerHTML = `
+            <table class="notification-table">
+                <thead>
+                    <tr>
+                        <th>Booking Number</th>
+                        <th>Facility</th>
+                        <th>User</th>
+                        <th>Date & Time</th>
+                        <th>Purpose</th>
+                        <th>Actions</th>
                     </tr>
-                `;
-                }).join('')}
-            </tbody>
-        </table>
-    `;
+                </thead>
+                <tbody>
+                    ${items.map(item => {
+                        const booking = item.booking;
+                        return `
+                        <tr class="notification-row unread">
+                            <td class="notification-title">${booking.booking_number}</td>
+                            <td>${booking.facility_name}</td>
+                            <td>${booking.user_name}</td>
+                            <td>${booking.booking_date} ${booking.start_time} - ${booking.end_time}</td>
+                            <td>${booking.purpose ? (booking.purpose.length > 50 ? booking.purpose.substring(0, 50) + '...' : booking.purpose) : '-'}</td>
+                            <td class="notification-actions">
+                                <button class="btn-approve-small" onclick="approveBookingFromPage(${booking.id}, event)" title="Approve">
+                                    <i class="fas fa-check"></i> Approve
+                                </button>
+                                <button class="btn-reject-small" onclick="rejectBookingFromPage(${booking.id}, event)" title="Reject">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                                <a href="/bookings/${booking.id}" class="btn-view-small">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    } else {
+        // Display announcements and notifications for regular users
+        container.innerHTML = `
+            <table class="notification-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Title</th>
+                        <th>Sender</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${items.map(item => {
+                        const icon = item.type === 'announcement' ? 'bullhorn' : 'bell';
+                        const typeLabel = item.type === 'announcement' ? 'Announcement' : 'Notification';
+                        const url = item.type === 'announcement' ? `/announcements/${item.id}` : `/notifications/${item.id}`;
+                        const isRead = item.is_read === true || item.is_read === 1;
+                        const sender = item.creator || 'System';
+                        const date = formatDateTime(item.created_at || item.pivot_created_at);
+                        const hasPivot = item.is_read !== undefined;
+                        
+                        return `
+                        <tr class="notification-row ${isRead ? 'read' : 'unread'}" onclick="handleRowClick(event, '${item.type}', ${item.id}, ${isRead}, '${url}')">
+                            <td class="notification-type-cell">
+                                <i class="fas fa-${icon} notification-type-icon type-${item.type}"></i>
+                                ${typeLabel}
+                            </td>
+                            <td class="notification-title ${isRead ? 'read-text' : ''}">${item.title}</td>
+                            <td class="notification-sender ${isRead ? 'read-text' : ''}">${sender}</td>
+                            <td class="notification-date ${isRead ? 'read-text' : ''}">${date}</td>
+                            <td class="notification-actions" onclick="event.stopPropagation()">
+                                ${hasPivot && isRead ? `<button class="btn-unread-icon" onclick="markAsUnread('${item.type}', ${item.id}, event)" title="Mark as Unread">
+                                    <i class="fas fa-envelope-open"></i>
+                                </button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    }
 }
 
 function getNotificationIcon(type) {
@@ -149,36 +221,99 @@ function formatDateTime(dateString) {
 }
 
 // Handle row click - mark as read and navigate
-async function handleRowClick(event, id, isRead) {
-    // Only mark as read if user has this notification (has pivot data)
-    // Admin viewing all notifications may not have pivot, so skip marking as read
-    const isAdmin = API.isAdmin();
-    
-    // For regular users, mark as read if not already read
-    if (!isAdmin && !isRead) {
-        try {
-            await API.put(`/notifications/${id}/read`, {});
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-        }
-    }
-    
-    // Navigate to notification page
-    window.location.href = `/notifications/${id}`;
-}
-
-window.markAsUnread = async function(id, event) {
+async function handleRowClick(event, type, id, isRead, url) {
     if (event) {
         event.stopPropagation();
     }
     
-    const result = await API.put(`/notifications/${id}/unread`, {});
+    // For regular users, mark as read if not already read
+    if (!isRead) {
+        try {
+            if (type === 'announcement') {
+                await API.put(`/announcements/${id}/read`, {});
+            } else if (type === 'notification') {
+                await API.put(`/notifications/${id}/read`, {});
+            }
+        } catch (error) {
+            console.error('Error marking as read:', error);
+        }
+    }
     
-    if (result.success) {
-        loadNotifications();
-        showToast('Notification marked as unread', 'success');
-    } else {
-        showToast('Error marking notification as unread: ' + (result.error || 'Unknown error'), 'error');
+    // Navigate to detail page
+    window.location.href = url;
+}
+
+window.markAsUnread = async function(type, id, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    try {
+        let result;
+        if (type === 'announcement') {
+            result = await API.put(`/announcements/${id}/unread`, {});
+        } else {
+            result = await API.put(`/notifications/${id}/unread`, {});
+        }
+        
+        if (result && result.success !== false) {
+            loadNotifications();
+            const typeLabel = type === 'announcement' ? 'Announcement' : 'Notification';
+            showToast(`${typeLabel} marked as unread`, 'success');
+        } else {
+            showToast('Error: ' + (result?.message || result?.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error marking as unread:', error);
+        showToast('Error marking as unread: ' + (error.message || 'Unknown error'), 'error');
+    }
+};
+
+// Admin functions for booking approval/rejection
+window.approveBookingFromPage = async function(bookingId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    if (!confirm('Are you sure you want to approve this booking?')) {
+        return;
+    }
+    
+    try {
+        const result = await API.put(`/bookings/${bookingId}/approve`, {});
+        if (result.success) {
+            showToast('Booking approved successfully', 'success');
+            loadNotifications();
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error approving booking:', error);
+        showToast('Error approving booking', 'error');
+    }
+};
+
+window.rejectBookingFromPage = async function(bookingId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    const reason = prompt('Please enter rejection reason:');
+    if (!reason || reason.trim() === '') {
+        return;
+    }
+    
+    try {
+        const result = await API.put(`/bookings/${bookingId}/reject`, { reason: reason.trim() });
+        if (result.success) {
+            showToast('Booking rejected successfully', 'success');
+            loadNotifications();
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error rejecting booking:', error);
+        showToast('Error rejecting booking', 'error');
     }
 };
 
@@ -286,6 +421,54 @@ window.markAsUnread = async function(id, event) {
 
 .notification-type-icon.type-reminder {
     color: #383d41;
+}
+
+.notification-type-cell {
+    font-weight: 500;
+    color: #666;
+}
+
+.notification-type-icon.type-announcement {
+    color: #007bff;
+}
+
+.btn-approve-small, .btn-reject-small, .btn-view-small {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin: 0 3px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s;
+}
+
+.btn-approve-small {
+    background: #28a745;
+    color: white;
+}
+
+.btn-approve-small:hover {
+    background: #218838;
+}
+
+.btn-reject-small {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-reject-small:hover {
+    background: #c82333;
+}
+
+.btn-view-small {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-view-small:hover {
+    background: #138496;
 }
 
 .notification-sender {
