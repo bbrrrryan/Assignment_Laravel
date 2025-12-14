@@ -85,7 +85,7 @@ class PageController extends Controller
         return view('facilities.show', compact('id'));
     }
 
-    // Bookings
+    // Bookings (User)
     public function bookings()
     {
         return view('bookings.index');
@@ -94,6 +94,12 @@ class PageController extends Controller
     public function showBooking($id)
     {
         return view('bookings.show', compact('id'));
+    }
+    
+    // Admin Bookings
+    public function adminBookings()
+    {
+        return view('admin.bookings.index');
     }
 
     // Notifications
@@ -116,7 +122,16 @@ class PageController extends Controller
     // Loyalty
     public function loyalty()
     {
+        // Redirect admins to admin loyalty management
+        if (auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isStaff())) {
+            return redirect()->route('admin.loyalty.index');
+        }
         return view('loyalty.index');
+    }
+
+    public function adminLoyalty()
+    {
+        return view('admin.loyalty.index');
     }
 
     // Feedback

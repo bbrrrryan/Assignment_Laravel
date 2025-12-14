@@ -16,6 +16,8 @@ class Facility extends Model
         'type',
         'location',
         'capacity',
+        'enable_multi_attendees',
+        'max_attendees',
         'available_day',
         'available_time',
         'equipment',
@@ -31,6 +33,7 @@ class Facility extends Model
         'available_time' => 'array',
         'equipment' => 'array',
         'requires_approval' => 'boolean',
+        'enable_multi_attendees' => 'boolean',
     ];
 
     // Relationships

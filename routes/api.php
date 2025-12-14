@@ -102,8 +102,36 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Admin only routes
         Route::middleware('admin')->group(function () {
+            // Points Management
             Route::post('/points/award', [LoyaltyController::class, 'awardPoints']);
+            Route::get('/points/all', [LoyaltyController::class, 'getAllUsersPoints']);
+            Route::get('/points/user/{userId}', [LoyaltyController::class, 'getUserPoints']);
+            
+            // Loyalty Rules Management
+            Route::get('/rules', [LoyaltyController::class, 'getRules']);
+            Route::post('/rules', [LoyaltyController::class, 'createRule']);
+            Route::put('/rules/{id}', [LoyaltyController::class, 'updateRule']);
+            Route::delete('/rules/{id}', [LoyaltyController::class, 'deleteRule']);
+            
+            // Rewards Management
+            Route::get('/rewards/all', [LoyaltyController::class, 'getAllRewards']);
+            Route::post('/rewards', [LoyaltyController::class, 'createReward']);
+            Route::put('/rewards/{id}', [LoyaltyController::class, 'updateReward']);
+            Route::delete('/rewards/{id}', [LoyaltyController::class, 'deleteReward']);
+            
+            // Redemption Approval
+            Route::get('/redemptions', [LoyaltyController::class, 'getRedemptions']);
+            Route::put('/redemptions/{id}/approve', [LoyaltyController::class, 'approveRedemption']);
+            Route::put('/redemptions/{id}/reject', [LoyaltyController::class, 'rejectRedemption']);
+            
+            // Certificates Management
+            Route::get('/certificates/all', [LoyaltyController::class, 'getAllCertificates']);
             Route::post('/certificates/issue', [LoyaltyController::class, 'issueCertificate']);
+            
+            // Reports
+            Route::get('/reports/participation', [LoyaltyController::class, 'getParticipationReport']);
+            Route::get('/reports/points-distribution', [LoyaltyController::class, 'getPointsDistribution']);
+            Route::get('/reports/rewards-stats', [LoyaltyController::class, 'getRewardsStats']);
         });
     });
 
@@ -148,16 +176,20 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Admin only routes - specific routes before parameterized routes
         Route::middleware('admin')->group(function () {
-            Route::get('/', [BookingController::class, 'index']);
-            Route::get('/pending', [BookingController::class, 'getPendingBookings']); // Must be before /{id}
-            Route::put('/{id}/approve', [BookingController::class, 'approve']);
-            Route::put('/{id}/reject', [BookingController::class, 'reject']);
-            Route::put('/{id}', [BookingController::class, 'update']);
+            Route::get('/', [\App\Http\Controllers\Admin\AdminBookingController::class, 'index']);
+            Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); // Must be before /{id}
+            Route::get('/pending-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingRescheduleRequests']); // Must be before /{id}
+            Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
+            Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
+            Route::put('/{id}/approve-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approveReschedule']);
+            Route::put('/{id}/reject-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'rejectReschedule']);
+            Route::put('/{id}', [\App\Http\Controllers\Admin\AdminBookingController::class, 'update']);
         });
         
         // User routes - parameterized routes at the end
         Route::post('/', [BookingController::class, 'store']);
         Route::put('/{id}/cancel', [BookingController::class, 'cancel']);
+        Route::put('/{id}/request-reschedule', [BookingController::class, 'requestReschedule']);
         Route::get('/{id}', [BookingController::class, 'show']);
     });
 });

@@ -68,6 +68,8 @@ class FacilityController extends AdminBaseController
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'requires_approval' => 'nullable|boolean',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
+            'enable_multi_attendees' => 'nullable|boolean',
+            'max_attendees' => 'nullable|integer|min:1|required_if:enable_multi_attendees,1',
             'available_day' => 'nullable|array',
             'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'available_time' => 'nullable|array',
@@ -117,6 +119,11 @@ class FacilityController extends AdminBaseController
         $validated['status'] = $validated['status'] ?? 'available';
         $validated['requires_approval'] = $validated['requires_approval'] ?? false;
         $validated['max_booking_hours'] = $validated['max_booking_hours'] ?? 4;
+        $validated['enable_multi_attendees'] = $validated['enable_multi_attendees'] ?? false;
+        // If multi-attendees is disabled, set max_attendees to null
+        if (!($validated['enable_multi_attendees'] ?? false)) {
+            $validated['max_attendees'] = null;
+        }
 
         Facility::create($validated);
 
@@ -160,6 +167,8 @@ class FacilityController extends AdminBaseController
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'requires_approval' => 'nullable|boolean',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
+            'enable_multi_attendees' => 'nullable|boolean',
+            'max_attendees' => 'nullable|integer|min:1|required_if:enable_multi_attendees,1',
             'available_day' => 'nullable|array',
             'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'available_time' => 'nullable|array',
@@ -212,6 +221,13 @@ class FacilityController extends AdminBaseController
 
         if (isset($validated['equipment']) && is_string($validated['equipment'])) {
             $validated['equipment'] = json_decode($validated['equipment'], true);
+        }
+
+        // Handle enable_multi_attendees and max_attendees
+        $validated['enable_multi_attendees'] = $validated['enable_multi_attendees'] ?? false;
+        // If multi-attendees is disabled, set max_attendees to null
+        if (!($validated['enable_multi_attendees'] ?? false)) {
+            $validated['max_attendees'] = null;
         }
 
         $facility->update($validated);
