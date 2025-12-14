@@ -56,8 +56,10 @@ class UserController extends Controller
             ->paginate($request->get('per_page', 10));
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Users retrieved successfully',
             'data' => $users,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -78,8 +80,10 @@ class UserController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Validation error',
                 'errors' => $validator->errors(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 422);
         }
 
@@ -103,8 +107,10 @@ class UserController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'User created successfully',
             'data' => $user,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
@@ -118,8 +124,10 @@ class UserController extends Controller
         }])->findOrFail($id);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'User retrieved successfully',
             'data' => $user,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -142,8 +150,10 @@ class UserController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Validation error',
                 'errors' => $validator->errors(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 422);
         }
 
@@ -165,8 +175,10 @@ class UserController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'User updated successfully',
             'data' => $user,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -189,7 +201,9 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json([
+            'status' => 'S',
             'message' => 'User deleted successfully',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -205,8 +219,10 @@ class UserController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Activity logs retrieved successfully',
             'data' => $logs,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -233,8 +249,10 @@ class UserController extends Controller
             $index = array_search($expected, array_map('strtolower', $header));
             if ($index === false) {
                 return response()->json([
+                    'status' => 'F',
                     'message' => "CSV header missing required column: {$expected}",
                     'expected_headers' => $expectedHeaders,
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
                 ], 422);
             }
             $headerMap[$expected] = $index;
@@ -317,6 +335,7 @@ class UserController extends Controller
             ]);
 
             return response()->json([
+                'status' => 'S',
                 'message' => 'CSV processed successfully',
                 'data' => [
                     'total_rows' => count($data),
@@ -324,13 +343,16 @@ class UserController extends Controller
                     'failed' => $failed,
                     'errors' => $errors,
                 ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
+                'status' => 'E',
                 'message' => 'CSV processing failed',
                 'error' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 500);
         }
     }
@@ -352,8 +374,10 @@ class UserController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Validation error',
                 'errors' => $validator->errors(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 422);
         }
 
@@ -372,8 +396,10 @@ class UserController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Profile updated successfully',
             'data' => $user->fresh(),
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -416,6 +442,7 @@ class UserController extends Controller
         $lastPage = ceil($totalToShow / $perPage);
         
         return response()->json([
+            'status' => 'S',
             'message' => 'Activity logs retrieved successfully',
             'data' => [
                 'data' => $logs,
@@ -426,6 +453,7 @@ class UserController extends Controller
                 'from' => $offset + 1,
                 'to' => min($offset + $perPage, $totalToShow),
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
