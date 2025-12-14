@@ -254,7 +254,7 @@ class BookingController extends Controller
     public function show(string $id)
     {
         try {
-            $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees'])->findOrFail($id);
+            $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees', 'rescheduleProcessor'])->findOrFail($id);
             return response()->json(['data' => $booking]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -665,7 +665,169 @@ class BookingController extends Controller
 
     public function myBookings()
     {
-        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility', 'attendees'])->get()]);
+        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility', 'attendees', 'rescheduleProcessor'])->get()]);
+    }
+
+    /**
+     * Submit reschedule request for a booking
+     */
+    public function requestReschedule(Request $request, string $id)
+    {
+        try {
+            $booking = Booking::findOrFail($id);
+            $user = auth()->user();
+
+            // Check if user owns this booking
+            if ($booking->user_id !== $user->id) {
+                return response()->json([
+                    'message' => 'You do not have permission to reschedule this booking',
+                ], 403);
+            }
+
+            // Check if booking can be rescheduled (must be approved or pending)
+            if (!in_array($booking->status, ['pending', 'approved'])) {
+                return response()->json([
+                    'message' => 'Only pending or approved bookings can be rescheduled',
+                ], 400);
+            }
+
+            // Check if there's already a pending reschedule request
+            if ($booking->reschedule_status === 'pending') {
+                return response()->json([
+                    'message' => 'You already have a pending reschedule request for this booking',
+                ], 400);
+            }
+
+            // Validate request
+            $validated = $request->validate([
+                'requested_booking_date' => 'required|date|after:today',
+                'requested_start_time' => 'required|string',
+                'requested_end_time' => 'required|string',
+                'reschedule_reason' => 'required|string|max:500',
+            ]);
+
+            // Get facility
+            $facility = $booking->facility;
+
+            // Parse datetime
+            try {
+                $requestedStartTime = \Carbon\Carbon::parse($validated['requested_start_time'])->format('Y-m-d H:i:s');
+                $requestedEndTime = \Carbon\Carbon::parse($validated['requested_end_time'])->format('Y-m-d H:i:s');
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Invalid date/time format',
+                    'error' => $e->getMessage(),
+                ], 422);
+            }
+
+            // Validate time range
+            $startTime = \Carbon\Carbon::parse($requestedStartTime);
+            $endTime = \Carbon\Carbon::parse($requestedEndTime);
+            
+            if ($endTime->lte($startTime)) {
+                return response()->json([
+                    'message' => 'End time must be after start time',
+                ], 422);
+            }
+
+            // Check if booking date is within facility's available days
+            $bookingDateCarbon = \Carbon\Carbon::parse($validated['requested_booking_date']);
+            $dayOfWeek = strtolower($bookingDateCarbon->format('l'));
+            
+            if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
+                if (!in_array($dayOfWeek, $facility->available_day)) {
+                    $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
+                    return response()->json([
+                        'message' => "This facility is not available on {$bookingDateCarbon->format('l, F j, Y')}. Available days: {$availableDaysStr}",
+                    ], 422);
+                }
+            }
+
+            // Get facility available time range
+            $minTime = '08:00';
+            $maxTime = '20:00';
+            if ($facility->available_time && is_array($facility->available_time)) {
+                if (isset($facility->available_time['start']) && !empty($facility->available_time['start'])) {
+                    $minTime = $facility->available_time['start'];
+                }
+                if (isset($facility->available_time['end']) && !empty($facility->available_time['end'])) {
+                    $maxTime = $facility->available_time['end'];
+                }
+            }
+
+            // Validate time range
+            $startHour = $startTime->format('H:i');
+            $endHour = $endTime->format('H:i');
+            
+            if ($startHour < $minTime || $startHour > $maxTime) {
+                return response()->json([
+                    'message' => "Start time must be between {$minTime} and {$maxTime}",
+                ], 422);
+            }
+            
+            if ($endHour < $minTime || $endHour > $maxTime) {
+                return response()->json([
+                    'message' => "End time must be between {$minTime} and {$maxTime}",
+                ], 422);
+            }
+
+            // Check capacity for requested time
+            $expectedAttendees = $booking->expected_attendees ?? 1;
+            $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
+                $facility,
+                $facility->id,
+                $validated['requested_booking_date'],
+                $requestedStartTime,
+                $requestedEndTime,
+                $expectedAttendees,
+                $booking->id // Exclude current booking from check
+            );
+            
+            if (!$capacityCheck['available']) {
+                return response()->json([
+                    'message' => 'Cannot reschedule: ' . $capacityCheck['message'],
+                ], 409);
+            }
+
+            // Update booking with reschedule request
+            $booking->update([
+                'reschedule_status' => 'pending',
+                'requested_booking_date' => $validated['requested_booking_date'],
+                'requested_start_time' => $requestedStartTime,
+                'requested_end_time' => $requestedEndTime,
+                'reschedule_reason' => $validated['reschedule_reason'],
+                'reschedule_requested_at' => now(),
+            ]);
+
+            // Create status history
+            try {
+                $booking->statusHistory()->create([
+                    'status' => $booking->status,
+                    'changed_by' => auth()->id(),
+                    'notes' => 'Reschedule request submitted. Reason: ' . $validated['reschedule_reason'],
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+            }
+
+            // Send notification to admin
+            $this->notificationService->sendBookingNotification($booking, 'pending', 'A reschedule request has been submitted for booking #' . $booking->booking_number);
+
+            return response()->json([
+                'message' => 'Reschedule request submitted successfully',
+                'data' => $booking->load(['user', 'facility', 'attendees']),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Reschedule request error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to submit reschedule request: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

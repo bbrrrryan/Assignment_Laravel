@@ -149,14 +149,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminBookingController::class, 'index']);
             Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); // Must be before /{id}
+            Route::get('/pending-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingRescheduleRequests']); // Must be before /{id}
             Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
             Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
+            Route::put('/{id}/approve-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approveReschedule']);
+            Route::put('/{id}/reject-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'rejectReschedule']);
             Route::put('/{id}', [\App\Http\Controllers\Admin\AdminBookingController::class, 'update']);
         });
         
         // User routes - parameterized routes at the end
         Route::post('/', [BookingController::class, 'store']);
         Route::put('/{id}/cancel', [BookingController::class, 'cancel']);
+        Route::put('/{id}/request-reschedule', [BookingController::class, 'requestReschedule']);
         Route::get('/{id}', [BookingController::class, 'show']);
     });
 });

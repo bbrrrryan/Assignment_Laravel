@@ -359,6 +359,26 @@ window.viewBooking = function(id) {
     window.location.href = `/bookings/${id}`;
 };
 
+// Request reschedule
+window.requestReschedule = async function(id) {
+    if (typeof API === 'undefined') {
+        alert('API not loaded');
+        return;
+    }
+    
+    // Load booking details
+    const result = await API.get(`/bookings/${id}`);
+    if (!result.success) {
+        alert('Error loading booking details: ' + (result.error || 'Unknown error'));
+        return;
+    }
+    
+    const booking = result.data.data || result.data;
+    
+    // Show reschedule modal
+    showRescheduleModal(booking);
+};
+
 let currentBookingId = null;
 
 window.cancelBooking = function(id) {
@@ -1759,6 +1779,14 @@ function displayBookings(bookingsToShow) {
                             <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
                                 <i class="fas fa-eye"></i>
                             </button>
+                            ${(booking.status === 'pending' || booking.status === 'approved') && booking.reschedule_status !== 'pending' ? `
+                                <button class="btn-sm btn-warning" onclick="requestReschedule(${booking.id})" title="Request Reschedule">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </button>
+                            ` : ''}
+                            ${booking.reschedule_status === 'pending' ? `
+                                <span class="badge badge-warning" title="Reschedule request pending">Reschedule Pending</span>
+                            ` : ''}
                             ${booking.status === 'pending' ? `
                                 <button class="btn-sm btn-danger" onclick="cancelBooking(${booking.id})" title="Cancel">
                                     <i class="fas fa-ban"></i>

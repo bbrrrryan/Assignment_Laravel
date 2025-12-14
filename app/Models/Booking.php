@@ -26,6 +26,15 @@ class Booking extends Model
         'cancelled_at',
         'cancellation_reason',
         'special_requirements',
+        'reschedule_status',
+        'requested_booking_date',
+        'requested_start_time',
+        'requested_end_time',
+        'reschedule_reason',
+        'reschedule_requested_at',
+        'reschedule_processed_by',
+        'reschedule_processed_at',
+        'reschedule_rejection_reason',
     ];
 
     protected $casts = [
@@ -35,6 +44,11 @@ class Booking extends Model
         'approved_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'special_requirements' => 'array',
+        'requested_booking_date' => 'date',
+        'requested_start_time' => 'datetime',
+        'requested_end_time' => 'datetime',
+        'reschedule_requested_at' => 'datetime',
+        'reschedule_processed_at' => 'datetime',
     ];
 
     // Relationships
@@ -66,5 +80,10 @@ class Booking extends Model
     public function attendees()
     {
         return $this->hasMany(Attendee::class);
+    }
+
+    public function rescheduleProcessor()
+    {
+        return $this->belongsTo(User::class, 'reschedule_processed_by');
     }
 }

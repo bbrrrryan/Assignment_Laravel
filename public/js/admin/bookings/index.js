@@ -30,9 +30,11 @@ window.filterBookings = function() {
     const search = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter');
     const facilityFilter = document.getElementById('facilityFilter');
+    const rescheduleFilter = document.getElementById('rescheduleFilter');
     if (!statusFilter) return;
     const status = statusFilter.value;
     const facilityId = facilityFilter ? facilityFilter.value : '';
+    const rescheduleStatus = rescheduleFilter ? rescheduleFilter.value : '';
     
     let filtered = bookings.filter(b => {
         const matchSearch = !search || 
@@ -42,7 +44,8 @@ window.filterBookings = function() {
             (b.purpose && b.purpose.toLowerCase().includes(search));
         const matchStatus = !status || b.status === status;
         const matchFacility = !facilityId || b.facility_id == facilityId;
-        return matchSearch && matchStatus && matchFacility;
+        const matchReschedule = !rescheduleStatus || b.reschedule_status === rescheduleStatus;
+        return matchSearch && matchStatus && matchFacility && matchReschedule;
     });
     
     // Apply sorting
@@ -96,6 +99,50 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+window.toggleBookingDropdown = function(id) {
+    event.stopPropagation();
+    const dropdown = document.getElementById(`booking-dropdown-${id}`);
+    const button = event.target.closest('button');
+    const allDropdowns = document.querySelectorAll('.dropdown-menu-container .dropdown-menu');
+    
+    allDropdowns.forEach(menu => {
+        if (menu.id !== `booking-dropdown-${id}` && menu.id !== `dropdown-${id}`) {
+            menu.classList.remove('show');
+            menu.classList.remove('dropdown-up');
+        }
+    });
+    
+    const isShowing = dropdown.classList.contains('show');
+    
+    if (!isShowing) {
+        const buttonRect = button.getBoundingClientRect();
+        const dropdownHeight = 90;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        
+        dropdown.style.display = 'block';
+        dropdown.style.position = 'fixed';
+        dropdown.style.right = `${window.innerWidth - buttonRect.right}px`;
+        dropdown.style.top = `${buttonRect.bottom + 5}px`;
+        
+        const dropdownRect = dropdown.getBoundingClientRect();
+        const spaceBelow = viewportHeight - dropdownRect.bottom;
+        const spaceAbove = buttonRect.top;
+        
+        if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+            dropdown.classList.add('dropdown-up');
+            dropdown.style.top = `${buttonRect.top - dropdownHeight - 5}px`;
+        } else {
+            dropdown.classList.remove('dropdown-up');
+        }
+        
+        dropdown.classList.add('show');
+    } else {
+        dropdown.classList.remove('show');
+        dropdown.classList.remove('dropdown-up');
+        dropdown.style.display = 'none';
+    }
+};
 
 window.toggleDropdown = function(id) {
     event.stopPropagation();
@@ -202,6 +249,49 @@ window.editBooking = async function(id) {
     window.location.href = `/bookings/${id}`;
 };
 
+// Approve reschedule request
+window.approveReschedule = async function(id) {
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
+    if (!confirm('Are you sure you want to approve this reschedule request?')) return;
+    if (typeof API === 'undefined') {
+        alert('API not loaded');
+        return;
+    }
+    const result = await API.put(`/bookings/${id}/approve-reschedule`);
+    if (result.success) {
+        loadBookings();
+        alert('Reschedule request approved successfully!');
+    } else {
+        alert(result.error || 'Error approving reschedule request');
+    }
+};
+
+// Reject reschedule request
+window.rejectReschedule = async function(id) {
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
+    const reason = prompt('Please provide a reason for rejecting the reschedule request:');
+    if (reason === null) return;
+    if (reason.trim() === '') {
+        alert('Reason is required');
+        return;
+    }
+    if (typeof API === 'undefined') {
+        alert('API not loaded');
+        return;
+    }
+    const result = await API.put(`/bookings/${id}/reject-reschedule`, { reason: reason });
+    if (result.success) {
+        loadBookings();
+        alert('Reschedule request rejected successfully!');
+    } else {
+        alert(result.error || 'Error rejecting reschedule request');
+    }
+};
+
 // Format functions
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
@@ -266,10 +356,38 @@ function initBookings() {
 async function loadBookings() {
     showLoading(document.getElementById('bookingsList'));
     
-    const result = await API.get('/bookings');
+    // Request all bookings with a high per_page limit
+    const result = await API.get('/bookings?per_page=1000');
     
     if (result.success) {
-        bookings = result.data.data?.data || result.data.data || [];
+        // Handle paginated response structure
+        // Laravel paginate() returns: { data: [...], current_page: 1, ... }
+        // Controller wraps it: { data: { data: [...], current_page: 1, ... } }
+        let bookingsData = result.data;
+        
+        console.log('API Response structure:', bookingsData);
+        
+        // If data.data exists and is an array, use it (direct array response)
+        // If data.data exists and has a .data property, use data.data.data (paginated response)
+        if (bookingsData && bookingsData.data) {
+            if (Array.isArray(bookingsData.data)) {
+                bookings = bookingsData.data;
+            } else if (bookingsData.data.data && Array.isArray(bookingsData.data.data)) {
+                bookings = bookingsData.data.data;
+            } else if (Array.isArray(bookingsData)) {
+                bookings = bookingsData;
+            } else {
+                bookings = [];
+            }
+        } else if (Array.isArray(bookingsData)) {
+            bookings = bookingsData;
+        } else {
+            bookings = [];
+        }
+        
+        console.log('Loaded bookings count:', bookings.length);
+        console.log('First booking sample:', bookings[0]);
+        
         if (bookings.length === 0) {
             document.getElementById('bookingsList').innerHTML = '<p>No bookings found.</p>';
         } else {
@@ -303,7 +421,7 @@ async function loadFacilitiesForFilter() {
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
     if (bookingsToShow.length === 0) {
-        container.innerHTML = '<div class="table-container"><table class="data-table"><tbody><tr><td colspan="9" class="text-center">No bookings found</td></tr></tbody></table></div>';
+        container.innerHTML = '<div class="table-container"><table class="data-table"><tbody><tr><td colspan="10" class="text-center">No bookings found</td></tr></tbody></table></div>';
         return;
     }
 
@@ -323,6 +441,7 @@ function displayBookings(bookingsToShow) {
                     <th>Time</th>
                     <th>Attendees</th>
                     <th>Status</th>
+                    <th>Reschedule</th>
                     <th>
                         <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="sortByCreatedDate()">
                             <span>Created Date</span>
@@ -333,7 +452,17 @@ function displayBookings(bookingsToShow) {
                 </tr>
             </thead>
             <tbody>
-                ${bookingsToShow.map(booking => `
+                ${bookingsToShow.map(booking => {
+                    let rescheduleBadge = '';
+                    if (booking.reschedule_status === 'pending') {
+                        rescheduleBadge = '<span class="badge badge-warning" title="Reschedule request pending"><i class="fas fa-clock"></i> Pending</span>';
+                    } else if (booking.reschedule_status === 'approved') {
+                        rescheduleBadge = '<span class="badge badge-success"><i class="fas fa-check"></i> Approved</span>';
+                    } else if (booking.reschedule_status === 'rejected') {
+                        rescheduleBadge = '<span class="badge badge-danger"><i class="fas fa-times"></i> Rejected</span>';
+                    }
+                    
+                    return `
                     <tr>
                         <td>${booking.booking_number}</td>
                         <td>${booking.user?.name || 'N/A'}</td>
@@ -346,6 +475,7 @@ function displayBookings(bookingsToShow) {
                                 ${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                             </span>
                         </td>
+                        <td>${rescheduleBadge}</td>
                         <td>${formatDateTime(booking.created_at)}</td>
                         <td class="actions">
                             <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
@@ -354,12 +484,27 @@ function displayBookings(bookingsToShow) {
                             <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            ${booking.status === 'pending' ? `
+                            ${booking.reschedule_status === 'pending' ? `
                                 <div class="dropdown-menu-container">
                                     <button class="btn-sm btn-secondary" onclick="toggleDropdown(${booking.id})" title="More Actions" style="position: relative;">
                                         <i class="fas fa-ellipsis-v"></i>
                                     </button>
                                     <div class="dropdown-menu" id="dropdown-${booking.id}">
+                                        <button class="dropdown-item" onclick="approveReschedule(${booking.id})">
+                                            <i class="fas fa-check text-success"></i> Approve Reschedule
+                                        </button>
+                                        <button class="dropdown-item" onclick="rejectReschedule(${booking.id})">
+                                            <i class="fas fa-times text-danger"></i> Reject Reschedule
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${booking.status === 'pending' ? `
+                                <div class="dropdown-menu-container" style="display: inline-block;">
+                                    <button class="btn-sm btn-secondary" onclick="toggleBookingDropdown(${booking.id})" title="Booking Actions" style="position: relative;">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="dropdown-menu" id="booking-dropdown-${booking.id}">
                                         <button class="dropdown-item" onclick="approveBooking(${booking.id})">
                                             <i class="fas fa-check text-success"></i> Approve
                                         </button>
@@ -371,7 +516,8 @@ function displayBookings(bookingsToShow) {
                             ` : ''}
                         </td>
                     </tr>
-                `).join('')}
+                `;
+                }).join('')}
             </tbody>
         </table>
     `;

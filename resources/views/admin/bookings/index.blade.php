@@ -44,6 +44,18 @@
                         <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
+                
+                <div class="filter-select-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <select id="rescheduleFilter" class="filter-select" onchange="filterBookings()">
+                        <option value="">All Reschedule Status</option>
+                        <option value="pending">Pending Reschedule</option>
+                        <option value="approved">Approved Reschedule</option>
+                        <option value="rejected">Rejected Reschedule</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>

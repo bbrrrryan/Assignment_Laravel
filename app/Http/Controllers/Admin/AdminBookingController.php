@@ -28,11 +28,14 @@ class AdminBookingController extends AdminBaseController
      */
     public function index(Request $request)
     {
-        $bookings = Booking::with(['user', 'facility'])
+        $perPage = $request->get('per_page', 15);
+        
+        $bookings = Booking::with(['user', 'facility', 'rescheduleProcessor'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->facility_id, fn($q) => $q->where('facility_id', $request->facility_id))
+            ->when($request->reschedule_status, fn($q) => $q->where('reschedule_status', $request->reschedule_status))
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate($perPage);
         
         return response()->json(['data' => $bookings]);
     }
@@ -334,6 +337,192 @@ class AdminBookingController extends AdminBaseController
         return response()->json([
             'message' => 'Booking rejected successfully',
             'data' => $booking->load(['user', 'facility', 'attendees']),
+        ]);
+    }
+
+    /**
+     * Approve reschedule request
+     */
+    public function approveReschedule(string $id)
+    {
+        try {
+            $booking = Booking::findOrFail($id);
+
+            // Check if there's a pending reschedule request
+            if ($booking->reschedule_status !== 'pending') {
+                return response()->json([
+                    'message' => 'No pending reschedule request found for this booking',
+                ], 400);
+            }
+
+            // Get facility
+            $facility = $booking->facility;
+            $expectedAttendees = $booking->expected_attendees ?? 1;
+
+            // Check capacity for requested time
+            $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
+                $facility,
+                $facility->id,
+                $booking->requested_booking_date->format('Y-m-d'),
+                $booking->requested_start_time->format('Y-m-d H:i:s'),
+                $booking->requested_end_time->format('Y-m-d H:i:s'),
+                $expectedAttendees,
+                $booking->id // Exclude current booking from check
+            );
+            
+            if (!$capacityCheck['available']) {
+                return response()->json([
+                    'message' => 'Cannot approve reschedule: ' . $capacityCheck['message'],
+                ], 409);
+            }
+
+            // Calculate new duration
+            $startTime = \Carbon\Carbon::parse($booking->requested_start_time);
+            $endTime = \Carbon\Carbon::parse($booking->requested_end_time);
+            $durationHours = $startTime->diffInHours($endTime);
+
+            // Update booking with new schedule
+            $booking->update([
+                'booking_date' => $booking->requested_booking_date,
+                'start_time' => $booking->requested_start_time,
+                'end_time' => $booking->requested_end_time,
+                'duration_hours' => $durationHours,
+                'reschedule_status' => 'approved',
+                'reschedule_processed_by' => auth()->id(),
+                'reschedule_processed_at' => now(),
+                'requested_booking_date' => null,
+                'requested_start_time' => null,
+                'requested_end_time' => null,
+            ]);
+
+            // Create status history
+            try {
+                $user = auth()->user();
+                $notes = 'Reschedule request approved by ' . ($user->isAdmin() ? 'admin' : 'staff');
+                $booking->statusHistory()->create([
+                    'status' => $booking->status,
+                    'changed_by' => auth()->id(),
+                    'notes' => $notes,
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+            }
+
+            // Send notification to user
+            $this->notificationService->sendBookingNotification($booking, 'approved', 'Your reschedule request has been approved!');
+
+            return response()->json([
+                'message' => 'Reschedule request approved successfully',
+                'data' => $booking->load(['user', 'facility', 'attendees', 'rescheduleProcessor']),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Approve reschedule error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to approve reschedule request: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject reschedule request
+     */
+    public function rejectReschedule(Request $request, string $id)
+    {
+        try {
+            $request->validate([
+                'reason' => 'required|string|max:500',
+            ]);
+
+            $booking = Booking::findOrFail($id);
+
+            // Check if there's a pending reschedule request
+            if ($booking->reschedule_status !== 'pending') {
+                return response()->json([
+                    'message' => 'No pending reschedule request found for this booking',
+                ], 400);
+            }
+
+            // Update booking
+            $booking->update([
+                'reschedule_status' => 'rejected',
+                'reschedule_processed_by' => auth()->id(),
+                'reschedule_processed_at' => now(),
+                'reschedule_rejection_reason' => $request->reason,
+                'requested_booking_date' => null,
+                'requested_start_time' => null,
+                'requested_end_time' => null,
+            ]);
+
+            // Create status history
+            try {
+                $user = auth()->user();
+                $notes = 'Reschedule request rejected by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
+                $booking->statusHistory()->create([
+                    'status' => $booking->status,
+                    'changed_by' => auth()->id(),
+                    'notes' => $notes,
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+            }
+
+            // Send notification to user
+            $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your reschedule request has been rejected. Reason: ' . $request->reason);
+
+            return response()->json([
+                'message' => 'Reschedule request rejected successfully',
+                'data' => $booking->load(['user', 'facility', 'attendees', 'rescheduleProcessor']),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Reject reschedule error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to reject reschedule request: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get pending reschedule requests
+     */
+    public function getPendingRescheduleRequests(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        $bookings = Booking::with(['user', 'facility'])
+            ->where('reschedule_status', 'pending')
+            ->orderBy('reschedule_requested_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($booking) {
+                return [
+                    'id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'facility_name' => $booking->facility->name ?? 'Unknown',
+                    'user_name' => $booking->user->name ?? 'Unknown',
+                    'current_booking_date' => $booking->booking_date->format('Y-m-d'),
+                    'current_start_time' => $booking->start_time->format('H:i'),
+                    'current_end_time' => $booking->end_time->format('H:i'),
+                    'requested_booking_date' => $booking->requested_booking_date->format('Y-m-d'),
+                    'requested_start_time' => $booking->requested_start_time->format('H:i'),
+                    'requested_end_time' => $booking->requested_end_time->format('H:i'),
+                    'reschedule_reason' => $booking->reschedule_reason,
+                    'reschedule_requested_at' => $booking->reschedule_requested_at,
+                ];
+            });
+
+        $count = Booking::where('reschedule_status', 'pending')->count();
+
+        return response()->json([
+            'message' => 'Pending reschedule requests retrieved successfully',
+            'data' => [
+                'bookings' => $bookings,
+                'count' => $count,
+            ],
         ]);
     }
 

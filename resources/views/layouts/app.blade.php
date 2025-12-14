@@ -908,7 +908,7 @@
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
-                        <li><a href="{{ route('bookings.index') }}">Booking Management</a></li>
+                        <li><a href="{{ route('admin.bookings.index') }}">Booking Management</a></li>
                         <li><a href="{{ route('admin.announcements.index') }}">Announcement Management</a></li>
                     @else
                         <li><a href="{{ route('home') }}">Home</a></li>
