@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li (announcement show) --}}
 @extends('layouts.app')
 
 @section('title', 'Announcement Details - TARUMT FMS')
@@ -66,12 +67,6 @@
                     </span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Pinned:</span>
-                    <span class="detail-value">
-                        <span class="badge badge-{{ $announcement->is_pinned ? 'warning' : 'secondary' }}">
-                            {{ $announcement->is_pinned ? 'Yes' : 'No' }}
-                        </span>
-                    </span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Views:</span>

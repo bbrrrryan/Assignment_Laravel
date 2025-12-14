@@ -38,8 +38,8 @@
                     <i class="fas fa-user-slash"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>{{ $stats['suspended_users'] }}</h3>
-                    <p>Suspended Users</p>
+                    <h3>{{ $stats['inactive_users'] }}</h3>
+                    <p>Inactive Users</p>
                 </div>
             </div>
         </div>
@@ -191,46 +191,6 @@
 
     <!-- Recent Activity Section -->
     <div class="dashboard-content">
-        <!-- Recent Users -->
-        <div class="dashboard-section">
-            <div class="section-header">
-                <h2>Recent Users</h2>
-                <a href="{{ route('admin.users.index') }}" class="btn-primary">View All</a>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Joined</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($recentUsers as $user)
-                            <tr>
-                                <td>{{ $user->name }}</td>
-                                <td>{{ $user->email }}</td>
-                                <td>{{ ucfirst($user->role ?? '-') }}</td>
-                                <td>
-                                    <span class="badge badge-{{ $user->status === 'active' ? 'success' : 'warning' }}">
-                                        {{ ucfirst($user->status) }}
-                                    </span>
-                                </td>
-                                <td>{{ $user->created_at->format('M d, Y') }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="text-center">No users found</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
         <!-- Recent Bookings -->
         <div class="dashboard-section">
             <div class="section-header">
