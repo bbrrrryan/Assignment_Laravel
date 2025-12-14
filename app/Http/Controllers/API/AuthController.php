@@ -28,23 +28,30 @@ class AuthController extends Controller
         // Check if email already exists
         $existingUser = User::where('email', $request->email)->first();
         
-        // If user exists and is inactive with expired OTP, allow re-registration
         if ($existingUser) {
-            if ($existingUser->status === 'inactive' && $existingUser->otp_expires_at && $existingUser->otp_expires_at->isPast()) {
-                // Delete expired unactivated account to allow re-registration
-                $existingUser->delete();
-            } else if ($existingUser->status === 'active') {
+            if ($existingUser->status === 'active') {
                 // Active account exists, return validation error
                 throw ValidationException::withMessages([
                     'email' => ['The email has already been taken.'],
                 ]);
-            } else if ($existingUser->status === 'inactive' && $existingUser->otp_expires_at && !$existingUser->otp_expires_at->isPast()) {
-                // Inactive account with valid OTP, redirect to OTP verification page
-                return response()->json([
-                    'message' => 'OTP already sent. Please check your email and verify.',
-                    'redirect_to_otp' => true,
-                    'email' => $existingUser->email,
-                ], 200);
+            } else if ($existingUser->status === 'inactive') {
+                // Handle inactive accounts
+                if ($existingUser->otp_expires_at && !$existingUser->otp_expires_at->isPast()) {
+                    // Inactive account with valid OTP (pending verification), redirect to OTP verification page
+                    return response()->json([
+                        'message' => 'OTP already sent. Please check your email and verify.',
+                        'redirect_to_otp' => true,
+                        'email' => $existingUser->email,
+                    ], 200);
+                } else if ($existingUser->otp_expires_at && $existingUser->otp_expires_at->isPast()) {
+                    // Inactive account with expired OTP (unactivated registration), allow re-registration
+                    $existingUser->delete();
+                } else {
+                    // Inactive account without OTP (deactivated by admin), return friendly error
+                    throw ValidationException::withMessages([
+                        'email' => ['This account has been deactivated. Please contact administrator to reactivate your account.'],
+                    ]);
+                }
             }
         }
 
@@ -73,7 +80,21 @@ class AuthController extends Controller
             $userData['studentid'] = User::generateStudentId();
         }
         
-        $user = User::create($userData);
+        try {
+            $user = User::create($userData);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle duplicate entry error (shouldn't happen after our checks, but just in case)
+            if ($e->getCode() == 23000) {
+                // Check if it's a duplicate email error
+                if (strpos($e->getMessage(), 'users_email_unique') !== false) {
+                    throw ValidationException::withMessages([
+                        'email' => ['This email is already registered. If your account was deactivated, please contact administrator to reactivate it.'],
+                    ]);
+                }
+            }
+            // Re-throw if it's a different error
+            throw $e;
+        }
 
         // Send OTP email - must succeed for security
         try {
