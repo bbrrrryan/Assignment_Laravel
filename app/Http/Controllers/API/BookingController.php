@@ -10,6 +10,7 @@ use App\Services\BookingValidationService;
 use App\Services\BookingCapacityService;
 use App\Services\BookingNotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -203,6 +204,27 @@ class BookingController extends Controller
         }
 
         $booking = Booking::create($bookingData);
+
+        // Log activity for user who created the booking
+        try {
+            $user->activityLogs()->create([
+                'action' => 'create_booking',
+                'description' => "Created booking for facility: {$facility->name} on {$validated['booking_date']}",
+                'metadata' => [
+                    'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'facility_id' => $facility->id,
+                    'facility_name' => $facility->name,
+                    'booking_date' => $validated['booking_date'],
+                    'start_time' => $validated['start_time'],
+                    'end_time' => $validated['end_time'],
+                    'status' => $booking->status,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            // Activity log is optional, continue even if it fails
+            Log::warning('Failed to create booking activity log: ' . $e->getMessage());
+        }
 
         // Save attendees if provided
         if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
