@@ -80,6 +80,66 @@
     </div>
 </div>
 
+<!-- Create/Edit Reward Modal -->
+<div id="rewardModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeRewardModal()">&times;</span>
+        <h2 id="rewardModalTitle">Create Reward</h2>
+        <form id="rewardForm">
+            <div class="form-group">
+                <label>Reward Name *</label>
+                <input type="text" id="rewardName" required 
+                       placeholder="e.g., Gold Certificate, VIP Badge">
+                <small>Display name for this reward</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="rewardDescription" rows="3" 
+                          placeholder="Optional description of this reward"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Points Required *</label>
+                <input type="number" id="rewardPointsRequired" required min="1" 
+                       placeholder="e.g., 100">
+                <small>Minimum points needed to redeem this reward</small>
+            </div>
+            <div class="form-group">
+                <label>Reward Type *</label>
+                <select id="rewardType" required>
+                    <option value="">Select a type</option>
+                    <option value="certificate">Certificate</option>
+                    <option value="badge">Badge</option>
+                    <option value="privilege">Privilege</option>
+                    <option value="physical">Physical Item</option>
+                </select>
+                <small>Type of reward being offered</small>
+            </div>
+            <div class="form-group">
+                <label>Image URL</label>
+                <input type="url" id="rewardImageUrl" 
+                       placeholder="https://example.com/image.jpg">
+                <small>Optional image URL for this reward</small>
+            </div>
+            <div class="form-group">
+                <label>Stock Quantity</label>
+                <input type="number" id="rewardStockQuantity" min="0" 
+                       placeholder="Leave empty for unlimited">
+                <small>Leave empty for unlimited stock, or enter a number for limited quantity</small>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="rewardIsActive" checked> Active
+                </label>
+                <small>Only active rewards can be redeemed</small>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeRewardModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Reward</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modals will be added here -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -89,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    if (!API.requireAuth() || !API.isAdmin()) {
+    if (!API.requireAuth() || !API.isAdminOrStaff()) {
         window.location.href = '/';
         return;
     }
@@ -99,13 +159,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
 let currentAdminTab = 'rules';
 let currentEditingRuleId = null;
+let currentEditingRewardId = null;
 
 function initAdminLoyalty() {
     loadAdminTab('rules');
     // Don't setup form handler here - it will be set up when modal is first opened
+    
+    // Add click outside to close modals
+    window.onclick = function(event) {
+        const ruleModal = document.getElementById('ruleModal');
+        const rewardModal = document.getElementById('rewardModal');
+        const deleteModal = document.getElementById('deleteConfirmModal');
+        
+        if (event.target === ruleModal) {
+            closeRuleModal();
+        }
+        if (event.target === rewardModal) {
+            closeRewardModal();
+        }
+        if (event.target === deleteModal) {
+            closeDeleteConfirmModal();
+        }
+    };
 }
 
 let ruleFormHandlerSetup = false;
+let rewardFormHandlerSetup = false;
 
 function setupRuleFormHandler() {
     // Only setup once
@@ -856,25 +935,194 @@ window.deleteRule = function(id) {
     showDeleteConfirmModal('Are you sure you want to delete this rule? This action cannot be undone.', deleteCallback);
 };
 
-window.editReward = function(id) {
-    alert('Edit reward functionality - to be implemented');
+function setupRewardFormHandler() {
+    if (rewardFormHandlerSetup) return;
+    const rewardForm = document.getElementById('rewardForm');
+    if (!rewardForm) {
+        console.warn('Reward form not found, will retry when modal opens');
+        return;
+    }
+    rewardFormHandlerSetup = true;
+    rewardForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('rewardName').value.trim(),
+            description: document.getElementById('rewardDescription').value.trim() || null,
+            points_required: parseInt(document.getElementById('rewardPointsRequired').value),
+            reward_type: document.getElementById('rewardType').value,
+            image_url: document.getElementById('rewardImageUrl').value.trim() || null,
+            stock_quantity: document.getElementById('rewardStockQuantity').value.trim() ? 
+                parseInt(document.getElementById('rewardStockQuantity').value) : null,
+            is_active: document.getElementById('rewardIsActive').checked,
+        };
+        if (!data.name || !data.reward_type || isNaN(data.points_required) || data.points_required < 1) {
+            showToast('Please fill in all required fields correctly', 'warning');
+            return;
+        }
+        const isEditing = !!currentEditingRewardId;
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        try {
+            let result;
+            if (isEditing) {
+                result = await API.put(`/loyalty/rewards/${currentEditingRewardId}`, data);
+            } else {
+                result = await API.post('/loyalty/rewards', data);
+            }
+            if (result.success) {
+                closeRewardModal();
+                loadRewardsManagement();
+                showToast(isEditing ? 'Reward updated successfully!' : 'Reward created successfully!', 'success');
+            } else {
+                showToast(result.error || 'Failed to save reward', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving reward:', error);
+            showToast('An error occurred while saving the reward: ' + error.message, 'error');
+        } finally {
+            resetRewardFormButtonState(submitBtn, originalText);
+        }
+    });
+}
+
+function resetRewardFormButtonState(button, originalText) {
+    if (button) {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+window.showCreateRewardModal = function() {
+    console.log('showCreateRewardModal called');
+    currentEditingRewardId = null;
+    
+    // Setup form handler if not already done
+    setupRewardFormHandler();
+    
+    const modal = document.getElementById('rewardModal');
+    const title = document.getElementById('rewardModalTitle');
+    const form = document.getElementById('rewardForm');
+    const isActive = document.getElementById('rewardIsActive');
+    
+    if (!modal) {
+        console.error('Reward modal not found!');
+        alert('Error: Modal not found. Please refresh the page.');
+        return;
+    }
+    
+    if (title) title.textContent = 'Create Reward';
+    if (form) form.reset();
+    if (isActive) isActive.checked = true;
+    
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    console.log('Reward modal should be visible now');
 };
 
-window.deleteReward = function(id) {
-    if (confirm('Are you sure you want to delete this reward?')) {
-        API.delete(`/loyalty/rewards/${id}`).then(result => {
-            if (result.success) {
-                loadRewardsManagement();
-                alert('Reward deleted successfully');
-            } else {
-                alert(result.error || 'Failed to delete reward');
+window.editReward = async function(id) {
+    console.log('editReward called with id:', id);
+    currentEditingRewardId = id;
+    
+    // Setup form handler if not already done
+    setupRewardFormHandler();
+    
+    const modal = document.getElementById('rewardModal');
+    const title = document.getElementById('rewardModalTitle');
+    
+    if (!modal) {
+        console.error('Reward modal not found!');
+        alert('Error: Modal not found. Please refresh the page.');
+        return;
+    }
+    
+    if (title) title.textContent = 'Edit Reward';
+    
+    // Show loading state
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    
+    try {
+        // Load reward data
+        const result = await API.get('/loyalty/rewards/all');
+        
+        if (result.success && result.data && result.data.data) {
+            const reward = result.data.data.find(r => r.id === id);
+            if (!reward) {
+                showToast('Reward not found', 'error');
+                closeRewardModal();
+                return;
             }
-        });
+            
+            // Populate form
+            document.getElementById('rewardName').value = reward.name || '';
+            document.getElementById('rewardDescription').value = reward.description || '';
+            document.getElementById('rewardPointsRequired').value = reward.points_required || '';
+            document.getElementById('rewardType').value = reward.reward_type || '';
+            document.getElementById('rewardImageUrl').value = reward.image_url || '';
+            document.getElementById('rewardStockQuantity').value = reward.stock_quantity !== null ? reward.stock_quantity : '';
+            document.getElementById('rewardIsActive').checked = reward.is_active !== false;
+        } else {
+            showToast('Failed to load reward data', 'error');
+            closeRewardModal();
+        }
+    } catch (error) {
+        console.error('Error loading reward:', error);
+        showToast('An error occurred while loading the reward', 'error');
+        closeRewardModal();
     }
 };
 
-window.showCreateRewardModal = function() {
-    alert('Create reward modal - to be implemented');
+window.closeRewardModal = function() {
+    const modal = document.getElementById('rewardModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+    }
+    currentEditingRewardId = null;
+};
+
+window.deleteReward = function(id) {
+    console.log('deleteReward called with id:', id);
+    pendingDeleteId = id;
+    
+    const deleteCallback = function() {
+        console.log('Delete reward callback executed, pendingDeleteId:', pendingDeleteId);
+        const idToDelete = pendingDeleteId; // Save the ID before it might be cleared
+        if (idToDelete) {
+            API.delete(`/loyalty/rewards/${idToDelete}`).then(result => {
+                console.log('Delete reward API result:', result);
+                pendingDeleteId = null; // Clear after successful deletion
+                if (result.success) {
+                    loadRewardsManagement();
+                    if (typeof showToast !== 'undefined') {
+                        showToast('Reward deleted successfully', 'success');
+                    } else {
+                        alert('Reward deleted successfully');
+                    }
+                } else {
+                    if (typeof showToast !== 'undefined') {
+                        showToast(result.error || 'Failed to delete reward', 'error');
+                    } else {
+                        alert(result.error || 'Failed to delete reward');
+                    }
+                }
+            }).catch(error => {
+                console.error('Error deleting reward:', error);
+                pendingDeleteId = null; // Clear on error too
+                if (typeof showToast !== 'undefined') {
+                    showToast('An error occurred while deleting the reward', 'error');
+                } else {
+                    alert('An error occurred while deleting the reward');
+                }
+            });
+        } else {
+            console.error('pendingDeleteId is null');
+        }
+    };
+    
+    showDeleteConfirmModal('Are you sure you want to delete this reward? This action cannot be undone.', deleteCallback);
 };
 
 window.approveRedemption = async function(id) {
@@ -1038,7 +1286,7 @@ window.filterRedemptions = function() {
 }
 
 /* Modal Styles - Override if needed */
-#ruleModal.modal {
+#ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal {
     display: none;
     position: fixed;
     z-index: 2000;
@@ -1050,11 +1298,11 @@ window.filterRedemptions = function() {
     overflow: auto;
 }
 
-#ruleModal.modal.show {
+#ruleModal.modal.show, #rewardModal.modal.show, #deleteConfirmModal.modal.show {
     display: block;
 }
 
-#ruleModal .modal-content {
+#ruleModal .modal-content, #rewardModal .modal-content, #deleteConfirmModal .modal-content {
     background: #ffffff;
     margin: 5% auto;
     padding: 30px;

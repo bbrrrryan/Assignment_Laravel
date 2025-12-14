@@ -199,7 +199,7 @@ async function loadFeedbackDetails() {
 
     if (result.success) {
         currentFeedback = result.data.data;
-        window.currentFeedback = currentFeedback; // Make it globally available
+        window.currentFeedback = currentFeedback;
         displayFeedbackDetails(currentFeedback);
     } else {
         document.getElementById('feedbackDetails').innerHTML = `
@@ -259,12 +259,54 @@ function displayFeedbackDetails(feedback) {
             </div>
             ` : ''}
 
-            ${feedback.is_blocked ? `
+            ${feedback.status === 'pending' ? `
             <div class="details-section">
-                <h2>Blocked Notice</h2>
+                <h2>Status Notice</h2>
+                <div class="pending-notice">
+                    <strong><i class="fas fa-clock"></i> This feedback is pending review</strong>
+                    <p>Waiting for admin to review this feedback.</p>
+                </div>
+            </div>
+            ` : ''}
+            ${feedback.status === 'under_review' ? `
+            <div class="details-section">
+                <h2>Status Notice</h2>
+                <div class="under-review-notice">
+                    <strong><i class="fas fa-eye"></i> This feedback is under review</strong>
+                    <p>Admin is currently reviewing this feedback.</p>
+                    ${feedback.reviewer && feedback.reviewer.name ? `
+                    <p style="margin-top: 8px; font-size: 0.9rem;">
+                        <i class="fas fa-user"></i> Reviewed by: ${feedback.reviewer.name}
+                    </p>
+                    ` : feedback.reviewed_by ? `
+                    <p style="margin-top: 8px; font-size: 0.9rem;">
+                        <i class="fas fa-user"></i> Reviewed by: Admin
+                    </p>
+                    ` : ''}
+                    ${feedback.reviewed_at ? `
+                    <p style="margin-top: 5px; font-size: 0.9rem;">
+                        <i class="fas fa-calendar"></i> Review started: ${formatDateTime(feedback.reviewed_at)}
+                    </p>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+            ${feedback.status === 'blocked' || feedback.is_blocked ? `
+            <div class="details-section">
+                <h2>Status Notice</h2>
                 <div class="blocked-notice">
-                    <strong>This feedback has been blocked</strong>
-                    ${feedback.block_reason ? `<p>Reason: ${feedback.block_reason}</p>` : ''}
+                    <strong><i class="fas fa-ban"></i> This feedback has been blocked</strong>
+                    <p>This feedback has been blocked and is not visible to other users.</p>
+                    ${feedback.block_reason ? `
+                    <p style="margin-top: 8px; font-size: 0.9rem;">
+                        <i class="fas fa-info-circle"></i> <strong>Reason:</strong> ${feedback.block_reason}
+                    </p>
+                    ` : ''}
+                    ${feedback.reviewed_at ? `
+                    <p style="margin-top: 5px; font-size: 0.9rem;">
+                        <i class="fas fa-calendar"></i> Blocked at: ${formatDateTime(feedback.reviewed_at)}
+                    </p>
+                    ` : ''}
                 </div>
             </div>
             ` : ''}
@@ -285,16 +327,18 @@ function displayFeedbackDetails(feedback) {
             
             ${typeof API !== 'undefined' && API.isAdmin() ? `
             <div class="details-section">
-                ${!feedback.admin_response && !feedback.is_blocked ? `
-                    <button class="btn-primary" onclick="replyToFeedback(${feedback.id})">
-                        Reply to Feedback
-                    </button>
-                ` : ''}
-                ${!feedback.is_blocked ? `
-                    <button class="btn-primary" onclick="blockFeedback(${feedback.id})" style="margin-left: 10px;">
-                        Block Feedback
-                    </button>
-                ` : ''}
+                <div class="feedback-action-buttons">
+                    ${!feedback.admin_response && !feedback.is_blocked ? `
+                        <button class="btn-action btn-success" onclick="replyToFeedback(${feedback.id})">
+                            <i class="fas fa-reply"></i> Reply to Feedback
+                        </button>
+                    ` : ''}
+                    ${!feedback.is_blocked ? `
+                        <button class="btn-action btn-danger" onclick="blockFeedback(${feedback.id})">
+                            <i class="fas fa-ban"></i> Block Feedback
+                        </button>
+                    ` : ''}
+                </div>
             </div>
             ` : ''}
         </div>
@@ -523,6 +567,50 @@ window.closeBlockModal = function() {
     min-height: 120px;
 }
 
+.pending-notice {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    color: #856404;
+}
+
+.pending-notice strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    color: #856404;
+}
+
+.pending-notice p {
+    margin: 5px 0 0 0;
+    font-size: 0.9rem;
+    color: #856404;
+}
+
+.under-review-notice {
+    background: #d1ecf1;
+    border: 2px solid #0dcaf0;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    color: #055160;
+}
+
+.under-review-notice strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    color: #055160;
+}
+
+.under-review-notice p {
+    margin: 5px 0 0 0;
+    font-size: 0.9rem;
+    color: #055160;
+}
+
 .blocked-notice {
     background: #dc3545;
     border: 2px solid #c82333;
@@ -611,6 +699,55 @@ window.closeBlockModal = function() {
     gap: 10px;
     justify-content: flex-end;
     margin-top: 20px;
+}
+
+/* Feedback Action Buttons */
+.feedback-action-buttons {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 160px;
+    justify-content: center;
+}
+
+.btn-action.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-action.btn-success:hover {
+    background: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-action.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-action.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-action:active {
+    transform: translateY(0);
 }
 </style>
 @endsection

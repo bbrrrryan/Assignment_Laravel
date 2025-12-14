@@ -64,6 +64,37 @@ const API = {
         return false;
     },
     
+    // Check if user is staff
+    isStaff() {
+        const user = this.getUser();
+        if (!user) {
+            return false;
+        }
+        
+        // Check if role is an object and has name property
+        if (user.role && typeof user.role === 'object' && user.role !== null) {
+            const roleName = (user.role.name || '').toLowerCase();
+            if (roleName === 'staff') {
+                return true;
+            }
+        }
+        
+        // Check if role is a string
+        if (typeof user.role === 'string') {
+            const roleName = user.role.toLowerCase();
+            if (roleName === 'staff') {
+                return true;
+            }
+        }
+        
+        return false;
+    },
+    
+    // Check if user is admin or staff
+    isAdminOrStaff() {
+        return this.isAdmin() || this.isStaff();
+    },
+    
     // Check if user is authenticated
     isAuthenticated() {
         return !!this.getToken();
