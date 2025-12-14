@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -68,10 +69,19 @@ class AnnouncementController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $announcement = Announcement::create($validated + [
-            'created_by' => auth()->id(),
-            'is_active' => $request->is_active ?? true,
-        ]);
+        $announcement = AnnouncementFactory::makeAnnouncement(
+            $validated['type'],
+            $validated['title'],
+            $validated['content'],
+            $validated['target_audience'],
+            auth()->id(),
+            $validated['priority'] ?? null,
+            $validated['target_user_ids'] ?? null,
+            $validated['published_at'] ?? null,
+            $validated['expires_at'] ?? null,
+            $request->is_active ?? true,
+            false
+        );
 
         return response()->json([
             'message' => 'Announcement created successfully',

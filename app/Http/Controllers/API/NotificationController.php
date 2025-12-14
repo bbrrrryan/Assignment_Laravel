@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Factories\NotificationFactory;
 use App\Models\Announcement;
 use App\Models\Notification;
 use App\Models\User;
@@ -53,10 +54,18 @@ class NotificationController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $notification = Notification::create($validated + [
-            'created_by' => auth()->id(),
-            'is_active' => $request->is_active ?? true,
-        ]);
+        $notification = NotificationFactory::makeNotification(
+            $validated['type'],
+            $validated['title'],
+            $validated['message'],
+            $validated['target_audience'],
+            auth()->id(),
+            $validated['priority'] ?? null,
+            $validated['target_user_ids'] ?? null,
+            $validated['scheduled_at'] ?? null,
+            $validated['expires_at'] ?? null,
+            $request->is_active ?? true
+        );
 
         return response()->json([
             'status' => 'S',
