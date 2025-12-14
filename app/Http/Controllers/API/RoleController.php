@@ -10,7 +10,7 @@ class RoleController extends Controller
 {
     public function index()
     {
-        $roles = Role::with('permissions')->get();
+        $roles = Role::all();
         return response()->json(['data' => $roles]);
     }
 
@@ -27,7 +27,7 @@ class RoleController extends Controller
 
     public function show(string $id)
     {
-        $role = Role::with('permissions')->findOrFail($id);
+        $role = Role::findOrFail($id);
         return response()->json(['data' => $role]);
     }
 
