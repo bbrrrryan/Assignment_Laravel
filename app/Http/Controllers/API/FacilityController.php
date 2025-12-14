@@ -95,7 +95,9 @@ class FacilityController extends Controller
 
         // Get all pending and approved bookings for this facility on the given date
         // Include pending bookings in capacity count
+        // Load slots relationship to support separate time slots
         $bookings = $facility->bookings()
+            ->with('slots')
             ->whereDate('booking_date', $date)
             ->whereIn('status', ['pending', 'approved']) // Include pending and approved
             ->get();
@@ -167,13 +169,31 @@ class FacilityController extends Controller
                 'facility_capacity' => $facility->capacity,
                 'date' => $date,
                 'bookings' => $bookings->map(function($booking) {
-                    return [
+                    $bookingData = [
                         'id' => $booking->id,
+                        'user_id' => $booking->user_id,
                         'start_time' => $booking->start_time->format('H:i'),
                         'end_time' => $booking->end_time->format('H:i'),
                         'status' => $booking->status,
                         'expected_attendees' => $booking->expected_attendees ?? 1,
                     ];
+                    
+                    // Include slots if available (new format)
+                    if ($booking->slots && $booking->slots->count() > 0) {
+                        $bookingData['slots'] = $booking->slots->map(function($slot) {
+                            // slot_date is a Carbon date object (cast as 'date')
+                            // start_time and end_time are strings (time format: "HH:mm:ss")
+                            return [
+                                'id' => $slot->id,
+                                'slot_date' => $slot->slot_date->format('Y-m-d'),
+                                'start_time' => $slot->start_time, // Already a string like "08:00:00"
+                                'end_time' => $slot->end_time,     // Already a string like "09:00:00"
+                                'duration_hours' => $slot->duration_hours,
+                            ];
+                        });
+                    }
+                    
+                    return $bookingData;
                 }),
                 'total_booked_attendees' => $bookings->sum(function($booking) {
                     return $booking->expected_attendees ?? 1;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Attendee;
 use App\Models\Booking;
+use App\Models\BookingSlot;
 use App\Models\Facility;
 use App\Services\BookingValidationService;
 use App\Services\BookingCapacityService;
@@ -28,9 +29,38 @@ class BookingController extends Controller
     }
     public function index(Request $request)
     {
-        $bookings = Booking::with(['user', 'facility'])
+        $perPage = $request->input('per_page', 15);
+        
+        $query = Booking::with(['user', 'facility', 'slots'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->paginate(15);
+            ->when($request->facility_id, fn($q) => $q->where('facility_id', $request->facility_id))
+            ->when($request->search, function($q) use ($request) {
+                $search = $request->search;
+                $q->where(function($query) use ($search) {
+                    $query->where('booking_number', 'like', "%{$search}%")
+                        ->orWhere('purpose', 'like', "%{$search}%")
+                        ->orWhereHas('user', function($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('facility', function($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        });
+                });
+            });
+        
+        // Apply sorting
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        
+        if ($sortBy === 'date') {
+            $query->orderBy('booking_date', $sortOrder);
+        } elseif ($sortBy === 'created_at') {
+            $query->orderBy('created_at', $sortOrder);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+        
+        $bookings = $query->paginate($perPage);
         return response()->json(['data' => $bookings]);
     }
 
@@ -55,8 +85,126 @@ class BookingController extends Controller
                 ], 404);
             }
             
-            // Validate request using service
-            $validated = $request->validate($this->validationService->getValidationRules($facility));
+            // Check if time_slots array is provided (new format) or use old format
+            $timeSlots = $request->input('time_slots', []);
+            $useTimeSlots = !empty($timeSlots) && is_array($timeSlots);
+            
+            if ($useTimeSlots) {
+                // New format: validate time_slots array
+                $request->validate([
+                    'time_slots' => 'required|array|min:1',
+                    'time_slots.*.date' => 'required|date',
+                    'time_slots.*.start_time' => 'required|string',
+                    'time_slots.*.end_time' => 'required|string',
+                ]);
+                
+                // Parse and validate each slot
+                $parsedSlots = [];
+                $totalDuration = 0;
+                $bookingDate = null;
+                
+                foreach ($timeSlots as $slot) {
+                    try {
+                        $slotDate = $slot['date'];
+                        $slotStart = \Carbon\Carbon::parse($slot['start_time']);
+                        $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
+                        
+                        if ($slotEnd->lte($slotStart)) {
+                            return response()->json([
+                                'message' => 'End time must be after start time for slot',
+                            ], 422);
+                        }
+                        
+                        $duration = $slotStart->diffInHours($slotEnd);
+                        $totalDuration += $duration;
+                        
+                        if (!$bookingDate) {
+                            $bookingDate = $slotDate;
+                        }
+                        
+                        $parsedSlots[] = [
+                            'date' => $slotDate,
+                            'start_time' => $slotStart->format('Y-m-d H:i:s'),
+                            'end_time' => $slotEnd->format('Y-m-d H:i:s'),
+                            'duration' => $duration,
+                        ];
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'message' => 'Invalid time slot format: ' . $e->getMessage(),
+                        ], 422);
+                    }
+                }
+                
+                // Validate available day for first slot
+                if ($error = $this->validationService->validateAvailableDay($bookingDate, $facility)) {
+                    return response()->json(['message' => $error], 422);
+                }
+                
+                // Validate each slot's available time
+                foreach ($parsedSlots as $slot) {
+                    if ($error = $this->validationService->validateAvailableTime(
+                        $slot['start_time'],
+                        $slot['end_time'],
+                        $facility
+                    )) {
+                        return response()->json(['message' => $error], 422);
+                    }
+                }
+                
+                $validated = $request->validate([
+                    'facility_id' => 'required|exists:facilities,id',
+                    'purpose' => 'required|string|max:500',
+                    'expected_attendees' => 'nullable|integer|min:1',
+                    'attendees_passports' => 'nullable|array',
+                    'attendees_passports.*' => 'nullable|string|max:255',
+                ]);
+                
+                $validated['booking_date'] = $bookingDate;
+                $validated['start_time'] = $parsedSlots[0]['start_time'];
+                $validated['end_time'] = $parsedSlots[count($parsedSlots) - 1]['end_time'];
+                $validated['duration_hours'] = $totalDuration;
+            } else {
+                // Old format: use existing validation
+                $validated = $request->validate($this->validationService->getValidationRules($facility));
+
+                // Parse and normalize datetime formats
+                try {
+                    $validated['start_time'] = $this->validationService->parseDateTime($validated['start_time']);
+                    $validated['end_time'] = $this->validationService->parseDateTime($validated['end_time']);
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Invalid date/time format. Please use the correct format.',
+                        'error' => $e->getMessage(),
+                    ], 422);
+                }
+
+                // Validate time range
+                if ($error = $this->validationService->validateTimeRange($validated['start_time'], $validated['end_time'])) {
+                    return response()->json(['message' => $error], 422);
+                }
+
+                // Validate available day
+                if ($error = $this->validationService->validateAvailableDay($validated['booking_date'], $facility)) {
+                    return response()->json(['message' => $error], 422);
+                }
+
+                // Validate available time
+                if ($error = $this->validationService->validateAvailableTime(
+                    $validated['start_time'],
+                    $validated['end_time'],
+                    $facility
+                )) {
+                    return response()->json(['message' => $error], 422);
+                }
+                
+                // Create single slot for old format
+                $parsedSlots = [[
+                    'date' => $validated['booking_date'],
+                    'start_time' => $validated['start_time'],
+                    'end_time' => $validated['end_time'],
+                    'duration' => \Carbon\Carbon::parse($validated['start_time'])->diffInHours(\Carbon\Carbon::parse($validated['end_time'])),
+                ]];
+            }
 
             // Normalize expected_attendees
             $validated['expected_attendees'] = $this->validationService->normalizeExpectedAttendees(
@@ -64,60 +212,17 @@ class BookingController extends Controller
                 $facility
             );
 
-            // Parse and normalize datetime formats
-            try {
-                $validated['start_time'] = $this->validationService->parseDateTime($validated['start_time']);
-                $validated['end_time'] = $this->validationService->parseDateTime($validated['end_time']);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Invalid date/time format. Please use the correct format.',
-                    'error' => $e->getMessage(),
-                ], 422);
-            }
-
-            // Validate time range
-            if ($error = $this->validationService->validateTimeRange($validated['start_time'], $validated['end_time'])) {
-                return response()->json(['message' => $error], 422);
-            }
-
-            // Validate available day
-            if ($error = $this->validationService->validateAvailableDay($validated['booking_date'], $facility)) {
-                return response()->json(['message' => $error], 422);
-            }
-
-            // Validate available time
-            if ($error = $this->validationService->validateAvailableTime(
-                $validated['start_time'],
-                $validated['end_time'],
-                $facility
-            )) {
-                return response()->json(['message' => $error], 422);
-            }
-
             // Validate facility status
             if ($error = $this->validationService->validateFacilityStatus($facility)) {
                 return response()->json(['message' => $error], 400);
             }
 
-        // Calculate duration
-        $startTime = \Carbon\Carbon::parse($validated['start_time']);
-        $endTime = \Carbon\Carbon::parse($validated['end_time']);
-        $durationHours = $startTime->diffInHours($endTime);
+        // Calculate total duration from slots
+        $durationHours = $validated['duration_hours'] ?? 0;
         
         if ($durationHours <= 0) {
             return response()->json([
-                'message' => 'End time must be after start time',
-            ], 400);
-        }
-
-        // Calculate duration
-        $startTime = \Carbon\Carbon::parse($validated['start_time']);
-        $endTime = \Carbon\Carbon::parse($validated['end_time']);
-        $durationHours = $startTime->diffInHours($endTime);
-        
-        if ($durationHours <= 0) {
-            return response()->json([
-                'message' => 'End time must be after start time',
+                'message' => 'Invalid booking duration',
             ], 400);
         }
 
@@ -143,18 +248,20 @@ class BookingController extends Controller
             return response()->json(['message' => $error], 400);
         }
 
-        // Check capacity for overlapping bookings
-        $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
-            $facility,
-            $validated['facility_id'],
-            $validated['booking_date'],
-            $validated['start_time'],
-            $validated['end_time'],
-            $expectedAttendees
-        );
-        
-        if (!$capacityCheck['available']) {
-            return response()->json(['message' => $capacityCheck['message']], 409);
+        // Check capacity for each slot
+        foreach ($parsedSlots as $slot) {
+            $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
+                $facility,
+                $validated['facility_id'],
+                $slot['date'],
+                $slot['start_time'],
+                $slot['end_time'],
+                $expectedAttendees
+            );
+            
+            if (!$capacityCheck['available']) {
+                return response()->json(['message' => $capacityCheck['message']], 409);
+            }
         }
 
         // Handle special_requirements safely
@@ -204,6 +311,20 @@ class BookingController extends Controller
 
         $booking = Booking::create($bookingData);
 
+        // Create booking slots
+        foreach ($parsedSlots as $slot) {
+            $slotStart = \Carbon\Carbon::parse($slot['start_time']);
+            $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
+            
+            BookingSlot::create([
+                'booking_id' => $booking->id,
+                'slot_date' => $slot['date'],
+                'start_time' => $slotStart->format('H:i:s'),
+                'end_time' => $slotEnd->format('H:i:s'),
+                'duration_hours' => $slot['duration'],
+            ]);
+        }
+
         // Save attendees if provided
         if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
             foreach ($request->attendees_passports as $passport) {
@@ -236,7 +357,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking created successfully',
-            'data' => $booking->load(['user', 'facility', 'attendees']),
+            'data' => $booking->load(['user', 'facility', 'attendees', 'slots']),
         ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -254,7 +375,7 @@ class BookingController extends Controller
     public function show(string $id)
     {
         try {
-            $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees', 'rescheduleProcessor'])->findOrFail($id);
+            $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees', 'slots'])->findOrFail($id);
             return response()->json(['data' => $booking]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -508,7 +629,7 @@ class BookingController extends Controller
 
             return response()->json([
                 'message' => 'Booking updated successfully',
-                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees']),
+                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees', 'slots']),
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -587,7 +708,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking approved successfully',
-            'data' => $booking->load(['user', 'facility', 'approver', 'attendees']),
+            'data' => $booking->load(['user', 'facility', 'approver', 'attendees', 'slots']),
         ]);
     }
 
@@ -631,7 +752,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking rejected successfully',
-            'data' => $booking->load(['user', 'facility', 'attendees']),
+            'data' => $booking->load(['user', 'facility', 'attendees', 'slots']),
         ]);
     }
 
@@ -663,172 +784,16 @@ class BookingController extends Controller
         return response()->json(['data' => $booking]);
     }
 
-    public function myBookings()
+    public function myBookings(Request $request)
     {
-        return response()->json(['data' => auth()->user()->bookings()->with(['user', 'facility', 'attendees', 'rescheduleProcessor'])->get()]);
+        $perPage = $request->input('per_page', 15);
+        $bookings = auth()->user()->bookings()
+            ->with(['user', 'facility', 'attendees', 'slots'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+        return response()->json(['data' => $bookings]);
     }
 
-    /**
-     * Submit reschedule request for a booking
-     */
-    public function requestReschedule(Request $request, string $id)
-    {
-        try {
-            $booking = Booking::findOrFail($id);
-            $user = auth()->user();
-
-            // Check if user owns this booking
-            if ($booking->user_id !== $user->id) {
-                return response()->json([
-                    'message' => 'You do not have permission to reschedule this booking',
-                ], 403);
-            }
-
-            // Check if booking can be rescheduled (must be approved or pending)
-            if (!in_array($booking->status, ['pending', 'approved'])) {
-                return response()->json([
-                    'message' => 'Only pending or approved bookings can be rescheduled',
-                ], 400);
-            }
-
-            // Check if there's already a pending reschedule request
-            if ($booking->reschedule_status === 'pending') {
-                return response()->json([
-                    'message' => 'You already have a pending reschedule request for this booking',
-                ], 400);
-            }
-
-            // Validate request
-            $validated = $request->validate([
-                'requested_booking_date' => 'required|date|after:today',
-                'requested_start_time' => 'required|string',
-                'requested_end_time' => 'required|string',
-                'reschedule_reason' => 'required|string|max:500',
-            ]);
-
-            // Get facility
-            $facility = $booking->facility;
-
-            // Parse datetime
-            try {
-                $requestedStartTime = \Carbon\Carbon::parse($validated['requested_start_time'])->format('Y-m-d H:i:s');
-                $requestedEndTime = \Carbon\Carbon::parse($validated['requested_end_time'])->format('Y-m-d H:i:s');
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Invalid date/time format',
-                    'error' => $e->getMessage(),
-                ], 422);
-            }
-
-            // Validate time range
-            $startTime = \Carbon\Carbon::parse($requestedStartTime);
-            $endTime = \Carbon\Carbon::parse($requestedEndTime);
-            
-            if ($endTime->lte($startTime)) {
-                return response()->json([
-                    'message' => 'End time must be after start time',
-                ], 422);
-            }
-
-            // Check if booking date is within facility's available days
-            $bookingDateCarbon = \Carbon\Carbon::parse($validated['requested_booking_date']);
-            $dayOfWeek = strtolower($bookingDateCarbon->format('l'));
-            
-            if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
-                if (!in_array($dayOfWeek, $facility->available_day)) {
-                    $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
-                    return response()->json([
-                        'message' => "This facility is not available on {$bookingDateCarbon->format('l, F j, Y')}. Available days: {$availableDaysStr}",
-                    ], 422);
-                }
-            }
-
-            // Get facility available time range
-            $minTime = '08:00';
-            $maxTime = '20:00';
-            if ($facility->available_time && is_array($facility->available_time)) {
-                if (isset($facility->available_time['start']) && !empty($facility->available_time['start'])) {
-                    $minTime = $facility->available_time['start'];
-                }
-                if (isset($facility->available_time['end']) && !empty($facility->available_time['end'])) {
-                    $maxTime = $facility->available_time['end'];
-                }
-            }
-
-            // Validate time range
-            $startHour = $startTime->format('H:i');
-            $endHour = $endTime->format('H:i');
-            
-            if ($startHour < $minTime || $startHour > $maxTime) {
-                return response()->json([
-                    'message' => "Start time must be between {$minTime} and {$maxTime}",
-                ], 422);
-            }
-            
-            if ($endHour < $minTime || $endHour > $maxTime) {
-                return response()->json([
-                    'message' => "End time must be between {$minTime} and {$maxTime}",
-                ], 422);
-            }
-
-            // Check capacity for requested time
-            $expectedAttendees = $booking->expected_attendees ?? 1;
-            $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
-                $facility,
-                $facility->id,
-                $validated['requested_booking_date'],
-                $requestedStartTime,
-                $requestedEndTime,
-                $expectedAttendees,
-                $booking->id // Exclude current booking from check
-            );
-            
-            if (!$capacityCheck['available']) {
-                return response()->json([
-                    'message' => 'Cannot reschedule: ' . $capacityCheck['message'],
-                ], 409);
-            }
-
-            // Update booking with reschedule request
-            $booking->update([
-                'reschedule_status' => 'pending',
-                'requested_booking_date' => $validated['requested_booking_date'],
-                'requested_start_time' => $requestedStartTime,
-                'requested_end_time' => $requestedEndTime,
-                'reschedule_reason' => $validated['reschedule_reason'],
-                'reschedule_requested_at' => now(),
-            ]);
-
-            // Create status history
-            try {
-                $booking->statusHistory()->create([
-                    'status' => $booking->status,
-                    'changed_by' => auth()->id(),
-                    'notes' => 'Reschedule request submitted. Reason: ' . $validated['reschedule_reason'],
-                ]);
-            } catch (\Exception $e) {
-                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-            }
-
-            // Send notification to admin
-            $this->notificationService->sendBookingNotification($booking, 'pending', 'A reschedule request has been submitted for booking #' . $booking->booking_number);
-
-            return response()->json([
-                'message' => 'Reschedule request submitted successfully',
-                'data' => $booking->load(['user', 'facility', 'attendees']),
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('Reschedule request error: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to submit reschedule request: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
 
     /**
      * Check facility availability for booking

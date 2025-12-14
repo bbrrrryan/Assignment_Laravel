@@ -412,6 +412,115 @@
                 }
             }, 4000);
         }
+        
+        // Custom confirm dialog that returns a Promise
+        function showConfirm(message, title) {
+            return new Promise(function(resolve) {
+                // Create modal overlay
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; display: flex; align-items: center; justify-content: center;';
+                
+                // Create modal dialog
+                var modal = document.createElement('div');
+                modal.style.cssText = 'background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                
+                modal.innerHTML = `
+                    <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #333;">${title || 'Confirm'}</h3>
+                    <p style="margin: 0 0 20px 0; color: #666; line-height: 1.5;">${message}</p>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button id="confirmCancel" style="padding: 8px 20px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        <button id="confirmOK" style="padding: 8px 20px; border: none; background: #007bff; color: white; border-radius: 4px; cursor: pointer;">OK</button>
+                    </div>
+                `;
+                
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+                
+                // Handle button clicks
+                document.getElementById('confirmOK').onclick = function() {
+                    document.body.removeChild(overlay);
+                    resolve(true);
+                };
+                
+                document.getElementById('confirmCancel').onclick = function() {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                };
+                
+                // Close on overlay click
+                overlay.onclick = function(e) {
+                    if (e.target === overlay) {
+                        document.body.removeChild(overlay);
+                        resolve(false);
+                    }
+                };
+            });
+        }
+        
+        // Custom prompt dialog that returns a Promise
+        function showPrompt(message, title, defaultValue) {
+            return new Promise(function(resolve) {
+                // Create modal overlay
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; display: flex; align-items: center; justify-content: center;';
+                
+                // Create modal dialog
+                var modal = document.createElement('div');
+                modal.style.cssText = 'background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                
+                var inputId = 'promptInput_' + Date.now();
+                modal.innerHTML = `
+                    <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #333;">${title || 'Input'}</h3>
+                    <p style="margin: 0 0 15px 0; color: #666; line-height: 1.5;">${message}</p>
+                    <input type="text" id="${inputId}" value="${defaultValue || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 20px; box-sizing: border-box; font-size: 14px;" autofocus>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button id="promptCancel" style="padding: 8px 20px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        <button id="promptOK" style="padding: 8px 20px; border: none; background: #007bff; color: white; border-radius: 4px; cursor: pointer;">OK</button>
+                    </div>
+                `;
+                
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+                
+                // Focus input and select text if default value exists
+                var input = document.getElementById(inputId);
+                input.focus();
+                if (defaultValue) {
+                    input.select();
+                }
+                
+                // Handle Enter key
+                input.onkeydown = function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('promptOK').click();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        document.getElementById('promptCancel').click();
+                    }
+                };
+                
+                // Handle button clicks
+                document.getElementById('promptOK').onclick = function() {
+                    var value = input.value;
+                    document.body.removeChild(overlay);
+                    resolve(value);
+                };
+                
+                document.getElementById('promptCancel').onclick = function() {
+                    document.body.removeChild(overlay);
+                    resolve(null);
+                };
+                
+                // Close on overlay click
+                overlay.onclick = function(e) {
+                    if (e.target === overlay) {
+                        document.body.removeChild(overlay);
+                        resolve(null);
+                    }
+                };
+            });
+        }
     </script>
     
     <style>

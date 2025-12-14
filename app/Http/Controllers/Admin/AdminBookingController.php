@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingSlot;
 use App\Models\Facility;
 use App\Services\BookingCapacityService;
 use App\Services\BookingNotificationService;
@@ -30,10 +31,9 @@ class AdminBookingController extends AdminBaseController
     {
         $perPage = $request->get('per_page', 15);
         
-        $bookings = Booking::with(['user', 'facility', 'rescheduleProcessor'])
+        $bookings = Booking::with(['user', 'facility', 'slots'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->facility_id, fn($q) => $q->where('facility_id', $request->facility_id))
-            ->when($request->reschedule_status, fn($q) => $q->where('reschedule_status', $request->reschedule_status))
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
         
@@ -49,6 +49,24 @@ class AdminBookingController extends AdminBaseController
             $booking = Booking::findOrFail($id);
             $user = auth()->user();
 
+            // Check if time_slots array is provided (new format) or use old format
+            $timeSlots = $request->input('time_slots', []);
+            $useTimeSlots = !empty($timeSlots) && is_array($timeSlots);
+            
+            if ($useTimeSlots) {
+                $validated = $request->validate([
+                    'facility_id' => 'sometimes|required|exists:facilities,id',
+                    'purpose' => 'sometimes|required|string|max:500',
+                    'expected_attendees' => 'nullable|integer|min:1',
+                    'status' => 'sometimes|required|in:pending,approved,rejected,cancelled',
+                    'attendees_passports' => 'nullable|array',
+                    'attendees_passports.*' => 'nullable|string|max:255',
+                    'time_slots' => 'required|array|min:1',
+                    'time_slots.*.date' => 'required|date',
+                    'time_slots.*.start_time' => 'required|string',
+                    'time_slots.*.end_time' => 'required|string',
+                ]);
+            } else {
             $validated = $request->validate([
                 'facility_id' => 'sometimes|required|exists:facilities,id',
                 'booking_date' => 'sometimes|required|date',
@@ -60,8 +78,44 @@ class AdminBookingController extends AdminBaseController
                 'attendees_passports' => 'nullable|array',
                 'attendees_passports.*' => 'nullable|string|max:255',
             ]);
+            }
 
-            // Parse datetime if provided
+            // Parse time slots if provided
+            $parsedSlots = [];
+            if ($useTimeSlots) {
+                foreach ($timeSlots as $slot) {
+                    try {
+                        $slotStart = \Carbon\Carbon::parse($slot['start_time']);
+                        $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
+                        
+                        if ($slotEnd->lte($slotStart)) {
+                            return response()->json([
+                                'message' => 'End time must be after start time for slot',
+                            ], 422);
+                        }
+                        
+                        $parsedSlots[] = [
+                            'date' => $slot['date'],
+                            'start_time' => $slotStart->format('Y-m-d H:i:s'),
+                            'end_time' => $slotEnd->format('Y-m-d H:i:s'),
+                            'duration' => $slotStart->diffInHours($slotEnd),
+                        ];
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'message' => 'Invalid time slot format: ' . $e->getMessage(),
+                        ], 422);
+                    }
+                }
+                
+                // Set booking_date, start_time, end_time from slots
+                if (!empty($parsedSlots)) {
+                    $validated['booking_date'] = $parsedSlots[0]['date'];
+                    $validated['start_time'] = $parsedSlots[0]['start_time'];
+                    $validated['end_time'] = $parsedSlots[count($parsedSlots) - 1]['end_time'];
+                    $validated['duration_hours'] = array_sum(array_column($parsedSlots, 'duration'));
+                }
+            } else {
+                // Parse datetime if provided (old format)
             if (isset($validated['start_time'])) {
                 try {
                     $validated['start_time'] = \Carbon\Carbon::parse($validated['start_time'])->format('Y-m-d H:i:s');
@@ -81,6 +135,7 @@ class AdminBookingController extends AdminBaseController
                         'message' => 'Invalid end_time format',
                         'error' => $e->getMessage(),
                     ], 422);
+                    }
                 }
             }
 
@@ -118,8 +173,26 @@ class AdminBookingController extends AdminBaseController
             
             // Validate time range if both times are provided
             if (isset($validated['start_time']) && isset($validated['end_time'])) {
+                // Parse the datetime strings - ensure we're working with the correct timezone
                 $startTime = \Carbon\Carbon::parse($validated['start_time']);
                 $endTime = \Carbon\Carbon::parse($validated['end_time']);
+                
+                // Extract time portion (HH:mm) from the datetime
+                // Use the time portion directly from the datetime string to avoid timezone issues
+                $startHour = $startTime->format('H:i');
+                $endHour = $endTime->format('H:i');
+                
+                // Log for debugging (remove in production)
+                \Log::debug('Time validation', [
+                    'start_time_input' => $validated['start_time'],
+                    'start_time_parsed' => $startTime->toDateTimeString(),
+                    'start_hour' => $startHour,
+                    'end_time_input' => $validated['end_time'],
+                    'end_time_parsed' => $endTime->toDateTimeString(),
+                    'end_hour' => $endHour,
+                    'min_time' => $minTime,
+                    'max_time' => $maxTime,
+                ]);
                 
                 if ($endTime->lte($startTime)) {
                     return response()->json([
@@ -127,18 +200,17 @@ class AdminBookingController extends AdminBaseController
                     ], 422);
                 }
                 
-                $startHour = $startTime->format('H:i');
-                $endHour = $endTime->format('H:i');
-                
+                // Compare time strings (HH:mm format)
+                // Use string comparison which works correctly for time format
                 if ($startHour < $minTime || $startHour > $maxTime) {
                     return response()->json([
-                        'message' => "Start time must be between {$minTime} and {$maxTime}",
+                        'message' => "Start time ({$startHour}) must be between {$minTime} and {$maxTime}",
                     ], 422);
                 }
                 
                 if ($endHour < $minTime || $endHour > $maxTime) {
                     return response()->json([
-                        'message' => "End time must be between {$minTime} and {$maxTime}",
+                        'message' => "End time ({$endHour}) must be between {$minTime} and {$maxTime}",
                     ], 422);
                 }
 
@@ -175,6 +247,26 @@ class AdminBookingController extends AdminBaseController
 
             // Check capacity if status is being set to approved or if time/attendees are being changed
             if ($newStatus === 'approved' || isset($validated['start_time']) || isset($validated['end_time']) || isset($validated['expected_attendees'])) {
+                if ($useTimeSlots && !empty($parsedSlots)) {
+                    // Check capacity for each slot
+                    foreach ($parsedSlots as $slot) {
+                        $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
+                            $facility,
+                            $facilityId,
+                            $slot['date'],
+                            $slot['start_time'],
+                            $slot['end_time'],
+                            $expectedAttendees,
+                            $booking->id
+                        );
+                        
+                        if (!$capacityCheck['available']) {
+                            return response()->json([
+                                'message' => $capacityCheck['message'],
+                            ], 409);
+                        }
+                    }
+                } else {
                 $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
                     $facility,
                     $facilityId,
@@ -189,11 +281,32 @@ class AdminBookingController extends AdminBaseController
                     return response()->json([
                         'message' => $capacityCheck['message'],
                     ], 409);
+                    }
                 }
             }
 
             // Update booking
             $booking->update($validated);
+            
+            // Update booking slots if time_slots provided
+            if ($useTimeSlots && !empty($parsedSlots)) {
+                // Delete existing slots
+                $booking->slots()->delete();
+                
+                // Create new slots
+                foreach ($parsedSlots as $slot) {
+                    $slotStart = \Carbon\Carbon::parse($slot['start_time']);
+                    $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
+                    
+                    BookingSlot::create([
+                        'booking_id' => $booking->id,
+                        'slot_date' => $slot['date'],
+                        'start_time' => $slotStart->format('H:i:s'),
+                        'end_time' => $slotEnd->format('H:i:s'),
+                        'duration_hours' => $slot['duration'],
+                    ]);
+                }
+            }
 
             // Update attendees if provided
             if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
@@ -224,7 +337,7 @@ class AdminBookingController extends AdminBaseController
 
             return response()->json([
                 'message' => 'Booking updated successfully',
-                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees']),
+                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees', 'slots']),
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -341,66 +454,38 @@ class AdminBookingController extends AdminBaseController
     }
 
     /**
-     * Approve reschedule request
+     * Mark booking as completed
      */
-    public function approveReschedule(string $id)
+    public function markComplete(string $id)
     {
         try {
             $booking = Booking::findOrFail($id);
 
-            // Check if there's a pending reschedule request
-            if ($booking->reschedule_status !== 'pending') {
+            // Check if booking can be marked as completed
+            if ($booking->status === 'completed') {
                 return response()->json([
-                    'message' => 'No pending reschedule request found for this booking',
+                    'message' => 'Booking is already marked as completed',
                 ], 400);
             }
 
-            // Get facility
-            $facility = $booking->facility;
-            $expectedAttendees = $booking->expected_attendees ?? 1;
-
-            // Check capacity for requested time
-            $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
-                $facility,
-                $facility->id,
-                $booking->requested_booking_date->format('Y-m-d'),
-                $booking->requested_start_time->format('Y-m-d H:i:s'),
-                $booking->requested_end_time->format('Y-m-d H:i:s'),
-                $expectedAttendees,
-                $booking->id // Exclude current booking from check
-            );
-            
-            if (!$capacityCheck['available']) {
+            if ($booking->status === 'cancelled') {
                 return response()->json([
-                    'message' => 'Cannot approve reschedule: ' . $capacityCheck['message'],
-                ], 409);
+                    'message' => 'Cannot mark a cancelled booking as completed',
+                ], 400);
             }
 
-            // Calculate new duration
-            $startTime = \Carbon\Carbon::parse($booking->requested_start_time);
-            $endTime = \Carbon\Carbon::parse($booking->requested_end_time);
-            $durationHours = $startTime->diffInHours($endTime);
-
-            // Update booking with new schedule
+            // Update booking status
+            $oldStatus = $booking->status;
             $booking->update([
-                'booking_date' => $booking->requested_booking_date,
-                'start_time' => $booking->requested_start_time,
-                'end_time' => $booking->requested_end_time,
-                'duration_hours' => $durationHours,
-                'reschedule_status' => 'approved',
-                'reschedule_processed_by' => auth()->id(),
-                'reschedule_processed_at' => now(),
-                'requested_booking_date' => null,
-                'requested_start_time' => null,
-                'requested_end_time' => null,
+                'status' => 'completed',
             ]);
 
             // Create status history
             try {
                 $user = auth()->user();
-                $notes = 'Reschedule request approved by ' . ($user->isAdmin() ? 'admin' : 'staff');
+                $notes = 'Booking marked as completed by ' . ($user->isAdmin() ? 'admin' : 'staff');
                 $booking->statusHistory()->create([
-                    'status' => $booking->status,
+                    'status' => 'completed',
                     'changed_by' => auth()->id(),
                     'notes' => $notes,
                 ]);
@@ -409,122 +494,20 @@ class AdminBookingController extends AdminBaseController
             }
 
             // Send notification to user
-            $this->notificationService->sendBookingNotification($booking, 'approved', 'Your reschedule request has been approved!');
+            $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been marked as completed!');
 
             return response()->json([
-                'message' => 'Reschedule request approved successfully',
-                'data' => $booking->load(['user', 'facility', 'attendees', 'rescheduleProcessor']),
+                'message' => 'Booking marked as completed successfully',
+                'data' => $booking->load(['user', 'facility', 'attendees']),
             ]);
         } catch (\Exception $e) {
-            \Log::error('Approve reschedule error: ' . $e->getMessage());
+            \Log::error('Mark complete error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Failed to approve reschedule request: ' . $e->getMessage(),
+                'message' => 'Failed to mark booking as completed: ' . $e->getMessage(),
             ], 500);
         }
     }
 
-    /**
-     * Reject reschedule request
-     */
-    public function rejectReschedule(Request $request, string $id)
-    {
-        try {
-            $request->validate([
-                'reason' => 'required|string|max:500',
-            ]);
-
-            $booking = Booking::findOrFail($id);
-
-            // Check if there's a pending reschedule request
-            if ($booking->reschedule_status !== 'pending') {
-                return response()->json([
-                    'message' => 'No pending reschedule request found for this booking',
-                ], 400);
-            }
-
-            // Update booking
-            $booking->update([
-                'reschedule_status' => 'rejected',
-                'reschedule_processed_by' => auth()->id(),
-                'reschedule_processed_at' => now(),
-                'reschedule_rejection_reason' => $request->reason,
-                'requested_booking_date' => null,
-                'requested_start_time' => null,
-                'requested_end_time' => null,
-            ]);
-
-            // Create status history
-            try {
-                $user = auth()->user();
-                $notes = 'Reschedule request rejected by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
-                $booking->statusHistory()->create([
-                    'status' => $booking->status,
-                    'changed_by' => auth()->id(),
-                    'notes' => $notes,
-                ]);
-            } catch (\Exception $e) {
-                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-            }
-
-            // Send notification to user
-            $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your reschedule request has been rejected. Reason: ' . $request->reason);
-
-            return response()->json([
-                'message' => 'Reschedule request rejected successfully',
-                'data' => $booking->load(['user', 'facility', 'attendees', 'rescheduleProcessor']),
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('Reject reschedule error: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to reject reschedule request: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get pending reschedule requests
-     */
-    public function getPendingRescheduleRequests(Request $request)
-    {
-        $limit = $request->get('limit', 10);
-
-        $bookings = Booking::with(['user', 'facility'])
-            ->where('reschedule_status', 'pending')
-            ->orderBy('reschedule_requested_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($booking) {
-                return [
-                    'id' => $booking->id,
-                    'booking_number' => $booking->booking_number,
-                    'facility_name' => $booking->facility->name ?? 'Unknown',
-                    'user_name' => $booking->user->name ?? 'Unknown',
-                    'current_booking_date' => $booking->booking_date->format('Y-m-d'),
-                    'current_start_time' => $booking->start_time->format('H:i'),
-                    'current_end_time' => $booking->end_time->format('H:i'),
-                    'requested_booking_date' => $booking->requested_booking_date->format('Y-m-d'),
-                    'requested_start_time' => $booking->requested_start_time->format('H:i'),
-                    'requested_end_time' => $booking->requested_end_time->format('H:i'),
-                    'reschedule_reason' => $booking->reschedule_reason,
-                    'reschedule_requested_at' => $booking->reschedule_requested_at,
-                ];
-            });
-
-        $count = Booking::where('reschedule_status', 'pending')->count();
-
-        return response()->json([
-            'message' => 'Pending reschedule requests retrieved successfully',
-            'data' => [
-                'bookings' => $bookings,
-                'count' => $count,
-            ],
-        ]);
-    }
 
     /**
      * Get pending bookings for admin dropdown

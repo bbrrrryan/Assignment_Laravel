@@ -74,6 +74,30 @@ function displayBookingDetails(booking) {
                     <span class="detail-label">Status:</span>
                     <span class="status-badge status-${booking.status}">${booking.status || 'N/A'}</span>
                 </div>
+                ${booking.slots && booking.slots.length > 0 ? `
+                <div class="detail-row">
+                    <span class="detail-label">Time Slots:</span>
+                    <span class="detail-value">
+                        <div class="booking-slots-list">
+                            ${booking.slots.map((slot, index) => {
+                                // Format slot date
+                                const slotDate = formatDate(slot.slot_date);
+                                // Format slot time (slot.start_time and slot.end_time are time strings like "08:00:00")
+                                const startTime = formatSlotTime(slot.start_time);
+                                const endTime = formatSlotTime(slot.end_time);
+                                return `
+                                    <div class="booking-slot-item">
+                                        <span class="slot-number">${index + 1}.</span>
+                                        <span class="slot-date">${slotDate}</span>
+                                        <span class="slot-time">${startTime} - ${endTime}</span>
+                                        <span class="slot-duration">(${slot.duration_hours || 1} hour${slot.duration_hours > 1 ? 's' : ''})</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </span>
+                </div>
+                ` : `
                 <div class="detail-row">
                     <span class="detail-label">Booking Date:</span>
                     <span class="detail-value">${formatDate(booking.booking_date)}</span>
@@ -82,6 +106,7 @@ function displayBookingDetails(booking) {
                     <span class="detail-label">Time:</span>
                     <span class="detail-value">${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}</span>
                 </div>
+                `}
                 <div class="detail-row">
                     <span class="detail-label">Duration:</span>
                     <span class="detail-value">${booking.duration_hours || 0} hours</span>
@@ -145,7 +170,7 @@ function displayBookingDetails(booking) {
                 ` : ''}
             </div>
 
-            ${booking.status === 'pending' ? `
+            ${booking.status === 'pending' && !window.isAdminOrStaff ? `
             <div class="details-actions">
                 <div class="cancel-booking-section">
                     <div class="cancel-warning">
@@ -217,6 +242,21 @@ function formatTime(dateString) {
     return formatTimeNoSeconds(dateString);
 }
 
+function formatSlotTime(timeString) {
+    if (!timeString) return 'N/A';
+    
+    // timeString is in format "HH:mm:ss" or "HH:mm"
+    const timeParts = timeString.split(':');
+    if (timeParts.length < 2) return timeString;
+    
+    const hour = parseInt(timeParts[0]);
+    const minute = timeParts[1];
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:${minute} ${ampm}`;
+}
+
 let currentBookingId = null;
 let currentCancelButton = null;
 
@@ -280,7 +320,11 @@ async function confirmCancelBooking() {
     const bookingId = currentBookingId;
     
     if (!bookingId) {
-        alert('Error: Booking ID is missing. Please try again.');
+        if (typeof showToast !== 'undefined') {
+            showToast('Error: Booking ID is missing. Please try again.', 'error');
+        } else {
+            alert('Error: Booking ID is missing. Please try again.');
+        }
         return;
     }
     
@@ -288,12 +332,20 @@ async function confirmCancelBooking() {
     const customReason = document.getElementById('customCancelReason');
     
     if (!reasonSelect.value) {
-        alert('Please select a reason for cancellation.');
+        if (typeof showToast !== 'undefined') {
+            showToast('Please select a reason for cancellation.', 'warning');
+        } else {
+            alert('Please select a reason for cancellation.');
+        }
         return;
     }
     
     if (reasonSelect.value === 'other' && !customReason.value.trim()) {
-        alert('Please provide a reason for cancellation.');
+        if (typeof showToast !== 'undefined') {
+            showToast('Please provide a reason for cancellation.', 'warning');
+        } else {
+            alert('Please provide a reason for cancellation.');
+        }
         return;
     }
     
