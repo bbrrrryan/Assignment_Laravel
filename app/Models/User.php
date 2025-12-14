@@ -51,6 +51,7 @@ class User extends Authenticatable
         'last_login_at',
         'otp_code',
         'otp_expires_at',
+        'studentid',
     ];
 
     protected $hidden = [
@@ -158,6 +159,35 @@ class User extends Authenticatable
         } else {
             return false;
         }
+    }
+
+    /**
+     * Generate a unique student ID
+     * Format: YYWMR##### (e.g., 25WMR00001)
+     * YY: 2-digit year (e.g., 25 for 2025)
+     * WMR: Fixed prefix
+     * #####: 5-digit sequential number starting from 00001
+     * 
+     * @return string
+     */
+    public static function generateStudentId()
+    {
+        $year = date('y');
+        $prefix = $year . 'WMR';
+        
+        $lastStudent = self::whereNotNull('studentid')
+            ->where('studentid', 'like', $prefix . '%')
+            ->orderBy('studentid', 'desc')
+            ->first();
+        
+        if ($lastStudent && $lastStudent->studentid) {
+            $lastNumber = intval(substr($lastStudent->studentid, 5));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+        
+        return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
 }

@@ -59,15 +59,21 @@ class AuthController extends Controller
         $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
         $otpExpiresAt = now()->addMinutes(3);
 
-        $user = User::create([
+        $userData = [
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $role,
-            'status' => 'inactive', // Set to inactive until OTP verified
+            'status' => 'inactive',
             'otp_code' => $otpCode,
             'otp_expires_at' => $otpExpiresAt,
-        ]);
+        ];
+        
+        if ($role === 'student') {
+            $userData['studentid'] = User::generateStudentId();
+        }
+        
+        $user = User::create($userData);
 
         // Send OTP email - must succeed for security
         try {

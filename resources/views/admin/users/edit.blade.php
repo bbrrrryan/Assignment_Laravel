@@ -46,6 +46,16 @@
                     <input type="email" id="email" name="email" value="{{ old('email', $user->email) }}" required class="form-input">
                 </div>
 
+                @if($user->role === 'student' && $user->studentid)
+                <div class="form-group">
+                    <label for="studentid">Student ID</label>
+                    <input type="text" id="studentid" name="studentid" value="{{ old('studentid', $user->studentid) }}" readonly class="form-input" style="background-color: #f5f5f5; cursor: not-allowed;">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> Student ID cannot be edited.
+                    </small>
+                </div>
+                @endif
+
                 <div class="form-group">
                     <label for="role">Role <span class="required">*</span></label>
                     @if(auth()->user()->isAdmin())

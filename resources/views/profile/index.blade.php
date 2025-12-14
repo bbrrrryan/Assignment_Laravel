@@ -17,7 +17,10 @@
                 </div>
                 <h2 id="profileName">Loading...</h2>
                 <p id="profileEmail">Loading...</p>
-                <p id="profileRole" class="role-badge">Loading...</p>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+                    <p id="profileRole" class="role-badge">Loading...</p>
+                    <p id="profileStudentId" class="role-badge" style="display: none;"></p>
+                </div>
             </div>
 
             <div class="profile-content">
@@ -110,6 +113,16 @@ function displayProfile(user) {
     const roleName = user.role ? (typeof user.role === 'object' ? user.role.name : user.role) : 'N/A';
     document.getElementById('profileRole').textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
     document.getElementById('profileRole').className = 'role-badge role-' + roleName.toLowerCase();
+
+    // Show studentid if user is a student
+    const studentIdElement = document.getElementById('profileStudentId');
+    if (user.role === 'student' && user.studentid) {
+        studentIdElement.textContent = user.studentid;
+        studentIdElement.className = 'role-badge role-student';
+        studentIdElement.style.display = 'inline-block';
+    } else {
+        studentIdElement.style.display = 'none';
+    }
 
     // Fill form fields
     document.getElementById('profileNameInput').value = user.name || '';
