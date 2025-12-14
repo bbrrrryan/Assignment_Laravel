@@ -1047,7 +1047,7 @@
                             </button>
                             <div class="notification-menu" id="notificationMenu">
                                 <div class="notification-header">
-                                    <h3 id="notificationMenuTitle">Notifications</h3>
+                                    <h3 id="notificationMenuTitle">Announcements</h3>
                                     <a href="{{ route('notifications.index') }}" id="viewAllLink" class="view-all-link">View All</a>
                                 </div>
                                 <div class="notification-list" id="notificationList">

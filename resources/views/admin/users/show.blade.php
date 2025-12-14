@@ -36,6 +36,12 @@
                     <label>Email</label>
                     <p>{{ $user->email }}</p>
                 </div>
+                @if($user->role === 'student' && $user->studentid)
+                <div class="detail-item">
+                    <label>Student ID</label>
+                    <p>{{ $user->studentid }}</p>
+                </div>
+                @endif
                 <div class="detail-item">
                     <label>Role</label>
                     <p>

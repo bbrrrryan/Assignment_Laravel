@@ -87,7 +87,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        $user = User::create([
+        $userData = [
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -95,7 +95,13 @@ class UserController extends Controller
             'phone_number' => $request->phone_number,
             'address' => $request->address,
             'status' => $request->status ?? 'active',
-        ]);
+        ];
+        
+        if ($request->role === 'student') {
+            $userData['studentid'] = User::generateStudentId();
+        }
+        
+        $user = User::create($userData);
 
         // Log activity
         /** @var User $currentUser */
@@ -326,6 +332,10 @@ class UserController extends Controller
                         $failed++;
                         $errors[] = "Row " . ($rowIndex + 2) . ": " . implode(', ', $validator->errors()->all());
                         continue;
+                    }
+
+                    if ($userData['role'] === 'student') {
+                        $userData['studentid'] = User::generateStudentId();
                     }
 
                     User::create($userData);

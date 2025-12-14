@@ -313,7 +313,7 @@ class UserCRUDManagementController extends AdminBaseController
                 }
 
                 // Create user
-                User::create([
+                $createData = [
                     'name' => $userData['name'],
                     'email' => $userData['email'],
                     'password' => Hash::make($userData['password']),
@@ -321,7 +321,13 @@ class UserCRUDManagementController extends AdminBaseController
                     'phone_number' => $userData['phone_number'],
                     'address' => $userData['address'],
                     'status' => $userData['status'],
-                ]);
+                ];
+                
+                if ($userData['role'] === 'student') {
+                    $createData['studentid'] = User::generateStudentId();
+                }
+                
+                User::create($createData);
 
                 $successCount++;
             }
