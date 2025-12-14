@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', function() {
 let currentTab = 'points';
 
 function initLoyalty() {
+    loadPoints();
+    loadPointsHistory();
+}
 
 async function loadPoints() {
     const result = await API.get('/loyalty/points');
@@ -191,10 +194,6 @@ window.redeemReward = async function(rewardId, pointsRequired) {
         alert(result.error || 'Error redeeming reward');
     }
 };
-
-    loadPoints();
-    loadPointsHistory();
-}
 </script>
 @endsection
 

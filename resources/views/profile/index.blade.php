@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li (profile management) --}}
 @extends('layouts.app')
 
 @section('title', 'My Profile - TARUMT FMS')
@@ -74,20 +75,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Activity History Section -->
-        <div class="profile-card" style="margin-top: 20px;">
-            <div class="profile-content">
-                <div class="profile-section">
-                    <h3>Account Activity History</h3>
-                    <div id="activityLogs" class="activity-logs">
-                        <div class="loading-spinner">
-                            <i class="fas fa-spinner fa-spin"></i> Loading activity history...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -102,7 +89,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!API.requireAuth()) return;
 
     loadProfile();
-    loadActivityLogs();
 });
 
 async function loadProfile() {
@@ -184,106 +170,6 @@ async function updateProfile() {
     } else {
         alert('Error updating profile: ' + (result.error || 'Unknown error'));
     }
-}
-
-// Activity Logs Functions
-let currentActivityPage = 1;
-
-async function loadActivityLogs(page = 1) {
-    const container = document.getElementById('activityLogs');
-    currentActivityPage = page;
-    
-    const result = await API.get(`/users/profile/activity-logs?page=${page}`);
-    
-    if (result.success) {
-        const paginationData = result.data.data;
-        const logs = paginationData?.data || paginationData || [];
-        displayActivityLogs(logs, paginationData);
-    } else {
-        container.innerHTML = '<p class="error-text">Error loading activity history: ' + (result.error || 'Unknown error') + '</p>';
-    }
-}
-
-function displayActivityLogs(logs, paginationData) {
-    const container = document.getElementById('activityLogs');
-    
-    if (logs.length === 0) {
-        container.innerHTML = '<p>No activity history found.</p>';
-        return;
-    }
-    
-    const currentPage = paginationData?.current_page || 1;
-    const lastPage = paginationData?.last_page || 1;
-    const total = paginationData?.total || logs.length;
-    
-    // Show info that only last 30 records are displayed
-    const infoText = total >= 30 
-        ? '<p class="activity-info">Showing last 30 activity records (10 per page)</p>' 
-        : `<p class="activity-info">Showing ${total} activity record${total > 1 ? 's' : ''} (10 per page)</p>`;
-    
-    let paginationHTML = '';
-    if (lastPage > 1) {
-        paginationHTML = `
-            <div class="pagination">
-                <button class="btn-pagination" onclick="loadActivityLogs(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
-                    <i class="fas fa-chevron-left"></i> Previous
-                </button>
-                <span class="pagination-info">Page ${currentPage} of ${lastPage}</span>
-                <button class="btn-pagination" onclick="loadActivityLogs(${currentPage + 1})" ${currentPage === lastPage ? 'disabled' : ''}>
-                    Next <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
-        `;
-    }
-    
-    container.innerHTML = `
-        ${infoText}
-        <div class="activity-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Action</th>
-                        <th>Description</th>
-                        <th>IP Address</th>
-                        <th>Date & Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${logs.map(log => `
-                        <tr>
-                            <td><span class="badge badge-${getActionBadgeClass(log.action)}">${log.action || 'N/A'}</span></td>
-                            <td>${log.description || '-'}</td>
-                            <td>${log.ip_address || '-'}</td>
-                            <td>${formatDateTime(log.created_at)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-        ${paginationHTML}
-    `;
-}
-
-function getActionBadgeClass(action) {
-    if (!action) return 'secondary';
-    const actionLower = action.toLowerCase();
-    if (actionLower.includes('login')) return 'success';
-    if (actionLower.includes('logout')) return 'warning';
-    if (actionLower.includes('update') || actionLower.includes('create')) return 'info';
-    if (actionLower.includes('delete')) return 'danger';
-    return 'secondary';
-}
-
-function formatDateTime(dateString) {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
 }
 
 </script>
@@ -400,127 +286,6 @@ function formatDateTime(dateString) {
     margin-top: 30px;
 }
 
-.activity-logs {
-    margin-top: 20px;
-}
-
-.activity-table {
-    overflow-x: auto;
-}
-
-.activity-table table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.activity-table th,
-.activity-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.activity-table th {
-    background: #f5f5f5;
-    font-weight: 600;
-    color: #555;
-}
-
-.activity-table tr:hover {
-    background: #f9f9f9;
-}
-
-.badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 0.85em;
-    font-weight: 600;
-}
-
-.badge-success {
-    background: #d4edda;
-    color: #155724;
-}
-
-.badge-warning {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.badge-info {
-    background: #d1ecf1;
-    color: #0c5460;
-}
-
-.badge-danger {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.badge-secondary {
-    background: #e2e3e5;
-    color: #383d41;
-}
-
-.pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.pagination-info {
-    color: #555;
-    font-size: 0.9em;
-}
-
-.btn-pagination {
-    padding: 8px 16px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: white;
-    color: #333;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: all 0.3s;
-}
-
-.btn-pagination:hover:not(:disabled) {
-    background: #667eea;
-    color: white;
-    border-color: #667eea;
-}
-
-.btn-pagination:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.btn-pagination i {
-    margin: 0 5px;
-}
-
-.loading-spinner {
-    text-align: center;
-    padding: 20px;
-    color: #666;
-}
-
-.error-text {
-    color: #dc3545;
-}
-
-.activity-info {
-    color: #666;
-    font-size: 0.9em;
-    margin-bottom: 15px;
-    font-style: italic;
-}
-
 @media (max-width: 768px) {
     .info-grid {
         grid-template-columns: 1fr;
@@ -528,24 +293,6 @@ function formatDateTime(dateString) {
     
     .profile-actions {
         flex-direction: column;
-    }
-    
-    .activity-table {
-        font-size: 0.9em;
-    }
-    
-    .activity-table th,
-    .activity-table td {
-        padding: 8px;
-    }
-    
-    .pagination {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .pagination-info {
-        order: -1;
     }
 }
 </style>

@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li (auth register) --}}
 @extends('layouts.app')
 
 @section('title', 'Register - TARUMT FMS')

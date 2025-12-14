@@ -46,7 +46,6 @@ class AnnouncementController extends AdminBaseController
             'type' => 'required|in:info,warning,success,error,reminder,general',
             'priority' => 'nullable|in:low,medium,high,urgent',
             'is_active' => 'nullable',
-            'is_pinned' => 'nullable',
         ]);
 
         // Set target_audience to 'all' (announcements are sent to everyone)
@@ -54,9 +53,6 @@ class AnnouncementController extends AdminBaseController
         
         // Convert is_active to boolean
         $validated['is_active'] = $request->has('is_active') ? (bool)$request->is_active : $announcement->is_active;
-        
-        // Convert is_pinned to boolean
-        $validated['is_pinned'] = $request->has('is_pinned') ? (bool)$request->is_pinned : $announcement->is_pinned;
 
         $announcement->update($validated);
 

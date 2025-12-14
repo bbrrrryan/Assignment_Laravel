@@ -74,14 +74,14 @@ class User extends Authenticatable
     public function notifications()
     {
         return $this->belongsToMany(Notification::class, 'user_notification')
-                    ->withPivot('is_read', 'read_at', 'is_acknowledged', 'acknowledged_at')
+                    ->withPivot('is_read', 'read_at', 'is_acknowledged', 'acknowledged_at', 'is_starred', 'starred_at')
                     ->withTimestamps();
     }
 
     public function announcements()
     {
         return $this->belongsToMany(Announcement::class, 'user_announcement')
-                    ->withPivot('is_read', 'read_at')
+                    ->withPivot('is_read', 'read_at', 'is_starred', 'starred_at')
                     ->withTimestamps();
     }
 

@@ -53,8 +53,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'show'])->name('announcements.show');
         Route::put('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
         Route::delete('/announcements/{id}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+        
+        // Loyalty Management
+        Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
     });
-    
+
     // Profile Routes (All authenticated users)
     Route::get('/profile', [PageController::class, 'profile'])->name('profile.index');
     

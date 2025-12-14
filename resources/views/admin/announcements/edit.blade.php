@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li (announcement edit) --}}
 @extends('layouts.app')
 
 @section('title', 'Edit Announcement - TARUMT FMS')
@@ -76,11 +77,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="is_pinned">Pinned</label>
-                        <select id="is_pinned" name="is_pinned">
-                            <option value="1" {{ old('is_pinned', $announcement->is_pinned ? '1' : '0') === '1' ? 'selected' : '' }}>Yes</option>
-                            <option value="0" {{ old('is_pinned', $announcement->is_pinned ? '1' : '0') === '0' ? 'selected' : '' }}>No</option>
-                        </select>
                     </div>
                 </div>
 

@@ -122,7 +122,16 @@ class PageController extends Controller
     // Loyalty
     public function loyalty()
     {
+        // Redirect admins to admin loyalty management
+        if (auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isStaff())) {
+            return redirect()->route('admin.loyalty.index');
+        }
         return view('loyalty.index');
+    }
+
+    public function adminLoyalty()
+    {
+        return view('admin.loyalty.index');
     }
 
     // Feedback

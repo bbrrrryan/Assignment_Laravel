@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Factories\NotificationFactory;
 use App\Models\Announcement;
 use App\Models\Notification;
 use App\Models\User;
@@ -28,8 +29,10 @@ class NotificationController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notifications retrieved successfully',
             'data' => $notifications,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -51,14 +54,24 @@ class NotificationController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $notification = Notification::create($validated + [
-            'created_by' => auth()->id(),
-            'is_active' => $request->is_active ?? true,
-        ]);
+        $notification = NotificationFactory::makeNotification(
+            $validated['type'],
+            $validated['title'],
+            $validated['message'],
+            $validated['target_audience'],
+            auth()->id(),
+            $validated['priority'] ?? null,
+            $validated['target_user_ids'] ?? null,
+            $validated['scheduled_at'] ?? null,
+            $validated['expires_at'] ?? null,
+            $request->is_active ?? true
+        );
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification created successfully',
             'data' => $notification->load('creator'),
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
@@ -70,8 +83,10 @@ class NotificationController extends Controller
         $notification = Notification::with(['creator', 'users'])->findOrFail($id);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification retrieved successfully',
             'data' => $notification,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -98,8 +113,10 @@ class NotificationController extends Controller
         $notification->update($validated);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification updated successfully',
             'data' => $notification->load('creator'),
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -112,7 +129,9 @@ class NotificationController extends Controller
         $notification->delete();
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification deleted successfully',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -125,7 +144,9 @@ class NotificationController extends Controller
 
         if (!$notification->is_active) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Notification is not active',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 400);
         }
 
@@ -149,11 +170,13 @@ class NotificationController extends Controller
         }
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification sent successfully',
             'data' => [
                 'notification' => $notification,
                 'recipients_count' => count($targetUsers),
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -178,8 +201,10 @@ class NotificationController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
+            'status' => 'S',
             'message' => 'My notifications retrieved successfully',
             'data' => $notifications,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -195,10 +220,12 @@ class NotificationController extends Controller
             ->count();
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Unread notifications count retrieved successfully',
             'data' => [
                 'count' => $count,
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -212,7 +239,9 @@ class NotificationController extends Controller
 
         if (!$user->notifications()->where('notifications.id', $id)->exists()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Notification not found for this user',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
@@ -222,7 +251,9 @@ class NotificationController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification marked as read',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -236,7 +267,9 @@ class NotificationController extends Controller
 
         if (!$user->notifications()->where('notifications.id', $id)->exists()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Notification not found for this user',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
@@ -246,7 +279,9 @@ class NotificationController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification marked as unread',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -260,7 +295,9 @@ class NotificationController extends Controller
 
         if (!$user->notifications()->where('notifications.id', $id)->exists()) {
             return response()->json([
+                'status' => 'F',
                 'message' => 'Notification not found for this user',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
@@ -270,7 +307,9 @@ class NotificationController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Notification acknowledged',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -281,7 +320,9 @@ class NotificationController extends Controller
     public function getUnreadItems(Request $request)
     {
         $user = auth()->user();
-        $limit = $request->get('limit', 10);
+        $perPage = $request->get('per_page', 10);
+        $page = $request->get('page', 1);
+        $search = $request->get('search', '');
         // Handle both string and boolean values for only_unread
         $onlyUnreadParam = $request->get('only_unread', false);
         $onlyUnread = filter_var($onlyUnreadParam, FILTER_VALIDATE_BOOLEAN);
@@ -343,6 +384,7 @@ class NotificationController extends Controller
                 'pivot_created_at' => $pivotCreatedAt,
                 'creator' => $announcement->creator ? $announcement->creator->name : 'System',
                 'is_read' => $pivotData ? (bool)($pivotData->is_read ?? false) : false,
+                'is_starred' => $pivotData ? (bool)($pivotData->is_starred ?? false) : false,
             ];
         })->filter(function($item) use ($onlyUnread) {
             if ($onlyUnread) {
@@ -377,6 +419,7 @@ class NotificationController extends Controller
                     'pivot_created_at' => $pivotCreatedAt,
                     'creator' => $notification->creator ? $notification->creator->name : 'System',
                     'is_read' => (bool)($notification->pivot->is_read ?? false),
+                    'is_starred' => (bool)($notification->pivot->is_starred ?? false),
                 ];
             })
             ->filter(function($item) use ($onlyUnread) {
@@ -386,13 +429,27 @@ class NotificationController extends Controller
                 return true;
             });
 
-        // Combine and sort by created_at (unread items first)
+        // Combine and sort by created_at (unread items first, then starred, then by date)
         $combined = $announcements->concat($notifications);
         
-        $items = $combined->sort(function ($a, $b) {
+        // apply search filter if search term provided
+        if (!empty($search)) {
+            $searchLower = strtolower($search);
+            $combined = $combined->filter(function($item) use ($searchLower) {
+                $title = strtolower($item['title'] ?? '');
+                $content = strtolower($item['content'] ?? '');
+                return strpos($title, $searchLower) !== false || strpos($content, $searchLower) !== false;
+            });
+        }
+        
+        $sorted = $combined->sort(function ($a, $b) {
                 // Unread items first
                 if ($a['is_read'] !== $b['is_read']) {
                     return $a['is_read'] ? 1 : -1;
+                }
+                // Then starred items
+                if ($a['is_starred'] !== $b['is_starred']) {
+                    return $a['is_starred'] ? -1 : 1;
                 }
                 // Then sort by date (most recent first)
                 $dateA = $a['pivot_created_at'] ?? $a['created_at'] ?? '';
@@ -404,8 +461,23 @@ class NotificationController extends Controller
                 
                 return $timestampB <=> $timestampA;
             })
-            ->take($limit)
             ->values();
+
+        // Manual pagination using LengthAwarePaginator
+        $total = $sorted->count();
+        $offset = ($page - 1) * $perPage;
+        $items = $sorted->slice($offset, $perPage)->values();
+        
+        // Create pagination data structure similar to Laravel's paginator
+        $lastPage = (int) ceil($total / $perPage);
+        $paginationData = [
+            'current_page' => (int) $page,
+            'per_page' => (int) $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'from' => $total > 0 ? $offset + 1 : null,
+            'to' => min($offset + $perPage, $total),
+        ];
 
         // Get total unread counts for badge (count unread items)
         $announcementCount = $announcements->filter(function($item) {
@@ -415,31 +487,20 @@ class NotificationController extends Controller
         $notificationCount = $notifications->filter(function($item) {
             return !$item['is_read'];
         })->count();
-        
-        \Log::info('User ' . $user->id . ' items count - announcements: ' . $announcements->count() . ', notifications: ' . $notifications->count() . ', total items: ' . $items->count());
-        \Log::info('Filtered announcements count: ' . $filteredAnnouncements->count());
-        \Log::info('All announcements count: ' . $allAnnouncements->count());
 
         return response()->json([
+            'status' => 'S',
             'message' => 'Items retrieved successfully',
             'data' => [
-                'items' => $items->toArray(), // Ensure it's an array
+                'items' => $items->toArray(),
+                'pagination' => $paginationData,
                 'counts' => [
                     'announcements' => $announcementCount,
                     'notifications' => $notificationCount,
                     'total' => $announcementCount + $notificationCount,
                 ],
-                'debug' => [
-                    'user_id' => $user->id,
-                    'user_role' => $user->role,
-                    'announcements_total' => $allAnnouncements->count(),
-                    'announcements_filtered' => $filteredAnnouncements->count(),
-                    'announcements_mapped' => $announcements->count(),
-                    'notifications_count' => $notifications->count(),
-                    'combined_count' => $combined->count(),
-                    'items_count' => $items->count(),
-                ],
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -472,6 +533,105 @@ class NotificationController extends Controller
 
             default:
                 return [];
+        }
+    }
+
+    /**
+     * Star/Unstar a notification or announcement
+     */
+    public function toggleStar(Request $request, string $type, string $id)
+    {
+        $user = auth()->user();
+        
+        if (!in_array($type, ['notification', 'announcement'])) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Invalid type. Must be "notification" or "announcement"',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 400);
+        }
+
+        if ($type === 'notification') {
+            $notification = Notification::findOrFail($id);
+            $pivot = DB::table('user_notification')
+                ->where('user_id', $user->id)
+                ->where('notification_id', $id)
+                ->first();
+
+            if (!$pivot) {
+                return response()->json([
+                    'status' => 'F',
+                    'message' => 'Notification not found or not assigned to user',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 404);
+            }
+
+            $isStarred = !$pivot->is_starred;
+            
+            DB::table('user_notification')
+                ->where('user_id', $user->id)
+                ->where('notification_id', $id)
+                ->update([
+                    'is_starred' => $isStarred,
+                    'starred_at' => $isStarred ? now() : null,
+                ]);
+
+            return response()->json([
+                'status' => 'S',
+                'message' => $isStarred ? 'Notification starred successfully' : 'Notification unstarred successfully',
+                'data' => [
+                    'is_starred' => $isStarred,
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } else {
+            // announcement
+            $announcement = Announcement::findOrFail($id);
+            $pivot = DB::table('user_announcement')
+                ->where('user_id', $user->id)
+                ->where('announcement_id', $id)
+                ->first();
+
+            // If pivot doesn't exist, create it
+            if (!$pivot) {
+                DB::table('user_announcement')->insert([
+                    'user_id' => $user->id,
+                    'announcement_id' => $id,
+                    'is_read' => false,
+                    'is_starred' => true,
+                    'starred_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                return response()->json([
+                    'status' => 'S',
+                    'message' => 'Announcement starred successfully',
+                    'data' => [
+                        'is_starred' => true,
+                    ],
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ]);
+            }
+
+            $isStarred = !$pivot->is_starred;
+            
+            DB::table('user_announcement')
+                ->where('user_id', $user->id)
+                ->where('announcement_id', $id)
+                ->update([
+                    'is_starred' => $isStarred,
+                    'starred_at' => $isStarred ? now() : null,
+                ]);
+
+            return response()->json([
+                'status' => 'S',
+                'message' => $isStarred ? 'Announcement starred successfully' : 'Announcement unstarred successfully',
+                'data' => [
+                    'is_starred' => $isStarred,
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
         }
     }
 }
