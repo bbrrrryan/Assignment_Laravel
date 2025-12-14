@@ -85,7 +85,7 @@ class PageController extends Controller
         return view('facilities.show', compact('id'));
     }
 
-    // Bookings
+    // Bookings (User)
     public function bookings()
     {
         return view('bookings.index');
@@ -94,6 +94,12 @@ class PageController extends Controller
     public function showBooking($id)
     {
         return view('bookings.show', compact('id'));
+    }
+    
+    // Admin Bookings
+    public function adminBookings()
+    {
+        return view('admin.bookings.index');
     }
 
     // Notifications
@@ -105,6 +111,12 @@ class PageController extends Controller
     public function showNotification($id)
     {
         return view('notifications.show', compact('id'));
+    }
+
+    // Announcements
+    public function showAnnouncement($id)
+    {
+        return view('announcements.show', compact('id'));
     }
 
     // Loyalty

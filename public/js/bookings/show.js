@@ -1,0 +1,372 @@
+﻿document.addEventListener('DOMContentLoaded', function() {
+    if (typeof API === 'undefined') {
+        console.error('API.js not loaded!');
+        alert('Error: API functions not loaded. Please refresh the page.');
+        return;
+    }
+
+    if (!API.requireAuth()) return;
+
+    loadBookingDetails();
+});
+
+async function loadBookingDetails() {
+    const bookingId = window.bookingId;
+    
+    if (!bookingId) {
+        document.getElementById('bookingDetails').innerHTML = `
+            <div class="error-message">
+                <p>Invalid booking ID. Please check the URL.</p>
+                <a href="${window.bookingsIndexUrl}" class="btn-primary">Back to Bookings</a>
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        const result = await API.get(`/bookings/${bookingId}`);
+
+        if (result.success && result.data && result.data.data) {
+            const booking = result.data.data;
+            displayBookingDetails(booking);
+        } else {
+            // Handle case where booking is not found
+            const errorMsg = result.error || result.data?.message || 'Booking not found';
+            document.getElementById('bookingDetails').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #dc3545; margin-bottom: 20px;"></i>
+                    <h3>Booking Not Found</h3>
+                    <p>${errorMsg}</p>
+                    <p style="margin-top: 15px; color: #666;">The booking you're looking for may have been deleted or doesn't exist.</p>
+                    <a href="${window.bookingsIndexUrl}" class="btn-primary" style="margin-top: 20px; display: inline-block;">
+                        <i class="fas fa-arrow-left"></i> Back to Bookings
+                    </a>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading booking details:', error);
+        document.getElementById('bookingDetails').innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #dc3545; margin-bottom: 20px;"></i>
+                <h3>Error Loading Booking</h3>
+                <p>${error.message || 'An unexpected error occurred while loading booking details.'}</p>
+                <a href="${window.bookingsIndexUrl}" class="btn-primary" style="margin-top: 20px; display: inline-block;">
+                    <i class="fas fa-arrow-left"></i> Back to Bookings
+                </a>
+            </div>
+        `;
+    }
+}
+
+function displayBookingDetails(booking) {
+    const container = document.getElementById('bookingDetails');
+    
+    container.innerHTML = `
+        <div class="details-card">
+            <div class="details-section">
+                <h2>Booking Information</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Booking Number:</span>
+                    <span class="detail-value">${booking.booking_number || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="status-badge status-${booking.status}">${booking.status || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Booking Date:</span>
+                    <span class="detail-value">${formatDate(booking.booking_date)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Time:</span>
+                    <span class="detail-value">${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Duration:</span>
+                    <span class="detail-value">${booking.duration_hours || 0} hours</span>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <h2>Facility Information</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Facility:</span>
+                    <span class="detail-value">${booking.facility?.name || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Location:</span>
+                    <span class="detail-value">${booking.facility?.location || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Capacity:</span>
+                    <span class="detail-value">${booking.facility?.capacity || 'N/A'}</span>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <h2>Booking Details</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Purpose:</span>
+                    <span class="detail-value">${booking.purpose || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Expected Attendees:</span>
+                    <span class="detail-value">${booking.expected_attendees || 'N/A'}</span>
+                </div>
+                ${booking.attendees && booking.attendees.length > 0 ? `
+                <div class="detail-row">
+                    <span class="detail-label">Attendees Passport:</span>
+                    <span class="detail-value">
+                        <div class="attendees-list">
+                            ${booking.attendees.map((attendee, index) => `
+                                <div class="attendee-item">
+                                    <span class="attendee-number">${index + 1}.</span>
+                                    <span class="attendee-passport">${attendee.student_passport || 'N/A'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </span>
+                </div>
+                ` : ''}
+                ${booking.special_requirements ? `
+                <div class="detail-row">
+                    <span class="detail-label">Special Requirements:</span>
+                    <span class="detail-value">${typeof booking.special_requirements === 'object' ? JSON.stringify(booking.special_requirements) : booking.special_requirements}</span>
+                </div>
+                ` : ''}
+                ${booking.status === 'cancelled' && booking.cancellation_reason ? `
+                <div class="detail-row">
+                    <span class="detail-label">Cancellation Reason:</span>
+                    <span class="detail-value" style="color: #dc3545; font-style: italic;">
+                        <i class="fas fa-info-circle" style="margin-right: 5px;"></i>${booking.cancellation_reason}
+                    </span>
+                </div>
+                ` : ''}
+            </div>
+
+            ${booking.status === 'pending' ? `
+            <div class="details-actions">
+                <div class="cancel-booking-section">
+                    <div class="cancel-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>You can cancel this pending booking if needed</span>
+                    </div>
+                    <button class="btn-cancel-booking" onclick="cancelBooking(${booking.id}, this)">
+                        <i class="fas fa-times-circle"></i>
+                        <span>Cancel Booking</span>
+                    </button>
+                </div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+}
+
+function formatTimeNoSeconds(date) {
+    if (!date) return 'N/A';
+    
+    // If date is a string, extract time directly to avoid timezone conversion issues
+    if (typeof date === 'string') {
+        // Try to extract time from various formats:
+        // - "2025-12-15 08:00:00" (local format)
+        // - "2025-12-15T08:00:00.000000Z" (ISO format with Z)
+        // - "2025-12-15T08:00:00" (ISO format without timezone)
+        let timeStr = '';
+        if (date.includes('T')) {
+            const timeMatch = date.match(/T(\d{2}:\d{2}:\d{2})/);
+            if (timeMatch) {
+                timeStr = timeMatch[1];
+            }
+        } else if (date.includes(' ')) {
+            const parts = date.split(' ');
+            if (parts.length > 1) {
+                timeStr = parts[1];
+            }
+        }
+        
+        if (timeStr) {
+            const [hours, minutes] = timeStr.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+    }
+    
+    // Fallback to Date object parsing
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // Check if the date string includes 'Z' (UTC indicator)
+    const isUTC = typeof date === 'string' && date.includes('Z');
+    const hours = isUTC ? d.getUTCHours() : d.getHours();
+    const minutes = String(isUTC ? d.getUTCMinutes() : d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+}
+
+function formatTime(dateString) {
+    return formatTimeNoSeconds(dateString);
+}
+
+let currentBookingId = null;
+let currentCancelButton = null;
+
+function cancelBooking(id, buttonElement) {
+    currentBookingId = id;
+    currentCancelButton = buttonElement || document.querySelector('.btn-cancel-booking');
+    
+    // Initialize listeners if not already done
+    initCancelModalListeners();
+    
+    // Reset modal
+    document.getElementById('cancelReason').value = '';
+    document.getElementById('customCancelReason').value = '';
+    document.getElementById('customCancelReason').style.display = 'none';
+    document.getElementById('confirmCancelBtn').disabled = true;
+    
+    // Show modal
+    document.getElementById('cancelBookingModal').style.display = 'flex';
+}
+
+function closeCancelModal() {
+    document.getElementById('cancelBookingModal').style.display = 'none';
+    currentBookingId = null;
+    currentCancelButton = null;
+}
+
+function handleReasonChange() {
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    
+    if (reasonSelect.value === 'other') {
+        customReason.style.display = 'block';
+        customReason.required = true;
+    } else {
+        customReason.style.display = 'none';
+        customReason.required = false;
+    }
+    
+    // Enable confirm button if reason is selected
+    confirmBtn.disabled = !reasonSelect.value || (reasonSelect.value === 'other' && !customReason.value.trim());
+}
+
+// Enable confirm button when custom reason is typed
+function initCancelModalListeners() {
+    const customReason = document.getElementById('customCancelReason');
+    if (customReason && !customReason.hasAttribute('data-listener-added')) {
+        customReason.setAttribute('data-listener-added', 'true');
+        customReason.addEventListener('input', function() {
+            const reasonSelect = document.getElementById('cancelReason');
+            const confirmBtn = document.getElementById('confirmCancelBtn');
+            if (reasonSelect && reasonSelect.value === 'other') {
+                confirmBtn.disabled = !this.value.trim();
+            }
+        });
+    }
+}
+
+async function confirmCancelBooking() {
+    // Save booking ID before closing modal (closeCancelModal sets currentBookingId to null)
+    const bookingId = currentBookingId;
+    
+    if (!bookingId) {
+        alert('Error: Booking ID is missing. Please try again.');
+        return;
+    }
+    
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    
+    if (!reasonSelect.value) {
+        alert('Please select a reason for cancellation.');
+        return;
+    }
+    
+    if (reasonSelect.value === 'other' && !customReason.value.trim()) {
+        alert('Please provide a reason for cancellation.');
+        return;
+    }
+    
+    // Build reason text
+    const reasonText = reasonSelect.value === 'other' 
+        ? customReason.value.trim()
+        : reasonSelect.options[reasonSelect.selectedIndex].text;
+    
+    // Get the button element
+    const button = currentCancelButton;
+    
+    let originalHTML = '';
+    if (button) {
+        originalHTML = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Cancelling...</span>';
+    }
+    
+    // Disable confirm button
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+    
+    // Close modal (this will set currentBookingId to null, but we've saved it above)
+    closeCancelModal();
+    
+    try {
+        const result = await API.put(`/bookings/${bookingId}/cancel`, { reason: reasonText });
+
+        if (result.success) {
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'success-message';
+            successMessage.innerHTML = `
+                <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); 
+                            border: 2px solid #28a745; 
+                            border-radius: 12px; 
+                            padding: 20px; 
+                            text-align: center; 
+                            margin: 20px 0;">
+                    <i class="fas fa-check-circle" style="font-size: 3rem; color: #28a745; margin-bottom: 15px;"></i>
+                    <h3 style="color: #155724; margin: 0 0 10px 0;">Booking Cancelled Successfully</h3>
+                    <p style="color: #155724; margin: 0;">Your booking has been cancelled. Redirecting to bookings list...</p>
+                </div>
+            `;
+            
+            const container = document.getElementById('bookingDetails');
+            if (container) {
+                container.innerHTML = '';
+                container.appendChild(successMessage);
+            }
+            
+            // Redirect to bookings list after a short delay
+            setTimeout(() => {
+                window.location.href = window.bookingsIndexUrl;
+            }, 2000);
+        } else {
+            if (button) {
+                button.innerHTML = originalHTML;
+                button.disabled = false;
+            }
+            alert('âŒ Error: ' + (result.error || 'Failed to cancel booking. Please try again.'));
+        }
+    } catch (error) {
+        if (button) {
+            button.innerHTML = originalHTML;
+            button.disabled = false;
+        }
+        alert('âŒ Error: ' + (error.message || 'An unexpected error occurred. Please try again.'));
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm Cancellation';
+        }
+    }
+}

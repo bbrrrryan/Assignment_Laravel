@@ -151,6 +151,82 @@
                         </div>
 
                         <div class="col-12">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable_multi_attendees" 
+                                       name="enable_multi_attendees" value="1" {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'checked' : '' }}>
+                                <label class="form-check-label" for="enable_multi_attendees">
+                                    Enable Multi-Attendees
+                                </label>
+                                <small class="form-text text-muted d-block">Allow multiple attendees to be specified for bookings</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="max_attendees_container" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'block' : 'none' }};">
+                            <label for="max_attendees" class="form-label">Maximum Attendees <span class="text-danger" id="max_attendees_required" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'inline' : 'none' }};">*</span></label>
+                            <input type="number" class="form-control" id="max_attendees" 
+                                   name="max_attendees" value="{{ old('max_attendees', $facility->max_attendees) }}" 
+                                   min="1" max="{{ old('capacity', $facility->capacity) }}">
+                            <small class="form-text text-muted">Maximum number of attendees allowed per booking (cannot exceed facility capacity)</small>
+                        </div>
+
+                        <script>
+                        // Define function immediately so it's available for onclick
+                        window.toggleMaxAttendeesField = function() {
+                            const enableMultiAttendees = document.getElementById('enable_multi_attendees');
+                            const maxAttendeesContainer = document.getElementById('max_attendees_container');
+                            const maxAttendeesInput = document.getElementById('max_attendees');
+                            const maxAttendeesRequired = document.getElementById('max_attendees_required');
+                            const capacityInput = document.getElementById('capacity');
+                            
+                            if (!enableMultiAttendees || !maxAttendeesContainer || !maxAttendeesInput) {
+                                return;
+                            }
+                            
+                            if (enableMultiAttendees.checked) {
+                                maxAttendeesContainer.style.display = 'block';
+                                if (maxAttendeesRequired) {
+                                    maxAttendeesRequired.style.display = 'inline';
+                                }
+                                maxAttendeesInput.setAttribute('required', 'required');
+                                if (capacityInput && capacityInput.value) {
+                                    maxAttendeesInput.setAttribute('max', capacityInput.value);
+                                }
+                            } else {
+                                maxAttendeesContainer.style.display = 'none';
+                                if (maxAttendeesRequired) {
+                                    maxAttendeesRequired.style.display = 'none';
+                                }
+                                maxAttendeesInput.removeAttribute('required');
+                                maxAttendeesInput.value = '';
+                            }
+                        };
+                        
+                        // Bind event when DOM is ready
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const enableMultiAttendees = document.getElementById('enable_multi_attendees');
+                            if (enableMultiAttendees) {
+                                enableMultiAttendees.addEventListener('change', window.toggleMaxAttendeesField);
+                                
+                                // Set initial state
+                                if (enableMultiAttendees.checked) {
+                                    window.toggleMaxAttendeesField();
+                                }
+                                
+                                // Update max when capacity changes
+                                const capacityInput = document.getElementById('capacity');
+                                const maxAttendeesInput = document.getElementById('max_attendees');
+                                if (capacityInput && maxAttendeesInput) {
+                                    capacityInput.addEventListener('change', function() {
+                                        if (this.value && enableMultiAttendees.checked) {
+                                            maxAttendeesInput.setAttribute('max', this.value);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                        </script>
+
+                        <div class="col-12">
                             <label class="form-label">Available Days & Times</label>
                             <small class="form-text text-muted d-block mb-3">Select the available days and set the time range</small>
                             
@@ -224,41 +300,48 @@
 
 @push('scripts')
 <script>
-    // Image preview
-    document.getElementById('image').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        const preview = document.getElementById('imagePreview');
-        const previewImg = document.getElementById('previewImg');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Image preview
+        const imageInput = document.getElementById('image');
+        if (imageInput) {
+            imageInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const preview = document.getElementById('imagePreview');
+                const previewImg = document.getElementById('previewImg');
+                
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.style.display = 'none';
+                }
+            });
+        }
+
+        // Time validation - ensure end time is after start time
+        const startTimeInput = document.getElementById('start_time');
+        const endTimeInput = document.getElementById('end_time');
         
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewImg.src = e.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        } else {
-            preview.style.display = 'none';
+        if (startTimeInput && endTimeInput) {
+            function validateTimeRange() {
+                const startTime = startTimeInput.value;
+                const endTime = endTimeInput.value;
+                
+                if (startTime && endTime && startTime >= endTime) {
+                    endTimeInput.setCustomValidity('结束时间必须晚于开始时间');
+                } else {
+                    endTimeInput.setCustomValidity('');
+                }
+            }
+            
+            startTimeInput.addEventListener('change', validateTimeRange);
+            endTimeInput.addEventListener('change', validateTimeRange);
         }
     });
-
-    // Time validation - ensure end time is after start time
-    const startTimeInput = document.getElementById('start_time');
-    const endTimeInput = document.getElementById('end_time');
-    
-    function validateTimeRange() {
-        const startTime = startTimeInput.value;
-        const endTime = endTimeInput.value;
-        
-        if (startTime && endTime && startTime >= endTime) {
-            endTimeInput.setCustomValidity('结束时间必须晚于开始时间');
-        } else {
-            endTimeInput.setCustomValidity('');
-        }
-    }
-    
-    startTimeInput.addEventListener('change', validateTimeRange);
-    endTimeInput.addEventListener('change', validateTimeRange);
 </script>
 @endpush
 @endsection

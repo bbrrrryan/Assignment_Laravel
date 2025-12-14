@@ -226,6 +226,72 @@ class AnnouncementController extends Controller
     }
 
     /**
+     * Mark announcement as unread
+     */
+    public function markAsUnread(string $id)
+    {
+        $announcement = Announcement::findOrFail($id);
+        $user = auth()->user();
+
+        // Check if announcement should be visible to this user (same logic as getUnreadItems)
+        if (!$announcement->is_active || !$announcement->published_at) {
+            return response()->json([
+                'message' => 'Announcement is not published',
+            ], 404);
+        }
+
+        // Check if announcement has expired
+        if ($announcement->expires_at && $announcement->expires_at->isPast()) {
+            return response()->json([
+                'message' => 'Announcement has expired',
+            ], 404);
+        }
+
+        // Check if user should see this announcement (same logic as getUnreadItems)
+        $targetAudience = $announcement->target_audience;
+        $role = strtolower($user->role ?? '');
+        $shouldSee = false;
+
+        if ($targetAudience === 'all') {
+            $shouldSee = true;
+        } elseif ($targetAudience === 'students' && $role === 'student') {
+            $shouldSee = true;
+        } elseif ($targetAudience === 'staff' && $role === 'staff') {
+            $shouldSee = true;
+        } elseif ($targetAudience === 'admins' && ($role === 'admin' || $role === 'administrator')) {
+            $shouldSee = true;
+        } elseif ($targetAudience === 'specific') {
+            $targetUserIds = $announcement->target_user_ids ?? [];
+            $shouldSee = in_array($user->id, $targetUserIds);
+        }
+
+        if (!$shouldSee) {
+            return response()->json([
+                'message' => 'Announcement not found for this user',
+            ], 404);
+        }
+
+        // Check if announcement exists in pivot table
+        if (!$user->announcements()->where('announcements.id', $id)->exists()) {
+            // Create the pivot record if it doesn't exist
+            $user->announcements()->attach($id, [
+                'is_read' => false,
+                'read_at' => null,
+            ]);
+        } else {
+            // Update existing pivot record
+            $user->announcements()->updateExistingPivot($id, [
+                'is_read' => false,
+                'read_at' => null,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Announcement marked as unread',
+        ]);
+    }
+
+    /**
      * Get target users based on announcement audience
      */
     private function getTargetUsers(Announcement $announcement): array
@@ -236,17 +302,17 @@ class AnnouncementController extends Controller
 
             case 'students':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'student'))
+                    ->where('role', 'student')
                     ->pluck('id')->toArray();
 
             case 'staff':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'staff'))
+                    ->where('role', 'staff')
                     ->pluck('id')->toArray();
 
             case 'admins':
                 return User::where('status', 'active')
-                    ->whereHas('role', fn($q) => $q->where('name', 'admin'))
+                    ->where('role', 'admin')
                     ->pluck('id')->toArray();
 
             case 'specific':

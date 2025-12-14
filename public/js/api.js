@@ -67,32 +67,33 @@ const API = {
     // Check if user is staff
     isStaff() {
         const user = this.getUser();
-        if (!user) {
-            return false;
-        }
+        if (!user) return false;
         
-        // Check if role is an object and has name property
-        if (user.role && typeof user.role === 'object' && user.role !== null) {
-            const roleName = (user.role.name || '').toLowerCase();
-            if (roleName === 'staff') {
-                return true;
-            }
-        }
-        
-        // Check if role is a string
         if (typeof user.role === 'string') {
-            const roleName = user.role.toLowerCase();
-            if (roleName === 'staff') {
-                return true;
-            }
+            return user.role.toLowerCase() === 'staff';
+        }
+        
+        if (user.role && typeof user.role === 'object' && user.role !== null) {
+            return user.role.name?.toLowerCase() === 'staff';
         }
         
         return false;
     },
     
-    // Check if user is admin or staff
-    isAdminOrStaff() {
-        return this.isAdmin() || this.isStaff();
+    // Check if user is student
+    isStudent() {
+        const user = this.getUser();
+        if (!user) return false;
+        
+        if (typeof user.role === 'string') {
+            return user.role.toLowerCase() === 'student';
+        }
+        
+        if (user.role && typeof user.role === 'object' && user.role !== null) {
+            return user.role.name?.toLowerCase() === 'student';
+        }
+        
+        return false;
     },
     
     // Check if user is authenticated

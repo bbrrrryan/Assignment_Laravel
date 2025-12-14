@@ -17,21 +17,23 @@ class FacilityController extends Controller
         // Get booking date from request if provided
         $bookingDate = $request->get('booking_date');
         
-        // Add approved bookings count and total expected attendees for each facility
+        // Add bookings count and total expected attendees for each facility
+        // Include both pending and approved bookings in the count
         $facilities->getCollection()->transform(function ($facility) use ($bookingDate) {
-            $approvedBookingsQuery = $facility->bookings()
-                ->where('status', 'approved');
+            $bookingsQuery = $facility->bookings()
+                ->whereIn('status', ['pending', 'approved']); // Include pending and approved
             
             // If booking date is provided, filter by date
             if ($bookingDate) {
-                $approvedBookingsQuery->whereDate('booking_date', $bookingDate);
+                $bookingsQuery->whereDate('booking_date', $bookingDate);
             }
             
-            $approvedBookings = $approvedBookingsQuery->get();
+            $bookings = $bookingsQuery->get();
             
-            $facility->approved_bookings_count = $approvedBookings->count();
-            // Sum expected_attendees, treating null as 0
-            $facility->total_approved_attendees = $approvedBookings->sum(function($booking) {
+            $facility->approved_bookings_count = $bookings->where('status', 'approved')->count();
+            $facility->pending_bookings_count = $bookings->where('status', 'pending')->count();
+            // Sum expected_attendees for both pending and approved bookings
+            $facility->total_approved_attendees = $bookings->sum(function($booking) {
                 return $booking->expected_attendees ?? 0;
             });
             $facility->is_at_capacity = ($facility->total_approved_attendees >= $facility->capacity);
@@ -83,21 +85,25 @@ class FacilityController extends Controller
             'date' => 'required|date',
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
         $date = $request->date;
         $startTime = $request->start_time;
         $endTime = $request->end_time;
+        $expectedAttendees = $request->input('expected_attendees', 1); // Default to 1
 
-        // Get all bookings for this facility on the given date
+        // Get all pending and approved bookings for this facility on the given date
+        // Include pending bookings in capacity count
         $bookings = $facility->bookings()
             ->whereDate('booking_date', $date)
-            ->where('status', '!=', 'cancelled')
+            ->whereIn('status', ['pending', 'approved']) // Include pending and approved
             ->get();
 
-        // If specific time range provided, check conflicts
+        // If specific time range provided, check capacity
         if ($startTime && $endTime) {
-            $conflicts = $bookings->filter(function($booking) use ($startTime, $endTime) {
+            // Find overlapping bookings (pending and approved)
+            $overlappingBookings = $bookings->filter(function($booking) use ($startTime, $endTime) {
                 $bookingStart = $booking->start_time->format('H:i');
                 $bookingEnd = $booking->end_time->format('H:i');
                 
@@ -105,28 +111,60 @@ class FacilityController extends Controller
                 return ($startTime < $bookingEnd && $endTime > $bookingStart);
             });
 
-            $isAvailable = $conflicts->isEmpty();
+            // Calculate total expected attendees for overlapping bookings
+            // If facility has enable_multi_attendees, each booking occupies the full capacity
+            $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility) {
+                // If this facility has enable_multi_attendees, each booking occupies full capacity
+                if ($facility->enable_multi_attendees) {
+                    return $facility->capacity;
+                }
+                // Otherwise, use expected_attendees
+                return $booking->expected_attendees ?? 1;
+            });
+
+            // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
+            $newBookingAttendees = $facility->enable_multi_attendees 
+                ? $facility->capacity 
+                : $expectedAttendees;
+
+            // Check if adding this booking would exceed capacity
+            // If multi_attendees is enabled, only one booking per time slot is allowed
+            if ($facility->enable_multi_attendees) {
+                $isAvailable = $overlappingBookings->count() === 0;
+                $availableCapacity = $isAvailable ? $facility->capacity : 0;
+                $totalAfterBooking = $isAvailable ? $facility->capacity : $facility->capacity;
+            } else {
+                $totalAfterBooking = $totalAttendees + $newBookingAttendees;
+                $isAvailable = $totalAfterBooking <= $facility->capacity;
+                $availableCapacity = max(0, $facility->capacity - $totalAttendees);
+            }
             
             return response()->json([
                 'message' => 'Availability checked',
                 'data' => [
                     'facility_id' => $facility->id,
+                    'facility_capacity' => $facility->capacity,
                     'date' => $date,
                     'time_range' => [
                         'start' => $startTime,
                         'end' => $endTime,
                     ],
+                    'expected_attendees' => $expectedAttendees,
+                    'current_booked_attendees' => $totalAttendees,
+                    'available_capacity' => $availableCapacity,
+                    'total_after_booking' => $totalAfterBooking,
                     'is_available' => $isAvailable,
-                    'conflicting_bookings' => $conflicts->count(),
+                    'overlapping_bookings_count' => $overlappingBookings->count(),
                 ],
             ]);
         }
 
-        // Return all bookings for the day
+        // Return all bookings for the day with capacity information
         return response()->json([
             'message' => 'Availability retrieved',
             'data' => [
                 'facility_id' => $facility->id,
+                'facility_capacity' => $facility->capacity,
                 'date' => $date,
                 'bookings' => $bookings->map(function($booking) {
                     return [
@@ -134,7 +172,11 @@ class FacilityController extends Controller
                         'start_time' => $booking->start_time->format('H:i'),
                         'end_time' => $booking->end_time->format('H:i'),
                         'status' => $booking->status,
+                        'expected_attendees' => $booking->expected_attendees ?? 1,
                     ];
+                }),
+                'total_booked_attendees' => $bookings->sum(function($booking) {
+                    return $booking->expected_attendees ?? 1;
                 }),
             ],
         ]);
