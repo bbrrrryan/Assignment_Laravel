@@ -281,12 +281,26 @@ class UserController extends Controller
                 }
 
                 try {
+                    $password = trim($row[$headerMap['password']]);
+                    $phoneNumber = isset($headerMap['phone_number']) ? trim($row[$headerMap['phone_number']]) : null;
+                    
+                    // If password is empty, use phone_number as password, otherwise use default password
+                    if (empty($password)) {
+                        if (!empty($phoneNumber)) {
+                            // Use phone_number as password
+                            $password = $phoneNumber;
+                        } else {
+                            // Use default password if phone_number is also empty
+                            $password = '123456';
+                        }
+                    }
+                    
                     $userData = [
                         'name' => trim($row[$headerMap['name']]),
                         'email' => trim($row[$headerMap['email']]),
-                        'password' => Hash::make(trim($row[$headerMap['password']])),
+                        'password' => Hash::make($password),
                         'role' => strtolower(trim($row[$headerMap['role']])),
-                        'phone_number' => isset($headerMap['phone_number']) ? trim($row[$headerMap['phone_number']]) : null,
+                        'phone_number' => $phoneNumber,
                         'address' => isset($headerMap['address']) ? trim($row[$headerMap['address']]) : null,
                         'status' => isset($headerMap['status']) ? trim($row[$headerMap['status']]) : 'active',
                     ];

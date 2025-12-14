@@ -260,15 +260,14 @@ class UserCRUDManagementController extends AdminBaseController
                     continue;
                 }
 
-                // If password is empty, use phone_number as password
+                // If password is empty, use phone_number as password, otherwise use default password
                 if (empty($userData['password'])) {
-                    if (empty($userData['phone_number'])) {
-                        $errorCount++;
-                        $errors[] = "Row " . ($index + 2) . ": Need password or phone number";
-                        continue;
-                    } else {
+                    if (!empty($userData['phone_number'])) {
                         // Use phone_number as password
                         $userData['password'] = $userData['phone_number'];
+                    } else {
+                        // Use default password if phone_number is also empty
+                        $userData['password'] = '123456';
                     }
                 }
 
@@ -298,7 +297,7 @@ class UserCRUDManagementController extends AdminBaseController
                     $userData['status'] = 'active'; // Default to active if invalid
                 }
 
-                // Validate password length (after using phone_number if needed)
+                // Validate password length (after using phone_number or default password if needed)
                 if (strlen($userData['password']) < 6) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": Password need at least 6 characters";

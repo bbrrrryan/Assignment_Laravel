@@ -186,6 +186,27 @@ class BookingController extends Controller
 
         $booking = Booking::create($bookingData);
 
+        // Log activity for user who created the booking
+        try {
+            $user->activityLogs()->create([
+                'action' => 'create_booking',
+                'description' => "Created booking for facility: {$facility->name} on {$validated['booking_date']}",
+                'metadata' => [
+                    'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'facility_id' => $facility->id,
+                    'facility_name' => $facility->name,
+                    'booking_date' => $validated['booking_date'],
+                    'start_time' => $validated['start_time'],
+                    'end_time' => $validated['end_time'],
+                    'status' => $booking->status,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            // Activity log is optional, continue even if it fails
+            \Log::warning('Failed to create booking activity log: ' . $e->getMessage());
+        }
+
         // Create status history
         try {
             $booking->statusHistory()->create([
