@@ -96,6 +96,10 @@ const API = {
         return false;
     },
     
+    isAdminOrStaff() {
+        return this.isAdmin() || this.isStaff();
+    },
+    
     // Check if user is authenticated
     isAuthenticated() {
         return !!this.getToken();

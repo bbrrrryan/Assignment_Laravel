@@ -905,35 +905,26 @@
             <ul>
                 @auth
                     @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
+                        {{-- Admin/Staff Navigation --}}
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-                    @endif
-                @endauth
-                <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
-                <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
-                <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
-                @auth
-                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
-                        <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
-                    @else
-                        <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
-                    @endif
-                @endauth
-                <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
-                @auth
-                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
                         <li><a href="{{ route('bookings.index') }}">Booking Management</a></li>
                         <li><a href="{{ route('admin.announcements.index') }}">Announcement Management</a></li>
+                        <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
+                        <li><a href="{{ route('feedbacks.index') }}">Feedback Management</a></li>
                     @else
+                        {{-- Student Navigation --}}
                         <li><a href="{{ route('home') }}">Home</a></li>
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                         <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
+                        <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
                         <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                     @endif
                 @endauth
                 @guest
+                    {{-- Guest Navigation --}}
                     <li><a href="{{ route('home') }}">Home</a></li>
                     <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                 @endguest

@@ -140,7 +140,45 @@
     </div>
 </div>
 
-<!-- Modals will be added here -->
+<!-- Award Points Modal -->
+<div id="awardPointsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeAwardPointsModal()">&times;</span>
+        <h2>Award Points</h2>
+        <form id="awardPointsForm">
+            <div class="form-group">
+                <label>Select Student *</label>
+                <select id="awardPointsUserId" required>
+                    <option value="">Loading users...</option>
+                </select>
+                <small>Choose the student to award points to</small>
+            </div>
+            <div class="form-group">
+                <label>Points *</label>
+                <input type="number" id="awardPointsAmount" required min="1" 
+                       placeholder="e.g., 10, 50, 100">
+                <small>Number of points to award (minimum: 1)</small>
+            </div>
+            <div class="form-group">
+                <label>Action Type *</label>
+                <input type="text" id="awardPointsActionType" required 
+                       placeholder="e.g., manual_award, event_participation, bonus">
+                <small>Type of action that triggered this award</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="awardPointsDescription" rows="3" 
+                          placeholder="Optional description for this point award"></textarea>
+                <small>Provide details about why these points are being awarded</small>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeAwardPointsModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Award Points</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
@@ -164,23 +202,7 @@ let currentEditingRewardId = null;
 function initAdminLoyalty() {
     loadAdminTab('rules');
     // Don't setup form handler here - it will be set up when modal is first opened
-    
-    // Add click outside to close modals
-    window.onclick = function(event) {
-        const ruleModal = document.getElementById('ruleModal');
-        const rewardModal = document.getElementById('rewardModal');
-        const deleteModal = document.getElementById('deleteConfirmModal');
-        
-        if (event.target === ruleModal) {
-            closeRuleModal();
-        }
-        if (event.target === rewardModal) {
-            closeRewardModal();
-        }
-        if (event.target === deleteModal) {
-            closeDeleteConfirmModal();
-        }
-    };
+    // Note: Modals can only be closed via close button (X) or Cancel button, not by clicking outside
 }
 
 let ruleFormHandlerSetup = false;
@@ -271,15 +293,7 @@ function setupRuleFormHandler() {
         }
     });
     
-    // Close modal when clicking outside
-    const ruleModal = document.getElementById('ruleModal');
-    if (ruleModal) {
-        ruleModal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeRuleModal();
-            }
-        });
-    }
+    // Note: Modal cannot be closed by clicking outside - only via close button (X) or cancel button
 }
 
 window.showAdminTab = function(tab, clickedElement) {
@@ -1155,12 +1169,185 @@ window.viewUserPoints = function(userId) {
     alert('View user points details - to be implemented');
 };
 
-window.awardPointsToUser = function(userId) {
-    alert('Award points modal - to be implemented');
+// Award Points Modal Functions
+let awardPointsFormHandlerSetup = false;
+
+function setupAwardPointsFormHandler() {
+    if (awardPointsFormHandlerSetup) return;
+    
+    const form = document.getElementById('awardPointsForm');
+    if (!form) {
+        console.warn('Award points form not found');
+        return;
+    }
+    
+    awardPointsFormHandlerSetup = true;
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const userId = document.getElementById('awardPointsUserId').value;
+        const points = parseInt(document.getElementById('awardPointsAmount').value);
+        const actionType = document.getElementById('awardPointsActionType').value.trim();
+        const description = document.getElementById('awardPointsDescription').value.trim() || null;
+        
+        if (!userId || isNaN(points) || points < 1 || !actionType) {
+            if (typeof showToast !== 'undefined') {
+                showToast('Please fill in all required fields correctly', 'warning');
+            } else {
+                alert('Please fill in all required fields correctly');
+            }
+            return;
+        }
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Awarding...';
+        
+        try {
+            const result = await API.post('/loyalty/points/award', {
+                user_id: userId,
+                points: points,
+                action_type: actionType,
+                description: description
+            });
+            
+            if (result.success) {
+                closeAwardPointsModal();
+                loadPointsManagement(); // Refresh the points tracking table
+                if (typeof showToast !== 'undefined') {
+                    showToast('Points awarded successfully!', 'success');
+                } else {
+                    alert('Points awarded successfully!');
+                }
+            } else {
+                if (typeof showToast !== 'undefined') {
+                    showToast(result.error || 'Failed to award points', 'error');
+                } else {
+                    alert(result.error || 'Failed to award points');
+                }
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error awarding points:', error);
+            if (typeof showToast !== 'undefined') {
+                showToast('An error occurred while awarding points: ' + error.message, 'error');
+            } else {
+                alert('An error occurred while awarding points: ' + error.message);
+            }
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+}
+
+async function loadUsersForAward() {
+    const select = document.getElementById('awardPointsUserId');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Loading users...</option>';
+    select.disabled = true;
+    
+    try {
+        const result = await API.get('/users?role=student');
+        
+        if (result.success && result.data && result.data.data) {
+            const users = result.data.data;
+            select.innerHTML = '<option value="">Select a student...</option>';
+            
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.name} (${user.email})`;
+                select.appendChild(option);
+            });
+            
+            select.disabled = false;
+        } else {
+            select.innerHTML = '<option value="">Failed to load users</option>';
+            console.error('Failed to load users:', result);
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+        select.innerHTML = '<option value="">Error loading users</option>';
+    }
+}
+
+window.showAwardPointsModal = async function() {
+    // Setup form handler if not already done
+    setupAwardPointsFormHandler();
+    
+    const modal = document.getElementById('awardPointsModal');
+    const form = document.getElementById('awardPointsForm');
+    
+    if (!modal || !form) {
+        console.error('Award points modal not found!');
+        alert('Error: Modal not found. Please refresh the page.');
+        return;
+    }
+    
+    // Reset form
+    form.reset();
+    document.getElementById('awardPointsUserId').innerHTML = '<option value="">Loading users...</option>';
+    
+    // Load users
+    await loadUsersForAward();
+    
+    // Show modal
+    modal.style.display = 'block';
+    modal.classList.add('show');
 };
 
-window.showAwardPointsModal = function() {
-    alert('Award points modal - to be implemented');
+window.awardPointsToUser = async function(userId) {
+    // Setup form handler if not already done
+    setupAwardPointsFormHandler();
+    
+    const modal = document.getElementById('awardPointsModal');
+    const form = document.getElementById('awardPointsForm');
+    
+    if (!modal || !form) {
+        console.error('Award points modal not found!');
+        alert('Error: Modal not found. Please refresh the page.');
+        return;
+    }
+    
+    // Reset form
+    form.reset();
+    
+    // Load users first
+    await loadUsersForAward();
+    
+    // Set the user ID after users are loaded
+    setTimeout(() => {
+        const select = document.getElementById('awardPointsUserId');
+        if (select) {
+            select.value = userId;
+        }
+    }, 500);
+    
+    // Show modal
+    modal.style.display = 'block';
+    modal.classList.add('show');
+};
+
+window.closeAwardPointsModal = function() {
+    const modal = document.getElementById('awardPointsModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+    }
+    const form = document.getElementById('awardPointsForm');
+    if (form) {
+        form.reset();
+        // Reset submit button state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Award Points';
+        }
+    }
 };
 
 window.showIssueCertificateModal = function() {
@@ -1339,7 +1526,8 @@ window.filterRedemptions = function() {
 
 .form-group input[type="text"],
 .form-group input[type="number"],
-.form-group textarea {
+.form-group textarea,
+.form-group select {
     width: 100%;
     padding: 12px;
     border: 2px solid #e0e0e0;
@@ -1347,14 +1535,21 @@ window.filterRedemptions = function() {
     font-family: inherit;
     font-size: 0.95rem;
     transition: border-color 0.3s;
+    background-color: white;
 }
 
 .form-group input[type="text"]:focus,
 .form-group input[type="number"]:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
     outline: none;
     border-color: #a31f37;
     box-shadow: 0 0 0 3px rgba(163, 31, 55, 0.1);
+}
+
+.form-group select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
 }
 
 .form-group input[type="checkbox"] {
