@@ -890,7 +890,7 @@
                                 <i class="fas fa-calendar-check"></i> ${booking.facility_name}
                             </div>
                             <div class="notification-item-message">
-                                Booking #${booking.booking_number} from ${booking.user_name}<br>
+                                Booking ${booking.id} from ${booking.user_name}<br>
                                 ${booking.booking_date} ${booking.start_time} - ${booking.end_time}
                             </div>
                             <div class="notification-item-time">${window.formatTimeAgo(booking.created_at)}</div>

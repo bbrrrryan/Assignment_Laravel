@@ -90,7 +90,7 @@ class BookingNotificationService
         $message .= "Facility: {$facilityName}\n";
         $message .= "Date: {$bookingDate}\n";
         $message .= "Time: {$startTime} - {$endTime}\n";
-        $message .= "Booking Number: {$booking->booking_number}";
+        $message .= "Booking ID: {$booking->id}";
         
         return $message;
     }

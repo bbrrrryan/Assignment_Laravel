@@ -101,7 +101,7 @@ async function loadNotifications(page = 1, search = '') {
                     id: booking.id,
                     type: 'booking',
                     title: `Booking Request - ${booking.facility_name}`,
-                    content: `Booking #${booking.booking_number} from ${booking.user_name} for ${booking.booking_date} ${booking.start_time} - ${booking.end_time}`,
+                    content: `Booking ${booking.id} from ${booking.user_name} for ${booking.booking_date} ${booking.start_time} - ${booking.end_time}`,
                     created_at: booking.created_at,
                     booking: booking,
                 }));
@@ -179,7 +179,7 @@ function displayNotifications(items, isAdmin, pagination = null) {
                         const booking = item.booking;
                         return `
                         <tr class="notification-row unread">
-                            <td class="notification-title">${booking.booking_number}</td>
+                            <td class="notification-title">${booking.id}</td>
                             <td>${booking.facility_name}</td>
                             <td>${booking.user_name}</td>
                             <td>${booking.booking_date} ${booking.start_time} - ${booking.end_time}</td>

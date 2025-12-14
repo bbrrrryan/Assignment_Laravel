@@ -375,453 +375,18 @@ window.markComplete = async function(id) {
     }
 };
 
-// Edit booking (admin can edit any booking)
+// Edit booking function removed
 window.editBooking = async function(id) {
-    if (typeof API === 'undefined') {
-        if (typeof showToast !== 'undefined') {
-            showToast('API not loaded', 'error');
-        } else {
-            alert('API not loaded');
-        }
-        return;
+    // Function removed - edit booking functionality has been disabled
+    if (typeof showToast !== 'undefined') {
+        showToast('Edit booking functionality has been disabled', 'info');
+    } else {
+        alert('Edit booking functionality has been disabled');
     }
-    
-    const result = await API.get(`/bookings/${id}`);
-    if (!result.success) {
-        if (typeof showToast !== 'undefined') {
-            showToast('Error loading booking details: ' + (result.error || 'Unknown error'), 'error');
-        } else {
-            alert('Error loading booking details: ' + (result.error || 'Unknown error'));
-        }
-        return;
-    }
-    
-    const booking = result.data.data || result.data;
-    
-    // Prevent editing completed, cancelled, or rejected bookings
-    if (booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'rejected') {
-        if (typeof showToast !== 'undefined') {
-            showToast('Cannot edit completed, cancelled, or rejected bookings.', 'warning');
-        } else {
-            alert('Cannot edit completed, cancelled, or rejected bookings.');
-        }
-        return;
-    }
-    
-    // Store booking data globally for form submission (needed when purpose field is disabled)
-    window.currentEditingBooking = booking;
-    
-    // Store the user ID of the booking being edited - this is used to highlight all slots belonging to this user
-    const editingUserId = booking.user_id || booking.user?.id || null;
-    window.currentEditingUserId = editingUserId;
-    
-    // Store the original booking date (for reference, but admin can change it)
-    const bookingDate = booking.booking_date || '';
-    window.currentEditingBookingDate = bookingDate;
-    
-    // Load facilities with the booking date to check capacity
-    if (typeof loadFacilities === 'function') {
-        await loadFacilities(bookingDate);
-    }
-    
-    // Populate form with booking data
-    const facilityId = booking.facility_id || '';
-    const facilitySelect = document.getElementById('bookingFacility');
-    if (facilitySelect) {
-        facilitySelect.value = facilityId;
-    }
-    
-    // Extract time from datetime strings first (before loading timetable)
-    let bookingDateStr = '';
-    let startTime = '';
-    let endTime = '';
-    
-    if (booking.start_time && booking.end_time) {
-        // Extract time from datetime string directly to avoid timezone issues
-        // booking.start_time and booking.end_time are datetime strings like "2025-12-16 20:00:00"
-        // or ISO format like "2025-12-16T20:00:00.000000Z"
-        
-        let startTimeStr = booking.start_time;
-        let endTimeStr = booking.end_time;
-        
-        // If it's ISO format, extract the time part
-        if (startTimeStr.includes('T')) {
-            // ISO format: "2025-12-16T20:00:00.000000Z" -> extract "20:00:00"
-            const timeMatch = startTimeStr.match(/T(\d{2}:\d{2}:\d{2})/);
-            if (timeMatch) {
-                startTimeStr = timeMatch[1];
-            }
-        }
-        
-        if (endTimeStr.includes('T')) {
-            const timeMatch = endTimeStr.match(/T(\d{2}:\d{2}:\d{2})/);
-            if (timeMatch) {
-                endTimeStr = timeMatch[1];
-            }
-        }
-        
-        // Extract HH:mm from the time string
-        // Format could be "20:00:00" or "2025-12-16 20:00:00"
-        const startTimeMatch = startTimeStr.match(/(\d{2}):(\d{2})/);
-        const endTimeMatch = endTimeStr.match(/(\d{2}):(\d{2})/);
-        
-        if (startTimeMatch && endTimeMatch) {
-            startTime = `${startTimeMatch[1]}:${startTimeMatch[2]}`;
-            endTime = `${endTimeMatch[1]}:${endTimeMatch[2]}`;
-        } else {
-            // Fallback to Date object parsing (may have timezone issues)
-            const startDate = new Date(booking.start_time);
-            const endDate = new Date(booking.end_time);
-            const startHours = String(startDate.getHours()).padStart(2, '0');
-            const startMinutes = String(startDate.getMinutes()).padStart(2, '0');
-            const endHours = String(endDate.getHours()).padStart(2, '0');
-            const endMinutes = String(endDate.getMinutes()).padStart(2, '0');
-            
-            startTime = `${startHours}:${startMinutes}`;
-            endTime = `${endHours}:${endMinutes}`;
-        }
-        
-        bookingDateStr = booking.booking_date || bookingDate;
-        
-        // Normalize bookingDateStr format (remove time part if present)
-        if (bookingDateStr && bookingDateStr.includes('T')) {
-            bookingDateStr = bookingDateStr.split('T')[0];
-        }
-    }
-    
-    // Update time input constraints and load timetable based on facility
-    if (facilityId) {
-        if (typeof updateTimeInputConstraints === 'function') {
-            await updateTimeInputConstraints(facilityId);
-        }
-        if (typeof loadTimetable === 'function') {
-            await loadTimetable(facilityId);
-            // After timetable loads, mark all slots belonging to this user as red
-            // Use a small delay to ensure DOM is fully rendered
-            markUserBookingSlots(editingUserId, bookingDate);
-        }
-    }
-    
-    // Set selected time slots AFTER timetable has loaded
-    // Check if booking has slots (new format) or use old format
-    if (booking.slots && booking.slots.length > 0) {
-        // New format: multiple slots
-        if (typeof selectedTimeSlots !== 'undefined') {
-            selectedTimeSlots = [];
-            booking.slots.forEach(slot => {
-                // Parse slot_date - normalize to YYYY-MM-DD format
-                let slotDate = slot.slot_date || bookingDateStr;
-                if (slotDate) {
-                    if (typeof slotDate === 'string') {
-                        // If it's ISO format like "2025-12-16T00:00:00.000000Z", extract date part
-                        if (slotDate.includes('T')) {
-                            slotDate = slotDate.split('T')[0]; // Get YYYY-MM-DD from ISO format
-                        } else if (slotDate.includes(' ')) {
-                            slotDate = slotDate.split(' ')[0]; // Get YYYY-MM-DD from datetime string
-                        }
-                        // If it's already YYYY-MM-DD format, use as is
-                    } else if (slotDate instanceof Date) {
-                        // Convert Date object to YYYY-MM-DD
-                        const year = slotDate.getFullYear();
-                        const month = String(slotDate.getMonth() + 1).padStart(2, '0');
-                        const day = String(slotDate.getDate()).padStart(2, '0');
-                        slotDate = `${year}-${month}-${day}`;
-                    } else if (slotDate.year) {
-                        // If it's an object with year, month, day
-                        slotDate = `${slotDate.year}-${String(slotDate.month).padStart(2, '0')}-${String(slotDate.day).padStart(2, '0')}`;
-                    }
-                }
-                
-                // Parse start_time and end_time - they are stored as TIME type (HH:mm:ss) in database
-                let slotStart = null;
-                let slotEnd = null;
-                
-                if (slot.start_time) {
-                    if (typeof slot.start_time === 'string') {
-                        // If it's a time string like "08:00:00", extract HH:mm
-                        if (slot.start_time.match(/^\d{2}:\d{2}:\d{2}$/)) {
-                            slotStart = slot.start_time.substring(0, 5); // Get HH:mm from "08:00:00"
-                        } else if (slot.start_time.includes(' ')) {
-                            // If it's a datetime string, extract time part
-                            slotStart = slot.start_time.split(' ')[1]?.substring(0, 5);
-                        } else if (slot.start_time.includes('T')) {
-                            // ISO format
-                            const timeMatch = slot.start_time.match(/T(\d{2}:\d{2})/);
-                            if (timeMatch) slotStart = timeMatch[1];
-                        }
-                    }
-                }
-                
-                if (slot.end_time) {
-                    if (typeof slot.end_time === 'string') {
-                        // If it's a time string like "09:00:00", extract HH:mm
-                        if (slot.end_time.match(/^\d{2}:\d{2}:\d{2}$/)) {
-                            slotEnd = slot.end_time.substring(0, 5); // Get HH:mm from "09:00:00"
-                        } else if (slot.end_time.includes(' ')) {
-                            // If it's a datetime string, extract time part
-                            slotEnd = slot.end_time.split(' ')[1]?.substring(0, 5);
-                        } else if (slot.end_time.includes('T')) {
-                            // ISO format
-                            const timeMatch = slot.end_time.match(/T(\d{2}:\d{2})/);
-                            if (timeMatch) slotEnd = timeMatch[1];
-                        }
-                    }
-                }
-                
-                if (slotStart && slotEnd && slotDate) {
-                    selectedTimeSlots.push({
-                        date: slotDate,
-                        start: slotStart,
-                        end: slotEnd
-                    });
-                }
-            });
-            
-            console.log('Loaded selectedTimeSlots from booking.slots:', selectedTimeSlots);
-            
-            // After setting selectedTimeSlots, mark them as selected in the timetable
-            // Use a delay to ensure timetable is fully rendered
-            setTimeout(() => {
-                selectedTimeSlots.forEach(slot => {
-                    const slotId = `slot-${slot.date}-${slot.start}`;
-                    const slotElement = document.getElementById(slotId);
-                    if (slotElement) {
-                        slotElement.classList.add('selected');
-                        console.log('Marked slot as selected:', slotId);
-                    } else {
-                        console.warn('Slot element not found:', slotId);
-                    }
-                });
-            }, 500); // Wait for timetable to render
-        }
-    } else if (booking.start_time && booking.end_time && startTime && endTime && bookingDateStr) {
-        // Old format: single slot
-        // Set hidden inputs (ensure they are set after timetable loads)
-        const selectedDateInput = document.getElementById('selectedBookingDate');
-        const startTimeInput = document.getElementById('bookingStartTime');
-        const endTimeInput = document.getElementById('bookingEndTime');
-        
-        // Ensure date is in YYYY-MM-DD format
-        let normalizedDate = bookingDateStr;
-        if (normalizedDate.includes('T')) {
-            normalizedDate = normalizedDate.split('T')[0];
-        }
-        
-        if (selectedDateInput) {
-            selectedDateInput.value = normalizedDate;
-        }
-        if (startTimeInput) {
-            // Ensure format is YYYY-MM-DD HH:mm:ss
-            startTimeInput.value = `${normalizedDate} ${startTime}:00`;
-        }
-        if (endTimeInput) {
-            // Ensure format is YYYY-MM-DD HH:mm:ss
-            endTimeInput.value = `${normalizedDate} ${endTime}:00`;
-        }
-        
-        // Set selected time slots (use global selectedTimeSlots from bookings/index.js)
-        // Access the selectedTimeSlots variable from the bookings/index.js scope
-        if (typeof selectedTimeSlots !== 'undefined') {
-            selectedTimeSlots = [{
-                date: bookingDateStr,
-                start: startTime,
-                end: endTime
-            }];
-        } else if (typeof window.selectedTimeSlots !== 'undefined') {
-            window.selectedTimeSlots = [{
-                date: bookingDateStr,
-                start: startTime,
-                end: endTime
-            }];
-        }
-        
-        // Mark the corresponding slot as selected in the timetable
-        // Use a longer delay to ensure timetable is fully rendered
-        setTimeout(() => {
-            const slotId = `slot-${bookingDateStr}-${startTime}`;
-            const slot = document.getElementById(slotId);
-            if (slot) {
-                slot.classList.add('selected');
-            }
-            
-            // Double-check that hidden inputs still have values (in case they were cleared)
-            const selectedDateInput = document.getElementById('selectedBookingDate');
-            const startTimeInput = document.getElementById('bookingStartTime');
-            const endTimeInput = document.getElementById('bookingEndTime');
-            
-            // Normalize date format
-            let normalizedDate = bookingDateStr;
-            if (normalizedDate && normalizedDate.includes('T')) {
-                normalizedDate = normalizedDate.split('T')[0];
-            }
-            
-            if (selectedDateInput) {
-                // Always set to ensure correct format
-                if (!selectedDateInput.value || selectedDateInput.value.includes('T')) {
-                    selectedDateInput.value = normalizedDate;
-                }
-            }
-            if (startTimeInput) {
-                // Always set to ensure correct format, especially if it contains ISO format
-                const currentValue = startTimeInput.value;
-                if (!currentValue || currentValue.includes('T') || currentValue.includes('Z') || !currentValue.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
-                    startTimeInput.value = `${normalizedDate} ${startTime}:00`;
-                }
-            }
-            if (endTimeInput) {
-                // Always set to ensure correct format, especially if it contains ISO format
-                const currentValue = endTimeInput.value;
-                if (!currentValue || currentValue.includes('T') || currentValue.includes('Z') || !currentValue.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
-                    endTimeInput.value = `${normalizedDate} ${endTime}:00`;
-                }
-            }
-        }, 800);
-    }
-    
-    const purposeInput = document.getElementById('bookingPurpose');
-    if (purposeInput) {
-        purposeInput.value = booking.purpose || '';
-        // Disable purpose field for editing
-        purposeInput.disabled = true;
-        purposeInput.setAttribute('readonly', 'readonly');
-    }
-    
-    // Handle attendees field based on facility settings
-    const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
-    const attendeesList = document.getElementById('attendeesList');
-    
-    if (enableMultiAttendees && attendeesList) {
-        // Clear existing fields
-        attendeesList.innerHTML = '';
-        
-        // Load attendees from booking if available
-        if (booking.attendees && Array.isArray(booking.attendees) && booking.attendees.length > 0) {
-            booking.attendees.forEach(attendee => {
-                if (typeof addAttendeeField === 'function') {
-                    addAttendeeField();
-                    const lastField = attendeesList.lastElementChild;
-                    const input = lastField ? lastField.querySelector('.attendee-passport-input') : null;
-                    if (input && attendee.student_passport) {
-                        input.value = attendee.student_passport;
-                    }
-                }
-            });
-        } else {
-            // Add one empty field
-            if (typeof addAttendeeField === 'function') {
-                addAttendeeField();
-            }
-        }
-    }
-    
-    // Store booking ID for update
-    const bookingForm = document.getElementById('bookingForm');
-    if (bookingForm) {
-        bookingForm.dataset.bookingId = id;
-    }
-    
-    // Change form title and submit button
-    const modalTitle = document.getElementById('modalTitle');
-    const modalIcon = document.getElementById('modalIcon');
-    const submitButtonText = document.getElementById('submitButtonText');
-    
-    if (modalTitle) {
-        modalTitle.textContent = 'Edit Booking';
-    }
-    if (modalIcon) {
-        modalIcon.className = 'fas fa-edit me-2 text-primary';
-    }
-    if (submitButtonText) {
-        submitButtonText.textContent = 'Update Booking';
-    }
-    
-    // Show modal
-    const modal = document.getElementById('bookingModal');
-    if (modal) {
-        modal.style.display = 'block';
-    }
+    return;
 };
 
-// Function to mark all slots belonging to the user whose booking is being edited
-function markUserBookingSlots(userId, bookingDate) {
-    if (!userId) {
-        return;
-    }
-    
-    // Use requestAnimationFrame to ensure DOM is ready, then check with a small delay
-    requestAnimationFrame(() => {
-        // Try to mark immediately, if slots aren't ready, retry
-        const tryMark = (attempts = 0) => {
-            const allSlots = document.querySelectorAll('.timetable-slot');
-            
-            // If no slots found and we haven't tried too many times, retry
-            if (allSlots.length === 0 && attempts < 10) {
-                setTimeout(() => tryMark(attempts + 1), 100);
-                return;
-            }
-            
-            // Check if bookedSlots is populated
-            if (typeof bookedSlots === 'undefined' || Object.keys(bookedSlots).length === 0) {
-                if (attempts < 10) {
-                    setTimeout(() => tryMark(attempts + 1), 100);
-                    return;
-                }
-            }
-            
-            // Mark all slots belonging to this user
-            allSlots.forEach(slot => {
-                const slotDate = slot.getAttribute('data-date');
-                const slotStart = slot.getAttribute('data-start');
-                
-                if (!slotDate || !slotStart) return;
-                
-                // Check if this slot is in the bookedSlots data and belongs to the editing user
-                if (typeof bookedSlots !== 'undefined' && bookedSlots[slotDate]) {
-                    bookedSlots[slotDate].forEach(booking => {
-                        // Check if this booking belongs to the editing user
-                        if (booking.user_id == userId) {
-                            // Parse booking times
-                            const bookingStart = new Date(booking.start_time);
-                            const bookingEnd = new Date(booking.end_time);
-                            const slotStartTime = new Date(`${slotDate} ${slotStart}:00`);
-                            const slotEndTime = new Date(slotStartTime);
-                            slotEndTime.setHours(slotEndTime.getHours() + 1);
-                            
-                            // Check if slot overlaps with booking
-                            if (slotStartTime < bookingEnd && slotEndTime > bookingStart) {
-                                // Mark this slot as red (belongs to the editing user)
-                                // BUT: Don't remove 'selected' class if this slot is in selectedTimeSlots
-                                const isInSelectedSlots = typeof selectedTimeSlots !== 'undefined' && 
-                                    selectedTimeSlots.some(s => 
-                                        s.date === slotDate && s.start === slotStart
-                                    );
-                                
-                                if (!isInSelectedSlots) {
-                                    // Not in selectedTimeSlots - mark as booked (not editable)
-                                slot.classList.remove('available', 'selected', 'user-booked');
-                                slot.classList.add('booked');
-                                slot.style.border = '2px solid #dc3545'; // Red border
-                                slot.style.backgroundColor = '#f8d7da'; // Light red background
-                                } else {
-                                    // In selectedTimeSlots - keep it selectable for editing
-                                    // Don't add 'booked' class, keep it as 'selected' so it can be clicked to remove
-                                    slot.classList.remove('available', 'user-booked', 'booked');
-                                    slot.classList.add('selected');
-                                    // Use a different style to show it's the current booking but editable
-                                    slot.style.border = '2px solid #ffc107'; // Yellow/amber border to indicate editable
-                                    slot.style.backgroundColor = '#fff3cd'; // Light yellow background
-                                }
-                                slot.setAttribute('data-editing-user-booking', 'true');
-                            }
-                        }
-                    });
-                }
-            });
-        };
-        
-        tryMark();
-    });
-}
+// Removed edit booking implementation code below - all edit functionality has been removed
 
 // Override form submit handler for admin booking updates
 document.addEventListener('DOMContentLoaded', function() {
@@ -912,11 +477,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
-                // Get purpose value - if disabled, get it from the original booking data
+                // Get purpose value
                 const purposeInput = document.getElementById('bookingPurpose');
-                const purpose = purposeInput?.disabled && window.currentEditingBooking 
-                    ? window.currentEditingBooking.purpose 
-                    : (purposeInput?.value || '');
+                const purpose = purposeInput?.value || '';
                 
                 // Validate required fields
                 if (!facilityId || !startTime || !endTime || !bookingDate || !purpose) {
@@ -1292,7 +855,7 @@ function displayBookings(bookingsToShow) {
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Booking #</th>
+                    <th>ID</th>
                     <th>User</th>
                     <th>Facility</th>
                     <th>
@@ -1318,7 +881,7 @@ function displayBookings(bookingsToShow) {
                     
                     return `
                     <tr>
-                        <td>${booking.booking_number}</td>
+                        <td>${booking.id}</td>
                         <td>${booking.user?.name || 'N/A'}</td>
                         <td>${booking.facility?.name || 'N/A'}</td>
                         <td>${formatDate(booking.booking_date)}</td>
@@ -1334,11 +897,6 @@ function displayBookings(bookingsToShow) {
                             <button class="btn-sm btn-info" onclick="viewBooking(${booking.id})" title="View">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            ${booking.status !== 'completed' && booking.status !== 'cancelled' && booking.status !== 'rejected' ? `
-                            <button class="btn-sm btn-warning" onclick="editBooking(${booking.id})" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            ` : ''}
                             ${booking.status === 'pending' ? `
                                 <div class="dropdown-menu-container" style="display: inline-block;">
                                     <button class="btn-sm btn-secondary" onclick="toggleBookingDropdown(${booking.id})" title="Booking Actions" style="position: relative;">

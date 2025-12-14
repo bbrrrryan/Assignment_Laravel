@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Booking;
+use App\Models\BookingSlot;
 use App\Models\Facility;
 use App\Models\Feedback;
 use App\Models\LoyaltyPoint;
@@ -48,5 +49,247 @@ class AdminDashboardController extends AdminBaseController
         $recentFeedbacks = Feedback::with('user')->latest()->limit(5)->get();
 
         return view('admin.dashboard', compact('stats', 'recentBookings', 'recentFeedbacks'));
+    }
+
+    /**
+     * Get booking reports (API endpoint)
+     */
+    public function getBookingReports(Request $request)
+    {
+        $startDate = $request->input('start_date', now()->subDays(30)->format('Y-m-d'));
+        $endDate = $request->input('end_date', now()->format('Y-m-d'));
+        $facilityId = $request->input('facility_id');
+        $status = $request->input('status');
+
+        $query = Booking::with(['user', 'facility', 'slots'])
+            ->whereBetween('booking_date', [$startDate, $endDate]);
+
+        if ($facilityId) {
+            $query->where('facility_id', $facilityId);
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        // Booking statistics by status
+        $statusStats = [
+            'pending' => Booking::whereBetween('booking_date', [$startDate, $endDate])
+                ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+                ->where('status', 'pending')->count(),
+            'approved' => Booking::whereBetween('booking_date', [$startDate, $endDate])
+                ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+                ->where('status', 'approved')->count(),
+            'rejected' => Booking::whereBetween('booking_date', [$startDate, $endDate])
+                ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+                ->where('status', 'rejected')->count(),
+            'cancelled' => Booking::whereBetween('booking_date', [$startDate, $endDate])
+                ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+                ->where('status', 'cancelled')->count(),
+            'completed' => Booking::whereBetween('booking_date', [$startDate, $endDate])
+                ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+                ->where('status', 'completed')->count(),
+        ];
+
+        // Bookings by date (daily breakdown)
+        $bookingsByDate = Booking::selectRaw('DATE(booking_date) as date, COUNT(*) as count, status')
+            ->whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->groupBy('date', 'status')
+            ->orderBy('date')
+            ->get()
+            ->groupBy('date')
+            ->map(function ($group) {
+                return [
+                    'date' => $group->first()->date,
+                    'pending' => $group->where('status', 'pending')->sum('count'),
+                    'approved' => $group->where('status', 'approved')->sum('count'),
+                    'rejected' => $group->where('status', 'rejected')->sum('count'),
+                    'cancelled' => $group->where('status', 'cancelled')->sum('count'),
+                    'completed' => $group->where('status', 'completed')->sum('count'),
+                    'total' => $group->sum('count'),
+                ];
+            })
+            ->values();
+
+        // Bookings by facility
+        $bookingsByFacility = Booking::selectRaw('facility_id, COUNT(*) as total_bookings')
+            ->with('facility')
+            ->whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->groupBy('facility_id')
+            ->orderByDesc('total_bookings')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'facility_id' => $item->facility_id,
+                    'facility_name' => $item->facility->name ?? 'Unknown',
+                    'total_bookings' => $item->total_bookings,
+                ];
+            });
+
+        // Total hours booked
+        $totalHoursBooked = Booking::whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->whereIn('status', ['approved', 'completed'])
+            ->sum('duration_hours');
+
+        // Total attendees
+        $totalAttendees = Booking::whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->whereIn('status', ['approved', 'completed'])
+            ->sum('expected_attendees');
+
+        return response()->json([
+            'data' => [
+                'status_stats' => $statusStats,
+                'bookings_by_date' => $bookingsByDate,
+                'bookings_by_facility' => $bookingsByFacility,
+                'total_hours_booked' => $totalHoursBooked,
+                'total_attendees' => $totalAttendees,
+                'date_range' => [
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get usage statistics (API endpoint)
+     */
+    public function getUsageStatistics(Request $request)
+    {
+        $startDate = $request->input('start_date', now()->subDays(30)->format('Y-m-d'));
+        $endDate = $request->input('end_date', now()->format('Y-m-d'));
+        $facilityId = $request->input('facility_id');
+
+        // Facility utilization (usage rate)
+        $facilities = Facility::when($facilityId, fn($q) => $q->where('id', $facilityId))->get();
+        
+        $facilityUtilization = $facilities->map(function ($facility) use ($startDate, $endDate) {
+            // Get total approved/completed bookings for this facility
+            $approvedBookings = Booking::where('facility_id', $facility->id)
+                ->whereBetween('booking_date', [$startDate, $endDate])
+                ->whereIn('status', ['approved', 'completed'])
+                ->get();
+
+            // Calculate total hours booked
+            $totalHoursBooked = $approvedBookings->sum('duration_hours');
+            
+            // Calculate total possible hours (assuming 8 hours per day, 7 days per week)
+            $days = \Carbon\Carbon::parse($startDate)->diffInDays(\Carbon\Carbon::parse($endDate)) + 1;
+            $totalPossibleHours = $days * 8; // 8 hours per day
+            
+            // Utilization rate
+            $utilizationRate = $totalPossibleHours > 0 
+                ? round(($totalHoursBooked / $totalPossibleHours) * 100, 2) 
+                : 0;
+
+            // Peak hours analysis (most booked time slots)
+            $peakHours = BookingSlot::whereHas('booking', function($q) use ($facility, $startDate, $endDate) {
+                    $q->where('facility_id', $facility->id)
+                      ->whereBetween('booking_date', [$startDate, $endDate])
+                      ->whereIn('status', ['approved', 'completed']);
+                })
+                ->selectRaw('SUBSTRING(start_time, 1, 2) as hour, COUNT(*) as count')
+                ->groupBy('hour')
+                ->orderByDesc('count')
+                ->limit(5)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'hour' => str_pad($item->hour, 2, '0', STR_PAD_LEFT) . ':00',
+                        'count' => $item->count,
+                    ];
+                });
+
+            return [
+                'facility_id' => $facility->id,
+                'facility_name' => $facility->name,
+                'total_hours_booked' => $totalHoursBooked,
+                'total_possible_hours' => $totalPossibleHours,
+                'utilization_rate' => $utilizationRate,
+                'total_bookings' => $approvedBookings->count(),
+                'peak_hours' => $peakHours,
+            ];
+        });
+
+        // Most popular facilities (by booking count)
+        $popularFacilities = Booking::selectRaw('facility_id, COUNT(*) as booking_count')
+            ->with('facility')
+            ->whereBetween('booking_date', [$startDate, $endDate])
+            ->whereIn('status', ['approved', 'completed'])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->groupBy('facility_id')
+            ->orderByDesc('booking_count')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'facility_id' => $item->facility_id,
+                    'facility_name' => $item->facility->name ?? 'Unknown',
+                    'booking_count' => $item->booking_count,
+                ];
+            });
+
+        // Booking trends (weekly)
+        $weeklyTrends = Booking::selectRaw('YEARWEEK(booking_date) as week, COUNT(*) as count, status')
+            ->whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->groupBy('week', 'status')
+            ->orderBy('week')
+            ->get()
+            ->groupBy('week')
+            ->map(function ($group) {
+                return [
+                    'week' => $group->first()->week,
+                    'pending' => $group->where('status', 'pending')->sum('count'),
+                    'approved' => $group->where('status', 'approved')->sum('count'),
+                    'rejected' => $group->where('status', 'rejected')->sum('count'),
+                    'cancelled' => $group->where('status', 'cancelled')->sum('count'),
+                    'completed' => $group->where('status', 'completed')->sum('count'),
+                    'total' => $group->sum('count'),
+                ];
+            })
+            ->values();
+
+        // Average booking duration
+        $avgBookingDuration = Booking::whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->whereIn('status', ['approved', 'completed'])
+            ->avg('duration_hours');
+
+        // Most active users (by booking count)
+        $activeUsers = Booking::selectRaw('user_id, COUNT(*) as booking_count')
+            ->with('user')
+            ->whereBetween('booking_date', [$startDate, $endDate])
+            ->when($facilityId, fn($q) => $q->where('facility_id', $facilityId))
+            ->whereIn('status', ['approved', 'completed'])
+            ->groupBy('user_id')
+            ->orderByDesc('booking_count')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'user_id' => $item->user_id,
+                    'user_name' => $item->user->name ?? 'Unknown',
+                    'booking_count' => $item->booking_count,
+                ];
+            });
+
+        return response()->json([
+            'data' => [
+                'facility_utilization' => $facilityUtilization,
+                'popular_facilities' => $popularFacilities,
+                'weekly_trends' => $weeklyTrends,
+                'average_booking_duration' => round($avgBookingDuration ?? 0, 2),
+                'active_users' => $activeUsers,
+                'date_range' => [
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                ],
+            ],
+        ]);
     }
 }

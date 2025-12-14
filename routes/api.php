@@ -178,10 +178,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminBookingController::class, 'index']);
             Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); // Must be before /{id}
+            Route::get('/reports', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getBookingReports']);
+            Route::get('/usage-statistics', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getUsageStatistics']);
             Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
             Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
             Route::put('/{id}/mark-complete', [\App\Http\Controllers\Admin\AdminBookingController::class, 'markComplete']);
-            Route::put('/{id}', [\App\Http\Controllers\Admin\AdminBookingController::class, 'update']);
         });
         
         // User routes - parameterized routes at the end

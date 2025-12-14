@@ -247,13 +247,6 @@ window.closeModal = function() {
         modal.style.display = 'none';
     }
     
-    // Clear editing mode flags when modal is closed
-    if (typeof window.currentEditingBookingDate !== 'undefined') {
-        window.currentEditingBookingDate = undefined;
-    }
-    if (typeof window.currentEditingUserId !== 'undefined') {
-        window.currentEditingUserId = undefined;
-    }
 };
 
 window.sortByDate = function() {
@@ -303,7 +296,6 @@ window.filterBookings = function() {
     
     let filtered = bookings.filter(b => {
         const matchSearch = !search || 
-            (b.booking_number && b.booking_number.toLowerCase().includes(search)) ||
             (b.facility?.name && b.facility.name.toLowerCase().includes(search)) ||
             (b.purpose && b.purpose.toLowerCase().includes(search));
         const matchStatus = !status || b.status === status;
@@ -512,137 +504,6 @@ async function confirmCancelBooking() {
     }
 }
 
-// User can edit their own pending bookings
-window.editBooking = async function(id) {
-    // Load booking details and show edit modal
-    if (typeof API === 'undefined') {
-        alert('API not loaded');
-        return;
-    }
-    
-    const result = await API.get(`/bookings/${id}`);
-    if (!result.success) {
-        alert('Error loading booking details: ' + (result.error || 'Unknown error'));
-        return;
-    }
-    
-    const booking = result.data.data || result.data;
-    
-    // Populate date first (needed for facility loading)
-    const bookingDate = booking.booking_date || '';
-    const dateInput = document.getElementById('bookingDate');
-    
-    // Set minimum date to tomorrow (users can only book from tomorrow onwards)
-    if (dateInput) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        dateInput.min = tomorrow.toISOString().split('T')[0];
-        dateInput.value = bookingDate;
-        // Validate the date after setting it
-        if (typeof validateBookingDate === 'function') {
-            validateBookingDate();
-        }
-    }
-    
-    // Load facilities with the booking date to check capacity
-    if (typeof loadFacilities === 'function') {
-        await loadFacilities(bookingDate);
-    }
-    
-    // Populate form with booking data
-    const facilityId = booking.facility_id || '';
-    document.getElementById('bookingFacility').value = facilityId;
-    
-    // Update time input constraints and load timetable based on facility
-    if (facilityId) {
-        await updateTimeInputConstraints(facilityId);
-        if (typeof loadTimetable === 'function') {
-            await loadTimetable(facilityId);
-        }
-    }
-    
-    // Extract time from datetime strings and set selected time slot
-    if (booking.start_time && booking.end_time) {
-        const startDate = new Date(booking.start_time);
-        const endDate = new Date(booking.end_time);
-        const startHours = String(startDate.getHours()).padStart(2, '0');
-        const startMinutes = String(startDate.getMinutes()).padStart(2, '0');
-        const endHours = String(endDate.getHours()).padStart(2, '0');
-        const endMinutes = String(endDate.getMinutes()).padStart(2, '0');
-        
-        const startTime = `${startHours}:${startMinutes}`;
-        const endTime = `${endHours}:${endMinutes}`;
-        const bookingDateStr = booking.booking_date || bookingDate;
-        
-        // Set hidden inputs
-        document.getElementById('selectedBookingDate').value = bookingDateStr;
-        document.getElementById('bookingStartTime').value = `${bookingDateStr} ${startTime}:00`;
-        document.getElementById('bookingEndTime').value = `${bookingDateStr} ${endTime}:00`;
-        
-        // Set selected time slots (for editing, we'll set it as a single slot for now)
-        // When editing, we show the booking as a single continuous range
-        selectedTimeSlots = [{
-            date: bookingDateStr,
-            start: startTime,
-            end: endTime
-        }];
-        
-        // Mark the corresponding slot as selected in the timetable
-        setTimeout(() => {
-            const slotId = `slot-${bookingDateStr}-${startTime}`;
-            const slot = document.getElementById(slotId);
-            if (slot) {
-                slot.classList.add('selected');
-            }
-        }, 500);
-    }
-    
-    document.getElementById('bookingPurpose').value = booking.purpose || '';
-    
-    // Handle attendees field based on facility settings
-    // updateTimeInputConstraints will be called above, which will set up the field visibility
-    // Load attendees if available
-    const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
-    const attendeesList = document.getElementById('attendeesList');
-    
-    if (enableMultiAttendees && attendeesList) {
-        // Clear existing fields
-        attendeesList.innerHTML = '';
-        
-        // Load attendees from booking if available
-        if (booking.attendees && Array.isArray(booking.attendees) && booking.attendees.length > 0) {
-            booking.attendees.forEach(attendee => {
-                addAttendeeField();
-                const lastField = attendeesList.lastElementChild;
-                const input = lastField.querySelector('.attendee-passport-input');
-                if (input && attendee.student_passport) {
-                    input.value = attendee.student_passport;
-                }
-            });
-        } else {
-            // Add one empty field
-            addAttendeeField();
-        }
-    }
-    
-    // Store booking ID for update
-    document.getElementById('bookingForm').dataset.bookingId = id;
-    
-    // Change form title and submit button
-    const modalTitle = document.getElementById('modalTitle');
-    const modalIcon = document.getElementById('modalIcon');
-    const submitButtonText = document.getElementById('submitButtonText');
-    
-    if (modalTitle) modalTitle.textContent = 'Edit Booking';
-    if (modalIcon) modalIcon.className = 'fas fa-edit me-2 text-primary';
-    if (submitButtonText) submitButtonText.textContent = 'Update Booking';
-    
-    // Show modal
-    const modal = document.getElementById('bookingModal');
-    if (modal) {
-        modal.style.display = 'block';
-    }
-};
 
 
 // Helper function to format date
@@ -1510,7 +1371,48 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             });
             
             // Check max_booking_hours limit for this date
-            const existingBookingHours = userBookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+            // Calculate total hours from booking_slots to ensure accuracy
+            // This matches the backend logic in BookingCapacityService
+            const existingBookingHours = userBookingsOnDate.reduce((sum, b) => {
+                // If booking has slots array, sum up duration_hours from slots
+                if (b.slots && Array.isArray(b.slots) && b.slots.length > 0) {
+                    // Normalize dates for comparison (handle both string and date formats)
+                    // day.date might already be in YYYY-MM-DD format, but handle both cases
+                    let targetDate = day.date;
+                    if (targetDate && typeof targetDate === 'string') {
+                        targetDate = targetDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                    }
+                    
+                    const slotsHours = b.slots
+                        .filter(slot => {
+                            // Handle different date formats from API
+                            let slotDate = slot.slot_date;
+                            if (!slotDate) {
+                                // If slot_date is missing, use booking_date as fallback
+                                if (b.booking_date) {
+                                    slotDate = typeof b.booking_date === 'string' 
+                                        ? b.booking_date.split('T')[0].split(' ')[0]
+                                        : b.booking_date;
+                                } else {
+                                    return false; // Skip if no date available
+                                }
+                            } else if (typeof slotDate === 'string') {
+                                slotDate = slotDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                            } else if (slotDate && slotDate.format) {
+                                // If it's a moment.js or similar object
+                                slotDate = slotDate.format('YYYY-MM-DD');
+                            } else if (slotDate instanceof Date) {
+                                slotDate = slotDate.toISOString().split('T')[0];
+                            }
+                            
+                            return slotDate === targetDate; // Only count slots for this date
+                        })
+                        .reduce((slotSum, slot) => slotSum + (slot.duration_hours || 1), 0);
+                    return sum + slotsHours;
+                }
+                // Fallback to duration_hours if slots not available (backward compatibility)
+                return sum + (b.duration_hours || 1);
+            }, 0);
             const hasReachedLimit = existingBookingHours >= maxBookingHours;
             
             // Determine slot class and disabled state
@@ -1518,59 +1420,35 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             let slotClass = '';
             let isDisabled = false;
             
-            // Check if we're in edit mode
-            const isEditMode = typeof window.currentEditingBooking !== 'undefined' && window.currentEditingBooking !== null;
-            
             if (isSelected) {
                 slotClass = 'selected';
-                // In edit mode, selected slots should be clickable to remove
-                if (isEditMode) {
-                    isDisabled = false; // Allow clicking to deselect
-                }
             } else if (isUserBooked) {
                 // User's own booking - check status
-                // In edit mode, if this slot is not selected, it's from another booking - mark as booked
-                if (isEditMode) {
-                    // In edit mode, if it's user's booking but not selected, it's another booking slot
+                if (userBookingStatus === 'pending') {
+                    // Pending bookings: show as golden highlight
+                    slotClass = 'user-booked';
+                    console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as user-booked (pending)`);
+                } else if (userBookingStatus === 'approved') {
+                    // Approved bookings: show as red (booked)
                     slotClass = 'booked';
-                    isDisabled = true; // Can't select other user's booking slots
+                    console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as booked (approved)`);
                 } else {
-                    // Not in edit mode - normal booking display
-                    if (userBookingStatus === 'pending') {
-                        // Pending bookings: show as golden highlight
-                        slotClass = 'user-booked';
-                        console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as user-booked (pending)`);
-                    } else if (userBookingStatus === 'approved') {
-                        // Approved bookings: show as red (booked)
-                        slotClass = 'booked';
-                        console.log(`Slot ${slot.start}-${slot.end} on ${day.date} marked as booked (approved)`);
-                    } else {
-                        // Other statuses: default to user-booked
-                        slotClass = 'user-booked';
-                    }
-                    isDisabled = true; // Can't book the same slot twice
+                    // Other statuses: default to user-booked
+                    slotClass = 'user-booked';
                 }
+                isDisabled = true; // Can't book the same slot twice
             } else if (isAvailable) {
                 slotClass = 'available';
             } else {
                 slotClass = 'booked';
             }
             
-            // Admin can edit bookings and change dates, so don't disable slots on different dates
-            // (Removed restriction to allow admin to change booking date)
-            
             // If user has reached max_booking_hours limit, disable all available slots for this date
             if (hasReachedLimit && isAvailable && !isSelected && !isUserBooked && !isDifferentDate) {
                 slotClass = 'disabled';
                 isDisabled = true;
             } else if (!isAvailable && !isUserBooked && !isDifferentDate && !isSelected) {
-                // Only disable if not selected (selected slots in edit mode should be clickable)
                 isDisabled = true;
-            }
-            
-            // In edit mode, ensure selected slots are always clickable
-            if (isEditMode && isSelected) {
-                isDisabled = false;
             }
             
             // Display attendees count (X/Capacity)
@@ -1629,25 +1507,13 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
 window.selectTimeSlot = async function(date, start, end, slotId) {
     const slot = document.getElementById(slotId);
     
-    // Check if we're in edit mode
-    const isEditMode = typeof window.currentEditingBooking !== 'undefined' && window.currentEditingBooking !== null;
-    
-    // In edit mode, allow clicking on selected slots to deselect them
     // Check if slot is selected first
     const isSelected = slot.classList.contains('selected');
     
-    if (isEditMode && isSelected) {
-        // In edit mode, allow clicking selected slots to remove them
-        // Continue to the toggle logic below
-    } else {
-        // Not in edit mode or slot is not selected - check for booked/disabled
-        if (slot.classList.contains('booked') || slot.classList.contains('disabled') || slot.classList.contains('user-booked') || slot.classList.contains('unavailable')) {
-            return;
-        }
+    // Check for booked/disabled slots
+    if (slot.classList.contains('booked') || slot.classList.contains('disabled') || slot.classList.contains('user-booked') || slot.classList.contains('unavailable')) {
+        return;
     }
-    
-    // Admin can edit bookings and change dates, so allow selecting slots on any date
-    // (Removed date restriction to allow admin flexibility)
     
     const maxBookingHours = window.currentFacilityMaxBookingHours || 1;
     const facilitySelect = document.getElementById('bookingFacility');
@@ -1663,49 +1529,17 @@ window.selectTimeSlot = async function(date, start, end, slotId) {
         // Deselect: remove from array
         selectedTimeSlots.splice(slotIndex, 1);
         
-        // Check if we're in edit mode
-        const isEditMode = typeof window.currentEditingBooking !== 'undefined' && window.currentEditingBooking !== null;
-        
-        if (isEditMode) {
-            // In edit mode, remove selected class and edit-mode styling
-            slot.classList.remove('selected', 'booked', 'user-booked');
-            slot.style.border = '';
-            slot.style.backgroundColor = '';
-            slot.removeAttribute('data-editing-user-booking');
-            
-            // Check if slot should be available (green) or booked (red)
-            // If it's not unavailable or disabled, check if it's booked by others
-            if (!slot.classList.contains('unavailable') && !slot.classList.contains('disabled')) {
-                // Check if slot has data-user-booking attribute
-                // This indicates it's from another user's booking (not the current editing one)
-                const hasOtherUserBooking = slot.hasAttribute('data-user-booking') && 
-                    slot.getAttribute('data-user-booking') === 'true' &&
-                    !slot.hasAttribute('data-editing-user-booking');
-                
-                if (!hasOtherUserBooking) {
-                    // Make it available (green) - it was only selected because of current editing booking
-                    slot.classList.add('available');
-                } else {
-                    // It's booked by other users, keep it as booked (red)
-                    slot.classList.add('booked');
-                }
-            }
-        } else {
-            // Not in edit mode, just remove selected class and make available
-            slot.classList.remove('selected');
-            slot.classList.add('available');
-        }
+        // Remove selected class and make available
+        slot.classList.remove('selected');
+        slot.classList.add('available');
         
         newSelectedSlots = [...selectedTimeSlots];
     } else {
         // Select: add to array
         const newSlot = { date, start, end };
         
-        // Check if we're in edit mode
-        const isEditMode = typeof window.currentEditingBooking !== 'undefined' && window.currentEditingBooking !== null;
-        
-        // For regular users (not in edit mode), check if they're trying to select a different date
-        if (!isEditMode && selectedTimeSlots.length > 0) {
+        // Check if they're trying to select a different date
+        if (selectedTimeSlots.length > 0) {
             const existingSlotsOnOtherDates = selectedTimeSlots.filter(s => s.date !== date);
             
             if (existingSlotsOnOtherDates.length > 0) {
@@ -1724,36 +1558,6 @@ window.selectTimeSlot = async function(date, start, end, slotId) {
             }
         }
         
-        // For admin edit mode, allow selecting different dates (remove other dates' slots)
-        if (isEditMode) {
-            const existingSlotsOnOtherDates = selectedTimeSlots.filter(s => s.date !== date);
-            
-            if (existingSlotsOnOtherDates.length > 0) {
-                // Remove slots from other dates from selectedTimeSlots array
-                selectedTimeSlots = selectedTimeSlots.filter(s => s.date === date);
-                
-                // Immediately update UI: remove visual selection from other dates' slots
-                existingSlotsOnOtherDates.forEach(otherSlot => {
-                    const otherSlotId = `slot-${otherSlot.date}-${otherSlot.start}`;
-                    const otherSlotElement = document.getElementById(otherSlotId);
-                    if (otherSlotElement) {
-                        // Remove selected class and edit-mode styling
-                        otherSlotElement.classList.remove('selected', 'booked');
-                        otherSlotElement.style.border = '';
-                        otherSlotElement.style.backgroundColor = '';
-                        otherSlotElement.removeAttribute('data-editing-user-booking');
-                        
-                        // Check if it should be available (green) or booked (red)
-                        if (!otherSlotElement.classList.contains('unavailable') && 
-                            !otherSlotElement.classList.contains('disabled') &&
-                            !otherSlotElement.classList.contains('booked')) {
-                            otherSlotElement.classList.add('available');
-                        }
-                    }
-                });
-            }
-        }
-        
         // Calculate total selected slots for this date
         const sameDateSlots = selectedTimeSlots.filter(s => s.date === date);
         const totalSelectedSlots = sameDateSlots.length + 1; // +1 for the new slot being added
@@ -1765,14 +1569,64 @@ window.selectTimeSlot = async function(date, start, end, slotId) {
                 const bookingsResult = await API.get('/bookings/user/my-bookings');
                 if (bookingsResult.success) {
                     const userBookings = bookingsResult.data.data?.data || bookingsResult.data.data || [];
+                    
+                    // Normalize target date for comparison
+                    let targetDate = date;
+                    if (targetDate && typeof targetDate === 'string') {
+                        targetDate = targetDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                    }
+                    
                     const bookingsOnDate = userBookings.filter(b => {
-                        const bookingDate = b.booking_date || '';
+                        // Normalize booking date for comparison
+                        let bookingDate = b.booking_date || '';
+                        if (bookingDate && typeof bookingDate === 'string') {
+                            bookingDate = bookingDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                        } else if (bookingDate && bookingDate.format) {
+                            bookingDate = bookingDate.format('YYYY-MM-DD');
+                        } else if (bookingDate instanceof Date) {
+                            bookingDate = bookingDate.toISOString().split('T')[0];
+                        }
+                        
                         const bookingFacilityId = b.facility_id || b.facility?.id;
-                        return bookingDate === date && bookingFacilityId == facilityId && 
+                        return bookingDate === targetDate && bookingFacilityId == facilityId && 
                                (b.status === 'pending' || b.status === 'approved');
                     });
                     
-                    const existingBookingHours = bookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+                    // Calculate total hours from booking_slots to ensure accuracy
+                    // This matches the backend logic in BookingCapacityService
+                    // targetDate is already normalized above
+                    const existingBookingHours = bookingsOnDate.reduce((sum, b) => {
+                        // If booking has slots array, sum up duration_hours from slots
+                        if (b.slots && Array.isArray(b.slots) && b.slots.length > 0) {
+                            const slotsHours = b.slots
+                                .filter(slot => {
+                                    // Handle different date formats from API
+                                    let slotDate = slot.slot_date;
+                                    if (!slotDate) {
+                                        // If slot_date is missing, use booking_date as fallback
+                                        if (b.booking_date) {
+                                            slotDate = typeof b.booking_date === 'string' 
+                                                ? b.booking_date.split('T')[0].split(' ')[0]
+                                                : b.booking_date;
+                                        } else {
+                                            return false; // Skip if no date available
+                                        }
+                                    } else if (typeof slotDate === 'string') {
+                                        slotDate = slotDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                                    } else if (slotDate && slotDate.format) {
+                                        // If it's a moment.js or similar object
+                                        slotDate = slotDate.format('YYYY-MM-DD');
+                                    } else if (slotDate instanceof Date) {
+                                        slotDate = slotDate.toISOString().split('T')[0];
+                                    }
+                                    return slotDate === targetDate; // Only count slots for this date
+                                })
+                                .reduce((slotSum, slot) => slotSum + (slot.duration_hours || 1), 0);
+                            return sum + slotsHours;
+                        }
+                        // Fallback to duration_hours if slots not available (backward compatibility)
+                        return sum + (b.duration_hours || 1);
+                    }, 0);
                     const selectedSlotsHours = totalSelectedSlots; // Each slot is 1 hour
                     const totalAfterSelection = existingBookingHours + selectedSlotsHours;
                     
@@ -1818,18 +1672,13 @@ window.selectTimeSlot = async function(date, start, end, slotId) {
         }
     } else {
         // Clear inputs if no selection
-        // BUT: If we're in edit mode, don't clear the inputs - they should retain their values
-        const isEditMode = typeof window.currentEditingBooking !== 'undefined' && window.currentEditingBooking !== null;
+        const dateInput = document.getElementById('selectedBookingDate');
+        const startInput = document.getElementById('bookingStartTime');
+        const endInput = document.getElementById('bookingEndTime');
         
-        if (!isEditMode) {
-            const dateInput = document.getElementById('selectedBookingDate');
-            const startInput = document.getElementById('bookingStartTime');
-            const endInput = document.getElementById('bookingEndTime');
-            
-            if (dateInput) dateInput.value = '';
-            if (startInput) startInput.value = '';
-            if (endInput) endInput.value = '';
-        }
+        if (dateInput) dateInput.value = '';
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
     }
     
     // Clear error
@@ -2047,7 +1896,7 @@ function displayBookings(bookingsToShow) {
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Booking #</th>
+                    <th>ID</th>
                     <th>Facility</th>
                     <th>
                         <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="sortByDate()">
@@ -2070,7 +1919,7 @@ function displayBookings(bookingsToShow) {
             <tbody>
                 ${bookingsToShow.map(booking => `
                     <tr>
-                        <td>${booking.booking_number}</td>
+                        <td>${booking.id}</td>
                         <td>${booking.facility?.name || 'N/A'}</td>
                         <td>${formatDate(booking.booking_date)}</td>
                         <td>${formatTimeNoSeconds(booking.start_time)} - ${formatTimeNoSeconds(booking.end_time)}</td>
@@ -2300,7 +2149,45 @@ function bindBookingForm() {
                        (b.status === 'pending' || b.status === 'approved');
             });
             
-            const totalHours = bookingsOnDate.reduce((sum, b) => sum + (b.duration_hours || 1), 0);
+            // Calculate total hours from booking_slots to ensure accuracy
+            // This matches the backend logic in BookingCapacityService
+            let targetDate = date;
+            if (targetDate && typeof targetDate === 'string') {
+                targetDate = targetDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+            }
+            
+            const totalHours = bookingsOnDate.reduce((sum, b) => {
+                // If booking has slots array, sum up duration_hours from slots
+                if (b.slots && Array.isArray(b.slots) && b.slots.length > 0) {
+                    const slotsHours = b.slots
+                        .filter(slot => {
+                            // Handle different date formats from API
+                            let slotDate = slot.slot_date;
+                            if (!slotDate) {
+                                // If slot_date is missing, use booking_date as fallback
+                                if (b.booking_date) {
+                                    slotDate = typeof b.booking_date === 'string' 
+                                        ? b.booking_date.split('T')[0].split(' ')[0]
+                                        : b.booking_date;
+                                } else {
+                                    return false; // Skip if no date available
+                                }
+                            } else if (typeof slotDate === 'string') {
+                                slotDate = slotDate.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD format
+                            } else if (slotDate && slotDate.format) {
+                                // If it's a moment.js or similar object
+                                slotDate = slotDate.format('YYYY-MM-DD');
+                            } else if (slotDate instanceof Date) {
+                                slotDate = slotDate.toISOString().split('T')[0];
+                            }
+                            return slotDate === targetDate; // Only count slots for this date
+                        })
+                        .reduce((slotSum, slot) => slotSum + (slot.duration_hours || 1), 0);
+                    return sum + slotsHours;
+                }
+                // Fallback to duration_hours if slots not available (backward compatibility)
+                return sum + (b.duration_hours || 1);
+            }, 0);
             const newBookingHours = dateSlots.length; // Each slot is 1 hour
             
             if (totalHours + newBookingHours > maxBookingHours) {
@@ -2423,7 +2310,7 @@ function bindBookingForm() {
             
             // Reset form
             document.getElementById('bookingForm').reset();
-            delete document.getElementById('bookingForm').dataset.bookingId;
+            // Edit functionality removed
             
             // Reset attendees field
             const attendeesContainer = document.getElementById('attendeesFieldContainer');

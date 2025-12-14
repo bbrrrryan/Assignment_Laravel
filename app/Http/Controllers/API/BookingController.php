@@ -38,8 +38,7 @@ class BookingController extends Controller
             ->when($request->search, function($q) use ($request) {
                 $search = $request->search;
                 $q->where(function($query) use ($search) {
-                    $query->where('booking_number', 'like', "%{$search}%")
-                        ->orWhere('purpose', 'like', "%{$search}%")
+                    $query->where('purpose', 'like', "%{$search}%")
                         ->orWhereHas('user', function($q) use ($search) {
                             $q->where('name', 'like', "%{$search}%");
                         })
@@ -265,19 +264,6 @@ class BookingController extends Controller
             }
         }
 
-        // Handle special_requirements safely
-        $specialRequirements = null;
-        if ($request->has('special_requirements') && $request->special_requirements) {
-            $req = $request->special_requirements;
-            // If it's already an array, use it; if it's a JSON string, decode it
-            if (is_string($req)) {
-                $decoded = json_decode($req, true);
-                $specialRequirements = json_last_error() === JSON_ERROR_NONE ? $decoded : $req;
-            } else {
-                $specialRequirements = $req;
-            }
-        }
-
         // Only students can create bookings
         $user = auth()->user();
         
@@ -293,14 +279,12 @@ class BookingController extends Controller
         $bookingData = [
             'user_id' => auth()->id(),
             'facility_id' => $validated['facility_id'],
-            'booking_number' => 'BK-' . time() . '-' . rand(1000, 9999),
             'booking_date' => $validated['booking_date'],
             'start_time' => $validated['start_time'],
             'end_time' => $validated['end_time'],
             'duration_hours' => $durationHours,
             'purpose' => $validated['purpose'],
             'expected_attendees' => $expectedAttendees,
-            'special_requirements' => $specialRequirements,
             'status' => $bookingStatus,
         ];
 
@@ -319,7 +303,6 @@ class BookingController extends Controller
                 'description' => "Created booking for facility: {$facility->name} on {$validated['booking_date']}",
                 'metadata' => [
                     'booking_id' => $booking->id,
-                    'booking_number' => $booking->booking_number,
                     'facility_id' => $facility->id,
                     'facility_name' => $facility->name,
                     'booking_date' => $validated['booking_date'],
@@ -413,258 +396,6 @@ class BookingController extends Controller
         }
     }
 
-    /**
-     * Update a booking (Admin can modify any booking, users can only modify their own pending bookings)
-     */
-    public function update(Request $request, string $id)
-    {
-        try {
-            $booking = Booking::findOrFail($id);
-            $user = auth()->user();
-
-            // Check permissions: Admin and Staff can modify any booking, users can only modify their own pending bookings
-            if (!$user->isAdmin() && !$user->isStaff() && $booking->user_id !== $user->id) {
-                return response()->json([
-                    'message' => 'You do not have permission to modify this booking',
-                ], 403);
-            }
-
-            // Users can only modify their own pending bookings (admin/staff can modify any)
-            if (!$user->isAdmin() && !$user->isStaff() && $booking->status !== 'pending') {
-                return response()->json([
-                    'message' => 'You can only modify pending bookings',
-                ], 400);
-            }
-
-            $validated = $request->validate([
-                'facility_id' => 'sometimes|required|exists:facilities,id',
-                'booking_date' => 'sometimes|required|date|after:today', // Users can only book from tomorrow onwards
-                'start_time' => 'sometimes|required|string',
-                'end_time' => 'sometimes|required|string',
-                'purpose' => 'sometimes|required|string|max:500',
-                'expected_attendees' => 'nullable|integer|min:1',
-                'status' => 'sometimes|required|in:pending,approved,rejected,cancelled',
-                'attendees_passports' => 'nullable|array',
-                'attendees_passports.*' => 'nullable|string|max:255',
-            ]);
-
-            // Parse datetime if provided
-            if (isset($validated['start_time'])) {
-                try {
-                    $validated['start_time'] = \Carbon\Carbon::parse($validated['start_time'])->format('Y-m-d H:i:s');
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'message' => 'Invalid start_time format',
-                        'error' => $e->getMessage(),
-                    ], 422);
-                }
-            }
-
-            if (isset($validated['end_time'])) {
-                try {
-                    $validated['end_time'] = \Carbon\Carbon::parse($validated['end_time'])->format('Y-m-d H:i:s');
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'message' => 'Invalid end_time format',
-                        'error' => $e->getMessage(),
-                    ], 422);
-                }
-            }
-
-            // Get facility (use existing or new one) - needed for time validation
-            $facilityId = $validated['facility_id'] ?? $booking->facility_id;
-            $facility = Facility::findOrFail($facilityId);
-            
-            // Get booking date (use existing or updated value)
-            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
-            
-            // Check if booking date is within facility's available days
-            $bookingDateCarbon = \Carbon\Carbon::parse($bookingDate);
-            $dayOfWeek = strtolower($bookingDateCarbon->format('l')); // e.g., 'monday', 'tuesday'
-            
-            if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
-                // Check if the day of week is in the available days array
-                if (!in_array($dayOfWeek, $facility->available_day)) {
-                    $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
-                    return response()->json([
-                        'message' => "This facility is not available on {$bookingDateCarbon->format('l, F j, Y')}. Available days: {$availableDaysStr}",
-                    ], 422);
-                }
-            }
-            
-            // Get facility available time range (default to 08:00-20:00 if not set)
-            $minTime = '08:00';
-            $maxTime = '20:00';
-            if ($facility->available_time && is_array($facility->available_time)) {
-                if (isset($facility->available_time['start']) && !empty($facility->available_time['start'])) {
-                    $minTime = $facility->available_time['start'];
-                }
-                if (isset($facility->available_time['end']) && !empty($facility->available_time['end'])) {
-                    $maxTime = $facility->available_time['end'];
-                }
-            }
-            
-            // Validate time range if both times are provided
-            if (isset($validated['start_time']) && isset($validated['end_time'])) {
-                $startTime = \Carbon\Carbon::parse($validated['start_time']);
-                $endTime = \Carbon\Carbon::parse($validated['end_time']);
-                
-                if ($endTime->lte($startTime)) {
-                    return response()->json([
-                        'message' => 'End time must be after start time',
-                    ], 422);
-                }
-                
-                // Validate time range: must be within facility's available time
-                $startHour = $startTime->format('H:i');
-                $endHour = $endTime->format('H:i');
-                
-                if ($startHour < $minTime || $startHour > $maxTime) {
-                    return response()->json([
-                        'message' => "Start time must be between {$minTime} and {$maxTime} (facility operating hours)",
-                    ], 422);
-                }
-                
-                if ($endHour < $minTime || $endHour > $maxTime) {
-                    return response()->json([
-                        'message' => "End time must be between {$minTime} and {$maxTime} (facility operating hours)",
-                    ], 422);
-                }
-
-                $validated['duration_hours'] = $startTime->diffInHours($endTime);
-            }
-            
-            // Validate time range if only start_time is provided
-            if (isset($validated['start_time']) && !isset($validated['end_time'])) {
-                $startTime = \Carbon\Carbon::parse($validated['start_time']);
-                $startHour = $startTime->format('H:i');
-                
-                if ($startHour < $minTime || $startHour > $maxTime) {
-                    return response()->json([
-                        'message' => "Start time must be between {$minTime} and {$maxTime} (facility operating hours)",
-                    ], 422);
-                }
-            }
-            
-            // Validate time range if only end_time is provided
-            if (isset($validated['end_time']) && !isset($validated['start_time'])) {
-                $endTime = \Carbon\Carbon::parse($validated['end_time']);
-                $endHour = $endTime->format('H:i');
-                
-                if ($endHour < $minTime || $endHour > $maxTime) {
-                    return response()->json([
-                        'message' => "End time must be between {$minTime} and {$maxTime} (facility operating hours)",
-                    ], 422);
-                }
-            }
-
-            // Get booking details (use existing or updated values)
-            $bookingDate = $validated['booking_date'] ?? $booking->booking_date;
-            $startTime = $validated['start_time'] ?? $booking->start_time;
-            $endTime = $validated['end_time'] ?? $booking->end_time;
-            
-            // Handle expected_attendees based on facility's enable_multi_attendees setting
-            $expectedAttendees = $request->input('expected_attendees');
-            if (!$facility->enable_multi_attendees) {
-                // If facility doesn't enable multi-attendees, always use 1
-                $expectedAttendees = 1;
-            } else {
-                // If multi-attendees is enabled, use provided value or keep existing
-                $expectedAttendees = $expectedAttendees ?? $booking->expected_attendees ?? 1;
-                
-                // Check against max_attendees if set
-                if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
-                    return response()->json([
-                        'message' => "Expected attendees ({$expectedAttendees}) exceed maximum allowed ({$facility->max_attendees}) for this facility",
-                    ], 400);
-                }
-            }
-            
-            $newStatus = $validated['status'] ?? $booking->status;
-
-            // Always check against facility capacity
-            if ($expectedAttendees > $facility->capacity) {
-                return response()->json([
-                    'message' => 'Expected attendees exceed facility capacity',
-                ], 400);
-            }
-            
-            // Update validated array with the correct expected_attendees value
-            $validated['expected_attendees'] = $expectedAttendees;
-
-            // Check capacity for overlapping bookings if status is being set to approved
-            // or if time/attendees are being changed
-            if ($newStatus === 'approved' || isset($validated['start_time']) || isset($validated['end_time']) || isset($validated['expected_attendees'])) {
-                // Use hourly segment capacity check for accurate validation
-                $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
-                    $facility,
-                    $facilityId,
-                    $bookingDate,
-                    $startTime,
-                    $endTime,
-                    $expectedAttendees,
-                    $booking->id // Exclude current booking from check
-                );
-                
-                if (!$capacityCheck['available']) {
-                    return response()->json([
-                        'message' => $capacityCheck['message'],
-                    ], 409);
-                }
-            }
-
-            // Update booking
-            $booking->update($validated);
-
-            // Update attendees if provided
-            if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
-                // Delete existing attendees
-                $booking->attendees()->delete();
-                
-                // Create new attendees
-                foreach ($request->attendees_passports as $passport) {
-                    if (!empty(trim($passport))) {
-                        $booking->attendees()->create([
-                            'student_passport' => trim($passport),
-                        ]);
-                    }
-                }
-            }
-
-            // Create status history if status changed
-            if (isset($validated['status']) && $validated['status'] !== $booking->getOriginal('status')) {
-                try {
-                    $user = auth()->user();
-                    $notes = 'Booking modified by user';
-                    if ($user->isAdmin() || $user->isStaff()) {
-                        $notes = 'Booking modified by ' . ($user->isAdmin() ? 'admin' : 'staff');
-                    }
-                    $booking->statusHistory()->create([
-                        'status' => $validated['status'],
-                        'changed_by' => auth()->id(),
-                        'notes' => $notes,
-                    ]);
-                } catch (\Exception $e) {
-                    \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-                }
-            }
-
-            return response()->json([
-                'message' => 'Booking updated successfully',
-                'data' => $booking->load(['user', 'facility', 'statusHistory', 'attendees', 'slots']),
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('Booking update error: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to update booking: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
 
     /**
      * Delete booking - Disabled for admin
@@ -963,7 +694,6 @@ class BookingController extends Controller
             ->map(function ($booking) {
                 return [
                     'id' => $booking->id,
-                    'booking_number' => $booking->booking_number,
                     'facility_name' => $booking->facility->name ?? 'Unknown',
                     'user_name' => $booking->user->name ?? 'Unknown',
                     'booking_date' => $booking->booking_date->format('Y-m-d'),

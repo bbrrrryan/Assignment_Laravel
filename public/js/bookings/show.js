@@ -67,8 +67,8 @@ function displayBookingDetails(booking) {
             <div class="details-section">
                 <h2>Booking Information</h2>
                 <div class="detail-row">
-                    <span class="detail-label">Booking Number:</span>
-                    <span class="detail-value">${booking.booking_number || 'N/A'}</span>
+                    <span class="detail-label">Booking ID:</span>
+                    <span class="detail-value">${booking.id || 'N/A'}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
@@ -152,12 +152,6 @@ function displayBookingDetails(booking) {
                             `).join('')}
                         </div>
                     </span>
-                </div>
-                ` : ''}
-                ${booking.special_requirements ? `
-                <div class="detail-row">
-                    <span class="detail-label">Special Requirements:</span>
-                    <span class="detail-value">${typeof booking.special_requirements === 'object' ? JSON.stringify(booking.special_requirements) : booking.special_requirements}</span>
                 </div>
                 ` : ''}
                 ${booking.status === 'cancelled' && booking.cancellation_reason ? `

@@ -12,7 +12,6 @@ class Booking extends Model
     protected $fillable = [
         'user_id',
         'facility_id',
-        'booking_number',
         'booking_date',
         'start_time',
         'end_time',
@@ -25,7 +24,6 @@ class Booking extends Model
         'approved_at',
         'cancelled_at',
         'cancellation_reason',
-        'special_requirements',
     ];
 
     protected $casts = [
@@ -34,7 +32,6 @@ class Booking extends Model
         'end_time' => 'datetime',
         'approved_at' => 'datetime',
         'cancelled_at' => 'datetime',
-        'special_requirements' => 'array',
     ];
 
     // Relationships
