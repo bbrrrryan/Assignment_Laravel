@@ -1,7 +1,21 @@
 // Author: Liew Zi Li (user management)
 // real-time search function
 let searchTimeout;
-let currentPage = 1;
+
+// User pagination state (similar to booking pagination)
+if (typeof window.userCurrentPage === 'undefined') {
+    window.userCurrentPage = 1;
+}
+if (typeof window.userPerPage === 'undefined') {
+    window.userPerPage = 10;
+}
+if (typeof window.userTotalPages === 'undefined') {
+    window.userTotalPages = 1;
+}
+if (typeof window.userTotalUsers === 'undefined') {
+    window.userTotalUsers = 0;
+}
+
 let currentSortBy = 'created_at';
 let currentSortOrder = 'desc';
 
@@ -23,7 +37,7 @@ async function fetchUsers(search = '', status = '', role = '', page = 1, sortBy 
     if (search) params.append('search', search);
     if (status) params.append('status', status);
     if (role) params.append('role', role);
-    params.append('per_page', 10);
+    params.append('per_page', window.userPerPage);
     params.append('page', page);
     
     // add sorting parameters
@@ -41,33 +55,18 @@ async function fetchUsers(search = '', status = '', role = '', page = 1, sortBy 
     const endpoint = '/users' + (queryString ? '?' + queryString : '');
     
     try {
-        console.log('fetching users from:', endpoint);
-        console.log('api token got or not:', !!API.getToken());
-        
         const result = await API.get(endpoint);
-        console.log('api result:', result);
         
         if (result.success && result.data) {
-            // check if got data or not
             if (result.data.data) {
                 return result.data.data;
             } else {
-                console.error('api response structure wrong:', result);
                 return null;
             }
         } else {
-            console.error('api request failed:', result);
-            if (result.error) {
-                console.error('error message:', result.error);
-            }
-            // check if authentication error or not
-            if (result.data && (result.data.message && result.data.message.includes('Unauthenticated'))) {
-                console.error('authentication failed. token maybe invalid or expired already.');
-            }
             return null;
         }
     } catch (error) {
-        console.error('error fetching users:', error);
         return null;
     }
 }
@@ -81,6 +80,19 @@ function renderUsersTable(usersData) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center">no users found</td></tr>';
         paginationWrapper.innerHTML = '';
         return;
+    }
+    
+    // Update pagination state
+    if (usersData.current_page !== undefined) {
+        window.userCurrentPage = usersData.current_page;
+        window.userTotalPages = usersData.last_page || 1;
+        window.userTotalUsers = usersData.total || 0;
+        window.userPerPage = usersData.per_page || window.userPerPage;
+    } else {
+        // Fallback: if no pagination info, assume single page
+        window.userCurrentPage = 1;
+        window.userTotalPages = 1;
+        window.userTotalUsers = usersData.data ? usersData.data.length : 0;
     }
     
     // render table rows
@@ -111,42 +123,9 @@ function renderUsersTable(usersData) {
         '</tr>';
     }).join('');
     
-    // render pagination
-    if (usersData.links && usersData.links.length > 0) {
-        let paginationHtml = '<ul class="pagination">';
-        
-        usersData.links.forEach(link => {
-            if (link.url) {
-                const activeClass = link.active ? 'active' : '';
-                const disabledClass = !link.url ? 'disabled' : '';
-                const label = link.label.replace('&laquo;', '<<').replace('&raquo;', '>>');
-                
-                paginationHtml += `
-                    <li class="page-item ${activeClass} ${disabledClass}">
-                        <a class="page-link" href="${link.url || '#'}" ${link.url ? '' : 'onclick="return false;"'}>
-                            ${label}
-                        </a>
-                    </li>
-                `;
-            }
-        });
-        
-        paginationHtml += '</ul>';
-        paginationWrapper.innerHTML = paginationHtml;
-        
-        // attach click handlers to pagination links
-        paginationWrapper.querySelectorAll('.page-link').forEach(link => {
-            if (link.href && !link.closest('.page-item').classList.contains('disabled')) {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const url = new URL(this.href);
-                    const page = url.searchParams.get('page') || 1;
-                    performSearch(page);
-                });
-            }
-        });
-    } else {
-        paginationWrapper.innerHTML = '';
+    // render custom pagination (similar to booking)
+    if (paginationWrapper) {
+        paginationWrapper.innerHTML = renderUserPagination();
     }
 }
 
@@ -203,9 +182,16 @@ async function performSearch(page = 1, sortBy = null, sortOrder = null) {
             currentSortOrder = 'asc';
         }
     }
+    // Reset to first page when sorting or filtering
+    if (sortBy !== null) {
+        window.userCurrentPage = 1;
+        page = 1;
+    } else {
+        window.userCurrentPage = page;
+    }
+    
     // check if api available or not
     if (typeof API === 'undefined') {
-        console.error('api is not defined! make sure api.js is loaded.');
         alert('API not loaded yet. Please refresh the page.');
         return;
     }
@@ -219,8 +205,6 @@ async function performSearch(page = 1, sortBy = null, sortOrder = null) {
     const search = searchInput ? searchInput.value.trim() : '';
     const status = statusFilter ? statusFilter.value : '';
     const role = roleFilter ? roleFilter.value : '';
-    
-    currentPage = page;
     
     // show loading indicator
     if (loadingIndicator) {
@@ -237,24 +221,19 @@ async function performSearch(page = 1, sortBy = null, sortOrder = null) {
             renderUsersTable(usersData);
             updateSortIndicators();
         } else {
-            console.error('no users data received:', usersData);
-            let errorMsg = 'cannot load user data.';
+            let errorMsg = 'Cannot load user data.';
             
-            // check if api available or not
             if (typeof API === 'undefined') {
                 errorMsg += ' API not loaded. Please refresh the page.';
             } else if (!API.getToken()) {
                 errorMsg += ' Token not found. Please login again.';
-            } else {
-                errorMsg += ' Please check browser console (F12) for more details.';
             }
             
             document.getElementById('usersTableBody').innerHTML = 
                 '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
         }
     } catch (error) {
-        console.error('search error:', error);
-        const errorMsg = 'Error: ' + (error.message || 'Unknown error. Please check console.');
+        const errorMsg = 'Error loading users: ' + (error.message || 'Unknown error');
         document.getElementById('usersTableBody').innerHTML = 
             '<tr><td colspan="8" class="text-center">' + errorMsg + '</td></tr>';
     } finally {
@@ -348,7 +327,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     alert(errorMsg);
                 }
-                console.error('upload error:', error);
             });
         });
     }
@@ -387,15 +365,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // filter changes trigger search
+    // filter changes trigger search (reset to page 1)
     if (statusFilter) {
         statusFilter.addEventListener('change', function() {
+            window.userCurrentPage = 1;
             performSearch(1);
         });
     }
     
     if (roleFilter) {
         roleFilter.addEventListener('change', function() {
+            window.userCurrentPage = 1;
             performSearch(1);
         });
     }
@@ -405,7 +385,130 @@ document.addEventListener('DOMContentLoaded', function() {
         th.style.cursor = 'pointer';
         th.addEventListener('click', function() {
             const sortBy = this.getAttribute('data-sort');
+            window.userCurrentPage = 1;
             performSearch(1, sortBy, null);
         });
     });
+    
+    // Load users on page load using API (replace Blade-rendered data)
+    // Get initial filter values from URL or form
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialSearch = urlParams.get('search') || '';
+    const initialStatus = urlParams.get('status') || '';
+    const initialRole = urlParams.get('role') || '';
+    const initialPage = parseInt(urlParams.get('page')) || 1;
+    
+    // Set filter values if they exist
+    if (searchInput && initialSearch) {
+        searchInput.value = initialSearch;
+    }
+    if (statusFilter && initialStatus) {
+        statusFilter.value = initialStatus;
+    }
+    if (roleFilter && initialRole) {
+        roleFilter.value = initialRole;
+    }
+    
+    // Load users via API
+    window.userCurrentPage = initialPage;
+    performSearch(initialPage);
 });
+
+// Render pagination controls for users (similar to booking pagination)
+function renderUserPagination() {
+    if (window.userTotalPages <= 1) {
+        return '<div class="pagination-info" style="margin-top: 20px; text-align: center; color: #666;">Showing all users</div>';
+    }
+    
+    const startItem = (window.userCurrentPage - 1) * window.userPerPage + 1;
+    const endItem = Math.min(window.userCurrentPage * window.userPerPage, window.userTotalUsers);
+    
+    let paginationHTML = '<div class="pagination-container" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
+    
+    // Pagination info
+    paginationHTML += `<div class="pagination-info" style="color: #666;">
+        Showing ${startItem} to ${endItem} of ${window.userTotalUsers} users
+    </div>`;
+    
+    // Pagination controls
+    paginationHTML += '<div class="pagination-controls" style="display: flex; gap: 5px; align-items: center;">';
+    
+    // First page
+    if (window.userCurrentPage > 1) {
+        paginationHTML += `<button onclick="performSearch(1)" class="pagination-btn" title="First page">
+            <i class="fas fa-angle-double-left"></i>
+        </button>`;
+    } else {
+        paginationHTML += `<button class="pagination-btn" disabled>
+            <i class="fas fa-angle-double-left"></i>
+        </button>`;
+    }
+    
+    // Previous page
+    if (window.userCurrentPage > 1) {
+        paginationHTML += `<button onclick="performSearch(${window.userCurrentPage - 1})" class="pagination-btn" title="Previous page">
+            <i class="fas fa-angle-left"></i>
+        </button>`;
+    } else {
+        paginationHTML += `<button class="pagination-btn" disabled>
+            <i class="fas fa-angle-left"></i>
+        </button>`;
+    }
+    
+    // Page numbers
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, window.userCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(window.userTotalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    if (startPage > 1) {
+        paginationHTML += `<button onclick="performSearch(1)" class="pagination-btn">1</button>`;
+        if (startPage > 2) {
+            paginationHTML += `<span class="pagination-ellipsis">...</span>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === window.userCurrentPage) {
+            paginationHTML += `<button class="pagination-btn pagination-btn-active">${i}</button>`;
+        } else {
+            paginationHTML += `<button onclick="performSearch(${i})" class="pagination-btn">${i}</button>`;
+        }
+    }
+    
+    if (endPage < window.userTotalPages) {
+        if (endPage < window.userTotalPages - 1) {
+            paginationHTML += `<span class="pagination-ellipsis">...</span>`;
+        }
+        paginationHTML += `<button onclick="performSearch(${window.userTotalPages})" class="pagination-btn">${window.userTotalPages}</button>`;
+    }
+    
+    // Next page
+    if (window.userCurrentPage < window.userTotalPages) {
+        paginationHTML += `<button onclick="performSearch(${window.userCurrentPage + 1})" class="pagination-btn" title="Next page">
+            <i class="fas fa-angle-right"></i>
+        </button>`;
+    } else {
+        paginationHTML += `<button class="pagination-btn" disabled>
+            <i class="fas fa-angle-right"></i>
+        </button>`;
+    }
+    
+    // Last page
+    if (window.userCurrentPage < window.userTotalPages) {
+        paginationHTML += `<button onclick="performSearch(${window.userTotalPages})" class="pagination-btn" title="Last page">
+            <i class="fas fa-angle-double-right"></i>
+        </button>`;
+    } else {
+        paginationHTML += `<button class="pagination-btn" disabled>
+            <i class="fas fa-angle-double-right"></i>
+        </button>`;
+    }
+    
+    paginationHTML += '</div></div>';
+    
+    return paginationHTML;
+}

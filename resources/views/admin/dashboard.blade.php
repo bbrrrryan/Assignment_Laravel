@@ -108,10 +108,10 @@
         </div>
     </div>
 
-    <!-- Booking Reports & Statistics Section -->
+    <!-- Booking Reports & Analytics Section -->
     <div class="module-section">
         <h2 class="module-title">
-            <i class="fas fa-chart-bar"></i> Booking Reports & Usage Statistics
+            <i class="fas fa-chart-bar"></i> Booking Reports & Analytics
         </h2>
         
         <!-- Date Range Filter -->
@@ -142,42 +142,12 @@
             </div>
         </div>
 
-        <!-- Reports Tabs -->
-        <ul class="nav nav-tabs" id="reportsTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">
-                    <i class="fas fa-file-alt"></i> Booking Reports
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="statistics-tab" data-bs-toggle="tab" data-bs-target="#statistics" type="button" role="tab">
-                    <i class="fas fa-chart-line"></i> Usage Statistics
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="reportsTabContent">
-            <!-- Booking Reports Tab -->
-            <div class="tab-pane fade show active" id="reports" role="tabpanel">
-                <div class="reports-container" style="padding: 20px; background: white; border-radius: 0 0 8px 8px;">
-                    <div id="bookingReportsContent">
-                        <div class="text-center" style="padding: 40px;">
-                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                            <p class="text-muted mt-3">Loading booking reports...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Usage Statistics Tab -->
-            <div class="tab-pane fade" id="statistics" role="tabpanel">
-                <div class="statistics-container" style="padding: 20px; background: white; border-radius: 0 0 8px 8px;">
-                    <div id="usageStatisticsContent">
-                        <div class="text-center" style="padding: 40px;">
-                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                            <p class="text-muted mt-3">Loading usage statistics...</p>
-                        </div>
-                    </div>
+        <!-- Reports Content -->
+        <div class="reports-container" style="padding: 20px; background: white; border-radius: 8px;">
+            <div id="bookingReportsContent">
+                <div class="text-center" style="padding: 40px;">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-3">Loading booking reports...</p>
                 </div>
             </div>
         </div>
@@ -389,6 +359,9 @@
 </div>
 
 <!-- Booking Reports & Statistics JavaScript -->
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
 <script>
 // Load facilities for filter
 async function loadFacilitiesForReport() {
@@ -505,133 +478,38 @@ function displayBookingReports(data) {
 
     let html = `
         <div class="row g-4">
-            <!-- Status Statistics -->
-            <div class="col-md-12">
+            <!-- Status Distribution Pie Chart -->
+            <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
                         <h5><i class="fas fa-chart-pie"></i> Booking Status Distribution</h5>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #fff3cd; border-radius: 8px;">
-                                    <h3>${data.status_stats.pending || 0}</h3>
-                                    <p class="mb-0">Pending</p>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #d1e7dd; border-radius: 8px;">
-                                    <h3>${data.status_stats.approved || 0}</h3>
-                                    <p class="mb-0">Approved</p>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #f8d7da; border-radius: 8px;">
-                                    <h3>${data.status_stats.rejected || 0}</h3>
-                                    <p class="mb-0">Rejected</p>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #d3d3d3; border-radius: 8px;">
-                                    <h3>${data.status_stats.cancelled || 0}</h3>
-                                    <p class="mb-0">Cancelled</p>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #cfe2ff; border-radius: 8px;">
-                                    <h3>${data.status_stats.completed || 0}</h3>
-                                    <p class="mb-0">Completed</p>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="text-center p-3" style="background: #e7f3ff; border-radius: 8px;">
-                                    <h3>${data.total_hours_booked || 0}</h3>
-                                    <p class="mb-0">Total Hours</p>
-                                </div>
-                            </div>
-                        </div>
+                        <canvas id="statusChart" style="max-height: 300px;"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Bookings by Date -->
+            <!-- Bookings by Date Line Chart -->
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5><i class="fas fa-calendar-day"></i> Bookings by Date</h5>
+                        <h5><i class="fas fa-calendar-day"></i> Bookings Trend by Date</h5>
                     </div>
                     <div class="card-body">
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Pending</th>
-                                        <th>Approved</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-    `;
-
-    if (data.bookings_by_date && data.bookings_by_date.length > 0) {
-        data.bookings_by_date.forEach(item => {
-            html += `
-                <tr>
-                    <td>${new Date(item.date).toLocaleDateString()}</td>
-                    <td>${item.pending || 0}</td>
-                    <td>${item.approved || 0}</td>
-                    <td><strong>${item.total || 0}</strong></td>
-                </tr>
-            `;
-        });
-    } else {
-        html += '<tr><td colspan="4" class="text-center">No data available</td></tr>';
-    }
-
-    html += `
-                                </tbody>
-                            </table>
-                        </div>
+                        <canvas id="dateChart" style="max-height: 300px;"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Bookings by Facility -->
-            <div class="col-md-6">
+            <!-- Bookings by Facility Bar Chart -->
+            <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
                         <h5><i class="fas fa-building"></i> Bookings by Facility</h5>
                     </div>
                     <div class="card-body">
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Facility</th>
-                                        <th>Total Bookings</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-    `;
-
-    if (data.bookings_by_facility && data.bookings_by_facility.length > 0) {
-        data.bookings_by_facility.forEach(item => {
-            html += `
-                <tr>
-                    <td>${item.facility_name}</td>
-                    <td><strong>${item.total_bookings || 0}</strong></td>
-                </tr>
-            `;
-        });
-    } else {
-        html += '<tr><td colspan="2" class="text-center">No data available</td></tr>';
-    }
-
-    html += `
-                                </tbody>
-                            </table>
-                        </div>
+                        <canvas id="facilityChart" style="max-height: 400px;"></canvas>
                     </div>
                 </div>
             </div>
@@ -639,234 +517,186 @@ function displayBookingReports(data) {
     `;
 
     container.innerHTML = html;
+    
+    // Render charts after HTML is inserted
+    setTimeout(() => {
+        renderStatusChart(data.status_stats);
+        renderDateChart(data.bookings_by_date || []);
+        renderFacilityChart(data.bookings_by_facility || []);
+    }, 100);
 }
 
-// Load usage statistics
-async function loadUsageStatistics() {
-    const startDate = document.getElementById('reportStartDate')?.value;
-    const endDate = document.getElementById('reportEndDate')?.value;
-    const facilityId = document.getElementById('reportFacility')?.value || '';
-    const container = document.getElementById('usageStatisticsContent');
+// Chart instances storage
+let statusChart = null;
+let dateChart = null;
+let facilityChart = null;
 
-    if (!startDate || !endDate) {
-        return; // Error already shown in loadBookingReports
+// Render Status Distribution Pie Chart
+function renderStatusChart(statusStats) {
+    const ctx = document.getElementById('statusChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (statusChart) {
+        statusChart.destroy();
     }
-
-    // Show loading
-    if (container) {
-        container.innerHTML = '<div class="text-center" style="padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i><p class="text-muted mt-3">Loading usage statistics...</p></div>';
-    }
-
-    const params = new URLSearchParams({
-        start_date: startDate,
-        end_date: endDate,
-    });
-    if (facilityId) {
-        params.append('facility_id', facilityId);
-    }
-
-    try {
-        const result = await API.get(`/bookings/usage-statistics?${params.toString()}`);
-        
-        if (result.success) {
-            if (result.data && result.data.data) {
-                displayUsageStatistics(result.data.data);
-            } else if (result.data) {
-                displayUsageStatistics(result.data);
-            } else {
-                const errorMsg = 'No data received from server';
-                if (container) {
-                    container.innerHTML = `<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
-                } else {
-                    showError(errorMsg);
+    
+    statusChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Pending', 'Approved', 'Rejected', 'Cancelled', 'Completed'],
+            datasets: [{
+                data: [
+                    statusStats.pending || 0,
+                    statusStats.approved || 0,
+                    statusStats.rejected || 0,
+                    statusStats.cancelled || 0,
+                    statusStats.completed || 0
+                ],
+                backgroundColor: [
+                    '#fff3cd',
+                    '#d1e7dd',
+                    '#f8d7da',
+                    '#d3d3d3',
+                    '#cfe2ff'
+                ],
+                borderColor: [
+                    '#ffc107',
+                    '#28a745',
+                    '#dc3545',
+                    '#6c757d',
+                    '#007bff'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed || 0;
+                            return label;
+                        }
+                    }
                 }
             }
-        } else {
-            const errorMsg = result.error || result.data?.message || 'Failed to load usage statistics';
-            if (container) {
-                container.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
-            } else {
-                showError(errorMsg);
-            }
         }
-    } catch (error) {
-        const errorMsg = 'Error loading usage statistics: ' + (error.message || 'Unknown error');
-        if (container) {
-            container.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
-        } else {
-            showError(errorMsg);
-        }
-    }
+    });
 }
 
-// Display usage statistics
-function displayUsageStatistics(data) {
-    const container = document.getElementById('usageStatisticsContent');
-    if (!container) return;
-
-    let html = `
-        <div class="row g-4">
-            <!-- Facility Utilization -->
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-chart-area"></i> Facility Utilization</h5>
-                    </div>
-                    <div class="card-body">
-                        <div style="max-height: 500px; overflow-y: auto;">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Facility</th>
-                                        <th>Hours Booked</th>
-                                        <th>Possible Hours</th>
-                                        <th>Utilization Rate</th>
-                                        <th>Total Bookings</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-    `;
-
-    if (data.facility_utilization && data.facility_utilization.length > 0) {
-        data.facility_utilization.forEach(item => {
-            const utilizationColor = item.utilization_rate > 80 ? 'danger' : 
-                                    item.utilization_rate > 60 ? 'warning' : 'success';
-            html += `
-                <tr>
-                    <td><strong>${item.facility_name}</strong></td>
-                    <td>${item.total_hours_booked || 0}</td>
-                    <td>${item.total_possible_hours || 0}</td>
-                    <td>
-                        <span class="badge badge-${utilizationColor}">${item.utilization_rate || 0}%</span>
-                    </td>
-                    <td>${item.total_bookings || 0}</td>
-                </tr>
-            `;
-        });
-    } else {
-        html += '<tr><td colspan="5" class="text-center">No data available</td></tr>';
+// Render Bookings by Date Line Chart
+function renderDateChart(bookingsByDate) {
+    const ctx = document.getElementById('dateChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (dateChart) {
+        dateChart.destroy();
     }
+    
+    const dates = bookingsByDate.map(item => new Date(item.date).toLocaleDateString());
+    const pending = bookingsByDate.map(item => item.pending || 0);
+    const approved = bookingsByDate.map(item => item.approved || 0);
+    const total = bookingsByDate.map(item => item.total || 0);
+    
+    dateChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Pending',
+                    data: pending,
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Approved',
+                    data: approved,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Total',
+                    data: total,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
 
-    html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Popular Facilities -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-star"></i> Most Popular Facilities</h5>
-                    </div>
-                    <div class="card-body">
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Facility</th>
-                                        <th>Bookings</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-    `;
-
-    if (data.popular_facilities && data.popular_facilities.length > 0) {
-        data.popular_facilities.forEach((item, index) => {
-            html += `
-                <tr>
-                    <td>${index + 1}. ${item.facility_name}</td>
-                    <td><strong>${item.booking_count || 0}</strong></td>
-                </tr>
-            `;
-        });
-    } else {
-        html += '<tr><td colspan="2" class="text-center">No data available</td></tr>';
+// Render Bookings by Facility Bar Chart
+function renderFacilityChart(bookingsByFacility) {
+    const ctx = document.getElementById('facilityChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (facilityChart) {
+        facilityChart.destroy();
     }
-
-    html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Active Users -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-users"></i> Most Active Users</h5>
-                    </div>
-                    <div class="card-body">
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Bookings</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-    `;
-
-    if (data.active_users && data.active_users.length > 0) {
-        data.active_users.forEach((item, index) => {
-            html += `
-                <tr>
-                    <td>${index + 1}. ${item.user_name}</td>
-                    <td><strong>${item.booking_count || 0}</strong></td>
-                </tr>
-            `;
-        });
-    } else {
-        html += '<tr><td colspan="2" class="text-center">No data available</td></tr>';
-    }
-
-    html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Summary Stats -->
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-info-circle"></i> Summary Statistics</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="text-center p-3" style="background: #e7f3ff; border-radius: 8px;">
-                                    <h4>${data.average_booking_duration || 0}</h4>
-                                    <p class="mb-0">Average Booking Duration (Hours)</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-center p-3" style="background: #fff3cd; border-radius: 8px;">
-                                    <h4>${data.popular_facilities && data.popular_facilities.length > 0 ? data.popular_facilities[0].facility_name : 'N/A'}</h4>
-                                    <p class="mb-0">Most Popular Facility</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-center p-3" style="background: #d1e7dd; border-radius: 8px;">
-                                    <h4>${data.active_users && data.active_users.length > 0 ? data.active_users[0].user_name : 'N/A'}</h4>
-                                    <p class="mb-0">Most Active User</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    container.innerHTML = html;
+    
+    // Sort by bookings count (descending) and take top 10
+    const sorted = [...bookingsByFacility].sort((a, b) => (b.total_bookings || 0) - (a.total_bookings || 0)).slice(0, 10);
+    
+    const facilities = sorted.map(item => item.facility_name || 'Unknown');
+    const bookings = sorted.map(item => item.total_bookings || 0);
+    
+    facilityChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: facilities,
+            datasets: [{
+                label: 'Total Bookings',
+                data: bookings,
+                backgroundColor: 'rgba(0, 123, 255, 0.6)',
+                borderColor: '#007bff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
 }
 
 // Helper function to show error
@@ -887,7 +717,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Wait a bit for the page to fully render
     setTimeout(function() {
         loadBookingReports();
-        loadUsageStatistics();
     }, 500);
     
     // Load reports when Generate button is clicked
@@ -895,7 +724,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (generateBtn) {
         generateBtn.addEventListener('click', function() {
             loadBookingReports();
-            loadUsageStatistics();
         });
     }
 
