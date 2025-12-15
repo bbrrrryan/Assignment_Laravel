@@ -168,7 +168,11 @@ async function updateProfile() {
     const result = await API.put('/users/profile/update', data);
 
     if (result.success) {
-        alert('Profile updated successfully!');
+        if (typeof showToast === 'function') {
+            showToast('Profile updated successfully!', 'success');
+        } else {
+            alert('Profile updated successfully!');
+        }
         loadProfile();
         
         // Update localStorage user data

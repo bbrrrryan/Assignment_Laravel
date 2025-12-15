@@ -855,7 +855,8 @@
                         titleElement.textContent = 'Pending Bookings';
                     }
                     if (viewAllLink) {
-                        viewAllLink.href = '/bookings';
+                        // Admin/Staff should go to admin bookings page
+                        viewAllLink.href = '/admin/bookings';
                     }
                     
                     // Admin/Staff bell only displays user booking requests
