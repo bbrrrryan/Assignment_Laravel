@@ -127,17 +127,46 @@ class LoyaltyController extends Controller
     }
 
     /**
+     * Deduct points from a user (Admin only)
+     */
+    public function deductPoints(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'points' => 'required|integer|min:1',
+            'action_type' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $point = LoyaltyPoint::create([
+            'user_id' => $request->user_id,
+            'points' => -abs($request->points), // Always make it negative
+            'action_type' => $request->action_type,
+            'description' => $request->description ?? "Points deducted for: {$request->action_type}",
+        ]);
+
+        return response()->json([
+            'message' => 'Points deducted successfully',
+            'data' => $point->load('user'),
+        ], 201);
+    }
+
+    /**
      * Get all users' points (Admin only)
+     * Only shows students, excludes staff and admin users
      */
     public function getAllUsersPoints(Request $request)
     {
-        $query = User::with('loyaltyPoints');
+        // Only show students, exclude staff and admin
+        $query = User::with('loyaltyPoints')
+            ->where('role', 'student');
         
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('studentid', 'like', "%{$search}%");
             });
         }
 
@@ -146,6 +175,7 @@ class LoyaltyController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'studentid' => $user->studentid ?? null,
                 'total_points' => $user->loyaltyPoints()->sum('points'),
                 'points_count' => $user->loyaltyPoints()->count(),
             ];
@@ -424,7 +454,7 @@ class LoyaltyController extends Controller
             'description' => $request->description,
             'issued_date' => $request->issued_date ?? now(),
             'issued_by' => (string)auth()->id(),
-            'status' => 'approved',
+            'status' => 'approved', // Certificate is approved when issued
         ]);
 
         return response()->json([

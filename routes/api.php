@@ -104,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             // Points Management
             Route::post('/points/award', [LoyaltyController::class, 'awardPoints']);
+            Route::post('/points/deduct', [LoyaltyController::class, 'deductPoints']);
             Route::get('/points/all', [LoyaltyController::class, 'getAllUsersPoints']);
             Route::get('/points/user/{userId}', [LoyaltyController::class, 'getUserPoints']);
             
