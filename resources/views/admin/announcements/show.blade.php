@@ -78,16 +78,16 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Created At:</span>
-                    <span class="detail-value">{{ $announcement->created_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->created_at->toIso8601String() }}"></span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Updated At:</span>
-                    <span class="detail-value">{{ $announcement->updated_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->updated_at->toIso8601String() }}"></span>
                 </div>
                 @if($announcement->published_at)
                 <div class="detail-row">
                     <span class="detail-label">Published At:</span>
-                    <span class="detail-value">{{ $announcement->published_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->published_at->toIso8601String() }}"></span>
                 </div>
                 @endif
                 @if($announcement->expires_at)
@@ -313,7 +313,32 @@
 .btn-secondary:hover {
     background: #5a6268;
     color: white;
-}
+    }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Format all datetime fields using the same format as the list page
+    function formatDateTime(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    // Format all datetime elements
+    document.querySelectorAll('[data-datetime]').forEach(function(element) {
+        const datetime = element.getAttribute('data-datetime');
+        if (datetime) {
+            element.textContent = formatDateTime(datetime);
+        }
+    });
+});
+</script>
 @endsection
 

@@ -228,7 +228,7 @@ function displayNotifications(items, isAdmin, pagination = null) {
                         const isRead = item.is_read === true || item.is_read === 1;
                         const isStarred = item.is_starred === true || item.is_starred === 1;
                         const sender = item.creator || 'System';
-                        const date = formatDateTime(item.created_at || item.pivot_created_at);
+                        const date = formatDateTime(item.created_at);
                         const hasPivot = item.is_read !== undefined;
                         
                         return `
