@@ -58,6 +58,14 @@
     </div>
 </div>
 
+<!-- Image View Modal -->
+<div id="imageViewModal" class="image-modal" style="display: none;">
+    <span class="image-modal-close" onclick="closeImageViewModal()">&times;</span>
+    <div class="image-modal-content">
+        <img id="imageViewImg" src="" alt="Feedback Image">
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
@@ -103,15 +111,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Reload feedback details to show the response
                     loadFeedbackDetails();
                     // Show success message
-                    alert('Response submitted successfully!');
+                    if (typeof showToast === 'function') {
+                        showToast('Response submitted successfully!', 'success');
+                    } else {
+                        alert('Response submitted successfully!');
+                    }
                 } else {
-                    alert(result.error || 'Error submitting response');
+                    if (typeof showToast === 'function') {
+                        showToast(result.error || 'Error submitting response', 'error');
+                    } else {
+                        alert(result.error || 'Error submitting response');
+                    }
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
             } catch (error) {
                 console.error('Error submitting reply:', error);
-                alert('An error occurred while submitting the response');
+                if (typeof showToast === 'function') {
+                    showToast('An error occurred while submitting the response', 'error');
+                } else {
+                    alert('An error occurred while submitting the response');
+                }
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
@@ -165,15 +185,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Reload feedback details to show the blocked status
                     loadFeedbackDetails();
                     // Show success message
-                    alert('Feedback blocked successfully!');
+                    if (typeof showToast === 'function') {
+                        showToast('Feedback blocked successfully!', 'success');
+                    } else {
+                        alert('Feedback blocked successfully!');
+                    }
                 } else {
-                    alert(result.error || 'Error blocking feedback');
+                    if (typeof showToast === 'function') {
+                        showToast(result.error || 'Error blocking feedback', 'error');
+                    } else {
+                        alert(result.error || 'Error blocking feedback');
+                    }
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
             } catch (error) {
                 console.error('Error blocking feedback:', error);
-                alert('An error occurred while blocking the feedback');
+                if (typeof showToast === 'function') {
+                    showToast('An error occurred while blocking the feedback', 'error');
+                } else {
+                    alert('An error occurred while blocking the feedback');
+                }
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
@@ -228,7 +260,7 @@ function displayFeedbackDetails(feedback) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
-                    <span class="status-badge status-${feedback.status}">${feedback.status || 'N/A'}</span>
+                    <span class="status-badge status-${feedback.status}">${formatStatus(feedback.status)}</span>
                 </div>
                 ${feedback.rating ? `
                 <div class="detail-row">
@@ -247,6 +279,17 @@ function displayFeedbackDetails(feedback) {
                 <div class="message-content">
                     ${feedback.message || 'No message'}
                 </div>
+                ${feedback.image ? `
+                <div class="feedback-image-container" style="margin-top: 15px;">
+                    <h3 style="font-size: 1rem; margin-bottom: 10px; color: #555;">Attached Image:</h3>
+                    <div class="feedback-image-wrapper" style="position: relative; display: inline-block; max-width: 100%;">
+                        <img src="${feedback.image}" alt="Feedback Image" class="feedback-image" style="max-width: 100%; max-height: 500px; border-radius: 8px; border: 2px solid #ddd; cursor: pointer; transition: all 0.3s ease;" onclick="viewFeedbackImage('${feedback.image}')">
+                        <div class="image-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0); border-radius: 8px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all 0.3s ease; cursor: pointer;" onclick="viewFeedbackImage('${feedback.image}')">
+                            <i class="fas fa-search-plus" style="color: white; font-size: 2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></i>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
             </div>
 
             ${feedback.facility ? `
@@ -351,6 +394,18 @@ function formatDateTime(dateString) {
     return date.toLocaleString();
 }
 
+function formatStatus(status) {
+    if (!status) return 'N/A';
+    const statusMap = {
+        'pending': 'Pending',
+        'under_review': 'Under Review',
+        'resolved': 'Resolved',
+        'rejected': 'Rejected',
+        'blocked': 'Blocked'
+    };
+    return statusMap[status] || status;
+}
+
 // Admin function to reply to feedback
 window.replyToFeedback = function(id) {
     // Get feedback data from the page
@@ -431,6 +486,38 @@ window.closeBlockModal = function() {
     document.getElementById('blockForm').reset();
     delete document.getElementById('blockForm').dataset.feedbackId;
 };
+
+// View feedback image in modal
+window.viewFeedbackImage = function(imageSrc) {
+    const modal = document.getElementById('imageViewModal');
+    const modalImg = document.getElementById('imageViewImg');
+    if (modal && modalImg) {
+        modalImg.src = imageSrc;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+// Close image view modal
+window.closeImageViewModal = function() {
+    const modal = document.getElementById('imageViewModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+};
+
+// Close modal when clicking outside the image
+document.addEventListener('DOMContentLoaded', function() {
+    const imageModal = document.getElementById('imageViewModal');
+    if (imageModal) {
+        imageModal.addEventListener('click', function(e) {
+            if (e.target === imageModal) {
+                closeImageViewModal();
+            }
+        });
+    }
+});
 </script>
 
 <style>
@@ -748,6 +835,82 @@ window.closeBlockModal = function() {
 
 .btn-action:active {
     transform: translateY(0);
+}
+
+/* Image View Modal Styles */
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 3000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.image-modal-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    animation: zoomIn 0.3s ease;
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.image-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 40px;
+    color: #ffffff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 3001;
+    transition: all 0.3s ease;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.image-modal-close:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Feedback Image Wrapper Hover Effect */
+.feedback-image-wrapper:hover .image-overlay {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.feedback-image-wrapper:hover .feedback-image {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 </style>
 @endsection

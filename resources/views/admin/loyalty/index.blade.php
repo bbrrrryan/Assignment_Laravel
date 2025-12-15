@@ -5,7 +5,15 @@
 @section('content')
 <div class="page-container">
     <div class="page-header">
-        <h1>Loyalty Management</h1>
+        <div class="page-header-content">
+            <h1 id="loyaltyPageTitle">Loyalty Management</h1>
+            <p id="loyaltyPageSubtitle">Manage loyalty program rules, rewards, and points</p>
+        </div>
+        <div>
+            <button id="loyaltyHeaderBtn" class="btn-header-white" onclick="handleHeaderButtonClick()" style="display: none;">
+                <i class="fas fa-plus"></i> <span id="loyaltyHeaderBtnText">Create</span>
+            </button>
+        </div>
     </div>
 
     <div class="loyalty-admin-tabs">
@@ -115,10 +123,15 @@
                 <small>Type of reward being offered</small>
             </div>
             <div class="form-group">
-                <label>Image URL</label>
-                <input type="url" id="rewardImageUrl" 
-                       placeholder="https://example.com/image.jpg">
-                <small>Optional image URL for this reward</small>
+                <label>Image (Optional)</label>
+                <input type="file" id="rewardImage" accept="image/*" onchange="handleRewardImageUpload(event)">
+                <small>Upload an image for this reward (JPG, PNG, GIF). Maximum size: 1MB</small>
+                <div id="rewardImagePreview" style="margin-top: 10px; display: none;">
+                    <img id="rewardPreviewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #ddd;">
+                    <button type="button" onclick="removeRewardImage()" style="margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        <i class="fas fa-times"></i> Remove
+                    </button>
+                </div>
             </div>
             <div class="form-group">
                 <label>Stock Quantity</label>
@@ -151,7 +164,6 @@
                 <select id="awardPointsUserId" required>
                     <option value="">Loading users...</option>
                 </select>
-                <small>Choose the student to award points to</small>
             </div>
             <div class="form-group">
                 <label>Points *</label>
@@ -174,6 +186,63 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeAwardPointsModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Award Points</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- View User Points Modal -->
+<div id="viewUserPointsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <span class="close" onclick="closeViewUserPointsModal()">&times;</span>
+        <h2>User Points Details</h2>
+        <div id="viewUserPointsContent">
+            <div style="text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #a31f37;"></i>
+                <p style="margin-top: 20px;">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="issueCertificateModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeIssueCertificateModal()">&times;</span>
+        <h2>Issue Certificate</h2>
+        <form id="issueCertificateForm">
+            <div class="form-group">
+                <label>Select Student *</label>
+                <select id="issueCertificateUserId" required>
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Certificate Title *</label>
+                <input type="text" id="issueCertificateTitle" required 
+                       placeholder="e.g., Gold Certificate, VIP Badge, Achievement Award">
+                <small>Display name for this certificate</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="issueCertificateDescription" rows="3" 
+                          placeholder="Optional description for this certificate"></textarea>
+                <small>Provide details about this certificate</small>
+            </div>
+            <div class="form-group">
+                <label>Related Reward (Optional)</label>
+                <select id="issueCertificateRewardId">
+                    <option value="">No reward</option>
+                </select>
+                <small>Link this certificate to a specific reward (optional)</small>
+            </div>
+            <div class="form-group">
+                <label>Issued Date</label>
+                <input type="date" id="issueCertificateIssuedDate">
+                <small>Leave empty to use today's date</small>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeIssueCertificateModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Issue Certificate</button>
             </div>
         </form>
     </div>
@@ -203,6 +272,32 @@ function initAdminLoyalty() {
     loadAdminTab('rules');
     // Don't setup form handler here - it will be set up when modal is first opened
     // Note: Modals can only be closed via close button (X) or Cancel button, not by clicking outside
+}
+
+// Update header based on current tab
+function updateLoyaltyHeader(title, subtitle, buttonText, buttonAction) {
+    const titleEl = document.getElementById('loyaltyPageTitle');
+    const subtitleEl = document.getElementById('loyaltyPageSubtitle');
+    const buttonEl = document.getElementById('loyaltyHeaderBtn');
+    const buttonTextEl = document.getElementById('loyaltyHeaderBtnText');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (subtitleEl) subtitleEl.textContent = subtitle;
+    
+    if (buttonText && buttonAction) {
+        if (buttonTextEl) buttonTextEl.textContent = buttonText;
+        if (buttonEl) {
+            buttonEl.setAttribute('onclick', buttonAction + '()');
+            buttonEl.style.display = 'block';
+        }
+    } else {
+        if (buttonEl) buttonEl.style.display = 'none';
+    }
+}
+
+// Handle header button click
+function handleHeaderButtonClick() {
+    // This will be handled by the onclick attribute set in updateLoyaltyHeader
 }
 
 let ruleFormHandlerSetup = false;
@@ -361,34 +456,47 @@ async function loadRulesManagement() {
 function displayRulesManagement(rules) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Update header
+    updateLoyaltyHeader('Point Earning Rules', 'Manage and configure point earning rules', 'Create Rule', 'showCreateRuleModal');
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Point Earning Rules</h2>
-            <button class="btn-primary" onclick="showCreateRuleModal()">
-                <i class="fas fa-plus"></i> Create Rule
-            </button>
-        </div>
-        <div class="rules-list">
-            ${rules.length === 0 ? '<p>No rules found. Create your first rule!</p>' : ''}
-            ${rules.map(rule => `
-                <div class="rule-card">
-                    <div class="rule-header">
-                        <h3>${rule.name}</h3>
-                        <span class="status-badge ${rule.is_active ? 'status-active' : 'status-inactive'}">
-                            ${rule.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                    </div>
-                    <div class="rule-details">
-                        <p><strong>Action Type:</strong> ${rule.action_type}</p>
-                        <p><strong>Points:</strong> ${rule.points}</p>
-                        ${rule.description ? `<p><strong>Description:</strong> ${rule.description}</p>` : ''}
-                    </div>
-                    <div class="rule-actions">
-                        <button class="btn-sm btn-primary" onclick="editRule(${rule.id})">Edit</button>
-                        <button class="btn-sm btn-danger" onclick="deleteRule(${rule.id})">Delete</button>
-                    </div>
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Action Type</th>
+                        <th>Points</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th style="width: 100px; min-width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rules.length === 0 ? `
+                        <tr>
+                            <td colspan="6" class="text-center">No rules found. Create your first rule!</td>
+                        </tr>
+                    ` : rules.map(rule => `
+                        <tr>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><strong>${rule.name}</strong></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${rule.action_type}</code></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><strong>${rule.points}</strong></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; max-width: 300px; word-wrap: break-word; line-height: 1.4;">${rule.description || 'N/A'}</td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap;">
+                                <span class="badge ${rule.is_active ? 'badge-success' : 'badge-secondary'}" style="display: inline-block; vertical-align: bottom;">
+                                    ${rule.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; width: 100px; min-width: 100px; text-align: center;">
+                                <button class="btn-sm btn-primary" onclick="editRule(${rule.id})" title="Edit" style="white-space: nowrap !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; margin: 0; vertical-align: bottom;">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -410,35 +518,52 @@ async function loadRewardsManagement() {
 function displayRewardsManagement(rewards) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Update header
+    updateLoyaltyHeader('Rewards Management', 'Manage available rewards for redemption', 'Create Reward', 'showCreateRewardModal');
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Rewards Management</h2>
-            <button class="btn-primary" onclick="showCreateRewardModal()">
-                <i class="fas fa-plus"></i> Create Reward
-            </button>
-        </div>
-        <div class="rewards-admin-list">
-            ${rewards.length === 0 ? '<p>No rewards found. Create your first reward!</p>' : ''}
-            ${rewards.map(reward => `
-                <div class="reward-admin-card">
-                    <div class="reward-admin-header">
-                        <h3>${reward.name}</h3>
-                        <span class="status-badge ${reward.is_active ? 'status-active' : 'status-inactive'}">
-                            ${reward.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                    </div>
-                    <div class="reward-admin-details">
-                        <p><strong>Type:</strong> ${reward.reward_type}</p>
-                        <p><strong>Points Required:</strong> ${reward.points_required}</p>
-                        ${reward.stock_quantity !== null ? `<p><strong>Stock:</strong> ${reward.stock_quantity}</p>` : '<p><strong>Stock:</strong> Unlimited</p>'}
-                        ${reward.description ? `<p><strong>Description:</strong> ${reward.description}</p>` : ''}
-                    </div>
-                    <div class="reward-admin-actions">
-                        <button class="btn-sm btn-primary" onclick="editReward(${reward.id})">Edit</button>
-                        <button class="btn-sm btn-danger" onclick="deleteReward(${reward.id})">Delete</button>
-                    </div>
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Points Required</th>
+                        <th>Stock</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rewards.length === 0 ? `
+                        <tr>
+                            <td colspan="7" class="text-center">No rewards found. Create your first reward!</td>
+                        </tr>
+                    ` : rewards.map(reward => `
+                        <tr>
+                            <td><strong>${reward.name}</strong></td>
+                            <td><span class="badge badge-info">${reward.reward_type}</span></td>
+                            <td><strong>${reward.points_required}</strong></td>
+                            <td>${reward.stock_quantity !== null ? reward.stock_quantity : '<span style="color: #10b981;">Unlimited</span>'}</td>
+                            <td>${reward.description || 'N/A'}</td>
+                            <td>
+                                <span class="badge ${reward.is_active ? 'badge-success' : 'badge-secondary'}">
+                                    ${reward.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; text-align: center;">
+                                <button class="btn-sm btn-primary btn-square" onclick="editReward(${reward.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-sm btn-danger btn-square" onclick="deleteReward(${reward.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -460,42 +585,75 @@ async function loadRedemptionsManagement() {
 function displayRedemptionsManagement(redemptions) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Update header
+    updateLoyaltyHeader('Redemption Approvals', 'Review and approve reward redemptions', '', '');
+    document.getElementById('loyaltyHeaderBtn').style.display = 'none';
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Redemption Approvals</h2>
-            <div class="filters">
-                <select id="redemptionStatusFilter" onchange="filterRedemptions()">
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-select-wrapper">
+                        <div class="filter-icon">
+                            <i class="fas fa-filter"></i>
+                        </div>
+                        <select id="redemptionStatusFilter" class="filter-select" onchange="filterRedemptions()">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="redemptions-list">
-            ${redemptions.length === 0 ? '<p>No redemptions found</p>' : ''}
-            ${redemptions.map(redemption => `
-                <div class="redemption-card">
-                    <div class="redemption-header">
-                        <div>
-                            <h3>${redemption.reward_name}</h3>
-                            <p><strong>User:</strong> ${redemption.user_name} (${redemption.user_email})</p>
-                        </div>
-                        <span class="status-badge status-${redemption.status}">${redemption.status}</span>
-                    </div>
-                    <div class="redemption-details">
-                        <p><strong>Points Used:</strong> ${redemption.points_used}</p>
-                        <p><strong>Redeemed At:</strong> ${formatDateTime(redemption.redeemed_at || redemption.created_at)}</p>
-                        ${redemption.reward_description ? `<p><strong>Description:</strong> ${redemption.reward_description}</p>` : ''}
-                    </div>
-                    ${redemption.status === 'pending' ? `
-                    <div class="redemption-actions">
-                        <button class="btn-sm btn-success" onclick="approveRedemption(${redemption.id})">Approve</button>
-                        <button class="btn-sm btn-danger" onclick="rejectRedemption(${redemption.id})">Reject</button>
-                    </div>
-                    ` : ''}
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Reward</th>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Points Used</th>
+                        <th>Redeemed At</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${redemptions.length === 0 ? `
+                        <tr>
+                            <td colspan="7" class="text-center">No redemptions found</td>
+                        </tr>
+                    ` : redemptions.map(redemption => `
+                        <tr>
+                            <td>
+                                <strong>${redemption.reward_name}</strong>
+                                ${redemption.reward_description ? `<br><small style="color: #6b7280;">${redemption.reward_description}</small>` : ''}
+                            </td>
+                            <td>${redemption.user_name}</td>
+                            <td>${redemption.user_email}</td>
+                            <td><strong>${redemption.points_used}</strong></td>
+                            <td>${formatDateTime(redemption.redeemed_at || redemption.created_at)}</td>
+                            <td>
+                                <span class="badge ${redemption.status === 'approved' ? 'badge-success' : (redemption.status === 'pending' ? 'badge-warning' : 'badge-danger')}">
+                                    ${redemption.status.charAt(0).toUpperCase() + redemption.status.slice(1)}
+                                </span>
+                            </td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; width: 100px; min-width: 100px; text-align: center;">
+                                ${redemption.status === 'pending' ? `
+                                    <button class="btn-sm btn-success btn-square" onclick="approveRedemption(${redemption.id})" title="Approve" style="margin-right: 5px;">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="btn-sm btn-danger btn-square" onclick="rejectRedemption(${redemption.id})" title="Reject">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                ` : '-'}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -517,14 +675,12 @@ async function loadPointsManagement() {
 function displayPointsManagement(users) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Update header
+    updateLoyaltyHeader('Student Points Tracking', 'View and manage student loyalty points', '', '');
+    document.getElementById('loyaltyHeaderBtn').style.display = 'none';
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Student Points Tracking</h2>
-            <button class="btn-primary" onclick="showAwardPointsModal()">
-                <i class="fas fa-plus"></i> Award Points
-            </button>
-        </div>
-        <div class="points-tracking-table">
+        <div class="table-container">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -536,15 +692,23 @@ function displayPointsManagement(users) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${users.map(user => `
+                    ${users.length === 0 ? `
+                        <tr>
+                            <td colspan="5" class="text-center">No users found</td>
+                        </tr>
+                    ` : users.map(user => `
                         <tr>
                             <td>${user.name}</td>
                             <td>${user.email}</td>
                             <td><strong>${user.total_points || 0}</strong></td>
                             <td>${user.points_count || 0}</td>
-                            <td>
-                                <button class="btn-sm" onclick="viewUserPoints(${user.id})">View Details</button>
-                                <button class="btn-sm btn-primary" onclick="awardPointsToUser(${user.id})">Award Points</button>
+                            <td class="actions">
+                                <button class="btn-sm btn-info" onclick="viewUserPoints(${user.id})" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn-sm btn-primary" onclick="awardPointsToUser(${user.id})" title="Award Points">
+                                    <i class="fas fa-plus"></i>
+                                </button>
                             </td>
                         </tr>
                     `).join('')}
@@ -571,29 +735,45 @@ async function loadCertificatesManagement() {
 function displayCertificatesManagement(certificates) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Update header
+    updateLoyaltyHeader('Certificates Management', 'Issue and manage student certificates', 'Issue Certificate', 'showIssueCertificateModal');
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Certificates Management</h2>
-            <button class="btn-primary" onclick="showIssueCertificateModal()">
-                <i class="fas fa-plus"></i> Issue Certificate
-            </button>
-        </div>
-        <div class="certificates-admin-list">
-            ${certificates.length === 0 ? '<p>No certificates issued</p>' : ''}
-            ${certificates.map(cert => `
-                <div class="certificate-admin-card">
-                    <div class="certificate-admin-header">
-                        <h3>${cert.title}</h3>
-                        <span class="status-badge status-${cert.status}">${cert.status}</span>
-                    </div>
-                    <div class="certificate-admin-details">
-                        <p><strong>Student:</strong> ${cert.user?.name || 'N/A'} (${cert.user?.email || 'N/A'})</p>
-                        <p><strong>Certificate Number:</strong> ${cert.certificate_number}</p>
-                        <p><strong>Issued Date:</strong> ${formatDateTime(cert.issued_date)}</p>
-                        ${cert.description ? `<p><strong>Description:</strong> ${cert.description}</p>` : ''}
-                    </div>
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Student</th>
+                        <th>Email</th>
+                        <th>Certificate Number</th>
+                        <th>Issued Date</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${certificates.length === 0 ? `
+                        <tr>
+                            <td colspan="7" class="text-center">No certificates issued</td>
+                        </tr>
+                    ` : certificates.map(cert => `
+                        <tr>
+                            <td><strong>${cert.title}</strong></td>
+                            <td>${cert.user?.name || 'N/A'}</td>
+                            <td>${cert.user?.email || 'N/A'}</td>
+                            <td><code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${cert.certificate_number}</code></td>
+                            <td>${formatDateTime(cert.issued_date)}</td>
+                            <td>${cert.description || 'N/A'}</td>
+                            <td>
+                                <span class="badge ${cert.status === 'active' ? 'badge-success' : (cert.status === 'expired' ? 'badge-danger' : 'badge-secondary')}">
+                                    ${cert.status.charAt(0).toUpperCase() + cert.status.slice(1)}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -622,11 +802,11 @@ function displayReports(data) {
     const participation = data.participation || {};
     const rewardsStats = data.rewardsStats || {};
     
+    // Update header
+    updateLoyaltyHeader('Loyalty Program Reports', 'View statistics and analytics', '', '');
+    document.getElementById('loyaltyHeaderBtn').style.display = 'none';
+    
     container.innerHTML = `
-        <div class="admin-section-header">
-            <h2>Loyalty Program Reports</h2>
-        </div>
-        
         <div class="reports-grid">
             <div class="report-card">
                 <h3>Participation Overview</h3>
@@ -717,6 +897,36 @@ function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleString();
+}
+
+function formatActionType(actionType) {
+    if (!actionType) return '-';
+    
+    const actionMap = {
+        'redemption_refund': 'Redemption refund',
+        'reward_redemption': 'Reward redemption'
+    };
+    
+    // If we have a mapping, use it
+    if (actionMap[actionType]) {
+        return actionMap[actionType];
+    }
+    
+    // Otherwise, format by replacing underscores with spaces and capitalizing
+    return actionType
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function formatDescription(actionType, description) {
+    // For redemption_refund, use specific description
+    if (actionType === 'redemption_refund') {
+        return 'Refunded for rejected redemption';
+    }
+    
+    // For other types, use the provided description or default
+    return description || '-';
 }
 
 function showLoading(element) {
@@ -964,7 +1174,7 @@ function setupRewardFormHandler() {
             description: document.getElementById('rewardDescription').value.trim() || null,
             points_required: parseInt(document.getElementById('rewardPointsRequired').value),
             reward_type: document.getElementById('rewardType').value,
-            image_url: document.getElementById('rewardImageUrl').value.trim() || null,
+            image_url: rewardSelectedImageBase64 || null,
             stock_quantity: document.getElementById('rewardStockQuantity').value.trim() ? 
                 parseInt(document.getElementById('rewardStockQuantity').value) : null,
             is_active: document.getElementById('rewardIsActive').checked,
@@ -1006,6 +1216,77 @@ function resetRewardFormButtonState(button, originalText) {
         button.disabled = false;
         button.innerHTML = originalText;
     }
+}
+
+// Reward image handling variables
+let rewardSelectedImageBase64 = null;
+
+// Handle reward image upload and convert to base64
+function handleRewardImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    // Validate file type
+    if (!file.type.match('image.*')) {
+        if (typeof showToast === 'function') {
+            showToast('Please select a valid image file', 'error');
+        } else {
+            alert('Please select a valid image file');
+        }
+        event.target.value = '';
+        return;
+    }
+
+    // Validate file size (max 1MB to avoid database packet size issues)
+    if (file.size > 1 * 1024 * 1024) {
+        if (typeof showToast === 'function') {
+            showToast('Image size must be less than 1MB. Please compress your image before uploading.', 'error');
+        } else {
+            alert('Image size must be less than 1MB. Please compress your image before uploading.');
+        }
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        
+        // Double check base64 size (should be less than ~1.5MB)
+        if (base64.length > 1500000) {
+            if (typeof showToast === 'function') {
+                showToast('Image is too large. Please use a smaller image (max 1MB).', 'error');
+            } else {
+                alert('Image is too large. Please use a smaller image (max 1MB).');
+            }
+            event.target.value = '';
+            document.getElementById('rewardImagePreview').style.display = 'none';
+            return;
+        }
+
+        rewardSelectedImageBase64 = base64;
+        // Show preview
+        document.getElementById('rewardPreviewImg').src = rewardSelectedImageBase64;
+        document.getElementById('rewardImagePreview').style.display = 'block';
+    };
+    reader.onerror = function() {
+        if (typeof showToast === 'function') {
+            showToast('Error reading image file', 'error');
+        } else {
+            alert('Error reading image file');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Remove selected reward image
+function removeRewardImage() {
+    rewardSelectedImageBase64 = null;
+    document.getElementById('rewardImage').value = '';
+    document.getElementById('rewardImagePreview').style.display = 'none';
+    document.getElementById('rewardPreviewImg').src = '';
 }
 
 window.showCreateRewardModal = function() {
@@ -1074,7 +1355,25 @@ window.editReward = async function(id) {
             document.getElementById('rewardDescription').value = reward.description || '';
             document.getElementById('rewardPointsRequired').value = reward.points_required || '';
             document.getElementById('rewardType').value = reward.reward_type || '';
-            document.getElementById('rewardImageUrl').value = reward.image_url || '';
+            
+            // Handle image - if it's a base64 string, show preview; if it's a URL, we can't preview it
+            if (reward.image_url) {
+                if (reward.image_url.startsWith('data:image/')) {
+                    // It's a base64 image
+                    rewardSelectedImageBase64 = reward.image_url;
+                    document.getElementById('rewardPreviewImg').src = reward.image_url;
+                    document.getElementById('rewardImagePreview').style.display = 'block';
+                } else {
+                    // It's a URL, clear the image input
+                    rewardSelectedImageBase64 = null;
+                    document.getElementById('rewardImagePreview').style.display = 'none';
+                }
+            } else {
+                rewardSelectedImageBase64 = null;
+                document.getElementById('rewardImagePreview').style.display = 'none';
+            }
+            document.getElementById('rewardImage').value = '';
+            
             document.getElementById('rewardStockQuantity').value = reward.stock_quantity !== null ? reward.stock_quantity : '';
             document.getElementById('rewardIsActive').checked = reward.is_active !== false;
         } else {
@@ -1093,6 +1392,24 @@ window.closeRewardModal = function() {
     if (modal) {
         modal.style.display = 'none';
         modal.classList.remove('show');
+    }
+    const form = document.getElementById('rewardForm');
+    if (form) {
+        form.reset();
+    }
+    // Reset image selection
+    rewardSelectedImageBase64 = null;
+    const imageInput = document.getElementById('rewardImage');
+    if (imageInput) {
+        imageInput.value = '';
+    }
+    const imagePreview = document.getElementById('rewardImagePreview');
+    if (imagePreview) {
+        imagePreview.style.display = 'none';
+    }
+    const previewImg = document.getElementById('rewardPreviewImg');
+    if (previewImg) {
+        previewImg.src = '';
     }
     currentEditingRewardId = null;
 };
@@ -1165,8 +1482,123 @@ window.rejectRedemption = async function(id) {
     }
 };
 
-window.viewUserPoints = function(userId) {
-    alert('View user points details - to be implemented');
+window.viewUserPoints = async function(userId) {
+    const modal = document.getElementById('viewUserPointsModal');
+    const content = document.getElementById('viewUserPointsContent');
+    
+    if (!modal || !content) {
+        console.error('View user points modal not found!');
+        alert('Error: Modal not found. Please refresh the page.');
+        return;
+    }
+    
+    // Show modal with loading state
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    
+    content.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #a31f37;"></i>
+            <p style="margin-top: 20px;">Loading user points...</p>
+        </div>
+    `;
+    
+    try {
+        const result = await API.get(`/loyalty/points/user/${userId}`);
+        
+        console.log('User points API response:', result);
+        
+        if (result.success && result.data) {
+            // Handle both response structures: { data: {...} } or direct {...}
+            const data = result.data.data || result.data;
+            console.log('Parsed data:', data);
+            
+            const user = data.user || {};
+            const totalPoints = data.total_points || 0;
+            const history = data.points_history?.data || data.points_history || [];
+            
+            content.innerHTML = `
+                <div style="margin-bottom: 30px;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 10px 0; color: #333;">${user.name || 'N/A'}</h3>
+                        <p style="margin: 5px 0; color: #666;"><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                        <p style="margin: 5px 0; color: #666;"><strong>Role:</strong> ${user.role || 'N/A'}</p>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e0e0e0;">
+                            <p style="margin: 0; font-size: 1.5rem; color: #a31f37;">
+                                <strong>Total Points: ${totalPoints}</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 style="margin-bottom: 15px; color: #333;">Points History</h3>
+                    ${history.length === 0 ? '<p style="text-align: center; padding: 20px; color: #666;">No points history found</p>' : ''}
+                    ${history.length > 0 ? `
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table class="data-table" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action Type</th>
+                                        <th>Points</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${history.map(item => {
+                                        const formattedAction = formatActionType(item.action_type);
+                                        const formattedDescription = formatDescription(item.action_type, item.description);
+                                        return `
+                                        <tr>
+                                            <td>${formatDateTime(item.created_at)}</td>
+                                            <td>${formattedAction}</td>
+                                            <td class="${item.points > 0 ? 'text-success' : 'text-danger'}" style="font-weight: bold;">
+                                                ${item.points > 0 ? '+' : ''}${item.points}
+                                            </td>
+                                            <td>${formattedDescription}</td>
+                                        </tr>
+                                    `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="form-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn-secondary" onclick="closeViewUserPointsModal()">Close</button>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                <div class="error-message" style="padding: 20px; background: #f8d7da; color: #721c24; border-radius: 8px; margin: 20px 0;">
+                    <p><strong>Error:</strong> ${result.error || 'Failed to load user points details'}</p>
+                </div>
+                <div class="form-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn-secondary" onclick="closeViewUserPointsModal()">Close</button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading user points:', error);
+        content.innerHTML = `
+            <div class="error-message" style="padding: 20px; background: #f8d7da; color: #721c24; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Error:</strong> An error occurred while loading user points: ${error.message}</p>
+            </div>
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="button" class="btn-secondary" onclick="closeViewUserPointsModal()">Close</button>
+            </div>
+        `;
+    }
+};
+
+window.closeViewUserPointsModal = function() {
+    const modal = document.getElementById('viewUserPointsModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+    }
 };
 
 // Award Points Modal Functions
@@ -1253,8 +1685,32 @@ async function loadUsersForAward() {
     try {
         const result = await API.get('/users?role=student');
         
-        if (result.success && result.data && result.data.data) {
-            const users = result.data.data;
+        // API.js returns {success: true, data: serverResponse}
+        // Server returns {status: 'S', data: {data: [...], ...}}
+        let users = null;
+        
+        if (result.success && result.data) {
+            // Check if server response has status 'S' and paginated data
+            if (result.data.status === 'S' && result.data.data) {
+                // Handle paginated response: result.data.data.data
+                if (result.data.data.data && Array.isArray(result.data.data.data)) {
+                    users = result.data.data.data;
+                } else if (Array.isArray(result.data.data)) {
+                    users = result.data.data;
+                }
+            } else if (result.data.data) {
+                // Handle direct data response
+                if (Array.isArray(result.data.data)) {
+                    users = result.data.data;
+                } else if (Array.isArray(result.data)) {
+                    users = result.data;
+                }
+            } else if (Array.isArray(result.data)) {
+                users = result.data;
+            }
+        }
+        
+        if (users && users.length > 0) {
             select.innerHTML = '<option value="">Select a student...</option>';
             
             users.forEach(user => {
@@ -1265,13 +1721,16 @@ async function loadUsersForAward() {
             });
             
             select.disabled = false;
+            return users; // Return users array for use in awardPointsToUser
         } else {
-            select.innerHTML = '<option value="">Failed to load users</option>';
-            console.error('Failed to load users:', result);
+            select.innerHTML = '<option value="">No students found</option>';
+            console.error('No users found in response:', result);
+            return null;
         }
     } catch (error) {
         console.error('Error loading users:', error);
         select.innerHTML = '<option value="">Error loading users</option>';
+        return null;
     }
 }
 
@@ -1290,7 +1749,11 @@ window.showAwardPointsModal = async function() {
     
     // Reset form
     form.reset();
-    document.getElementById('awardPointsUserId').innerHTML = '<option value="">Loading users...</option>';
+    const select = document.getElementById('awardPointsUserId');
+    if (select) {
+        select.innerHTML = '<option value="">Loading users...</option>';
+        select.disabled = false; // Enable select when opening modal manually
+    }
     
     // Load users
     await loadUsersForAward();
@@ -1313,23 +1776,29 @@ window.awardPointsToUser = async function(userId) {
         return;
     }
     
+    // Show modal first (with loading state)
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    
     // Reset form
     form.reset();
     
-    // Load users first
-    await loadUsersForAward();
+    // Load users and wait for completion
+    const users = await loadUsersForAward();
     
     // Set the user ID after users are loaded
-    setTimeout(() => {
-        const select = document.getElementById('awardPointsUserId');
-        if (select) {
+    const select = document.getElementById('awardPointsUserId');
+    if (select && userId) {
+        // Check if the user ID exists in the loaded users
+        const userExists = users && users.some(user => user.id == userId);
+        if (userExists) {
             select.value = userId;
+            // Disable the select box since user is already selected
+            select.disabled = true;
+        } else {
+            console.warn(`User ID ${userId} not found in loaded users`);
         }
-    }, 500);
-    
-    // Show modal
-    modal.style.display = 'block';
-    modal.classList.add('show');
+    }
 };
 
 window.closeAwardPointsModal = function() {
@@ -1347,11 +1816,224 @@ window.closeAwardPointsModal = function() {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Award Points';
         }
+        // Re-enable select box when closing modal
+        const select = document.getElementById('awardPointsUserId');
+        if (select) {
+            select.disabled = false;
+        }
     }
 };
 
-window.showIssueCertificateModal = function() {
-    alert('Issue certificate modal - to be implemented');
+// Issue Certificate Modal Functions
+let issueCertificateFormHandlerSetup = false;
+
+function setupIssueCertificateFormHandler() {
+    if (issueCertificateFormHandlerSetup) return;
+    
+    const form = document.getElementById('issueCertificateForm');
+    if (!form) {
+        console.warn('Issue certificate form not found');
+        return;
+    }
+    
+    issueCertificateFormHandlerSetup = true;
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const userId = document.getElementById('issueCertificateUserId').value;
+        const title = document.getElementById('issueCertificateTitle').value.trim();
+        const description = document.getElementById('issueCertificateDescription').value.trim() || null;
+        const rewardId = document.getElementById('issueCertificateRewardId').value || null;
+        const issuedDate = document.getElementById('issueCertificateIssuedDate').value || null;
+        
+        if (!userId || !title) {
+            if (typeof showToast !== 'undefined') {
+                showToast('Please fill in all required fields correctly', 'warning');
+            } else {
+                alert('Please fill in all required fields correctly');
+            }
+            return;
+        }
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Issuing...';
+        
+        try {
+            const data = {
+                user_id: userId,
+                title: title,
+                description: description,
+                reward_id: rewardId,
+                issued_date: issuedDate
+            };
+            
+            const result = await API.post('/loyalty/certificates/issue', data);
+            
+            if (result.success) {
+                closeIssueCertificateModal();
+                loadCertificatesManagement(); // Refresh the certificates table
+                if (typeof showToast !== 'undefined') {
+                    showToast('Certificate issued successfully!', 'success');
+                } else {
+                    alert('Certificate issued successfully!');
+                }
+            } else {
+                if (typeof showToast !== 'undefined') {
+                    showToast(result.error || 'Failed to issue certificate', 'error');
+                } else {
+                    alert(result.error || 'Failed to issue certificate');
+                }
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error issuing certificate:', error);
+            if (typeof showToast !== 'undefined') {
+                showToast('An error occurred while issuing certificate: ' + error.message, 'error');
+            } else {
+                alert('An error occurred while issuing certificate: ' + error.message);
+            }
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+}
+
+async function loadUsersForCertificate() {
+    const select = document.getElementById('issueCertificateUserId');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Loading users...</option>';
+    select.disabled = true;
+    
+    try {
+        const result = await API.get('/users?role=student');
+        
+        let users = null;
+        
+        if (result.success && result.data) {
+            if (result.data.status === 'S' && result.data.data) {
+                if (result.data.data.data && Array.isArray(result.data.data.data)) {
+                    users = result.data.data.data;
+                } else if (Array.isArray(result.data.data)) {
+                    users = result.data.data;
+                }
+            } else if (result.data.data) {
+                if (Array.isArray(result.data.data)) {
+                    users = result.data.data;
+                } else if (Array.isArray(result.data)) {
+                    users = result.data;
+                }
+            } else if (Array.isArray(result.data)) {
+                users = result.data;
+            }
+        }
+        
+        if (users && users.length > 0) {
+            select.innerHTML = '<option value="">Select a student...</option>';
+            
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.name} (${user.email})`;
+                select.appendChild(option);
+            });
+            
+            select.disabled = false;
+        } else {
+            select.innerHTML = '<option value="">No students found</option>';
+            console.error('No users found in response:', result);
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+        select.innerHTML = '<option value="">Error loading users</option>';
+    }
+}
+
+async function loadRewardsForCertificate() {
+    const select = document.getElementById('issueCertificateRewardId');
+    if (!select) return;
+    
+    try {
+        const result = await API.get('/loyalty/rewards/all');
+        
+        let rewards = null;
+        
+        if (result.success && result.data) {
+            if (result.data.data && Array.isArray(result.data.data)) {
+                rewards = result.data.data;
+            } else if (Array.isArray(result.data)) {
+                rewards = result.data;
+            }
+        }
+        
+        if (rewards && rewards.length > 0) {
+            select.innerHTML = '<option value="">No reward</option>';
+            
+            rewards.forEach(reward => {
+                const option = document.createElement('option');
+                option.value = reward.id;
+                option.textContent = `${reward.name} (${reward.points_required} points)`;
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option value="">No rewards available</option>';
+        }
+    } catch (error) {
+        console.error('Error loading rewards:', error);
+        select.innerHTML = '<option value="">Error loading rewards</option>';
+    }
+}
+
+window.showIssueCertificateModal = async function() {
+    const modal = document.getElementById('issueCertificateModal');
+    if (!modal) {
+        console.error('Issue certificate modal not found!');
+        return;
+    }
+    
+    // Reset form
+    const form = document.getElementById('issueCertificateForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Show modal
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    
+    // Setup form handler if not already done
+    setupIssueCertificateFormHandler();
+    
+    // Load users and rewards
+    await Promise.all([
+        loadUsersForCertificate(),
+        loadRewardsForCertificate()
+    ]);
+    
+    // Set today's date as default for issued date
+    const issuedDateInput = document.getElementById('issueCertificateIssuedDate');
+    if (issuedDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        issuedDateInput.value = today;
+    }
+};
+
+window.closeIssueCertificateModal = function() {
+    const modal = document.getElementById('issueCertificateModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+    }
+    
+    // Reset form
+    const form = document.getElementById('issueCertificateForm');
+    if (form) {
+        form.reset();
+    }
 };
 
 window.filterRedemptions = function() {
@@ -1362,6 +2044,60 @@ window.filterRedemptions = function() {
 </script>
 
 <style>
+/* Page Header Styling - Match Booking Management */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 30px;
+    background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.page-header-content {
+    padding: 10px 0;
+}
+
+.page-header-content h1 {
+    font-size: 2.2rem;
+    color: #ffffff;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.page-header-content p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+.btn-header-white {
+    background-color: #ffffff;
+    color: #cb2d3e; 
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-header-white:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    color: #a01a2a;
+}
+
 .loyalty-admin-tabs {
     display: flex;
     gap: 10px;
@@ -1473,7 +2209,7 @@ window.filterRedemptions = function() {
 }
 
 /* Modal Styles - Override if needed */
-#ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal {
+#ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal, #awardPointsModal.modal, #viewUserPointsModal.modal, #issueCertificateModal.modal {
     display: none;
     position: fixed;
     z-index: 2000;
@@ -1485,11 +2221,11 @@ window.filterRedemptions = function() {
     overflow: auto;
 }
 
-#ruleModal.modal.show, #rewardModal.modal.show, #deleteConfirmModal.modal.show {
+#ruleModal.modal.show, #rewardModal.modal.show, #deleteConfirmModal.modal.show, #awardPointsModal.modal.show, #viewUserPointsModal.modal.show, #issueCertificateModal.modal.show {
     display: block;
 }
 
-#ruleModal .modal-content, #rewardModal .modal-content, #deleteConfirmModal .modal-content {
+#ruleModal .modal-content, #rewardModal .modal-content, #deleteConfirmModal .modal-content, #awardPointsModal .modal-content, #viewUserPointsModal .modal-content, #issueCertificateModal .modal-content {
     background: #ffffff;
     margin: 5% auto;
     padding: 30px;
@@ -1497,6 +2233,18 @@ window.filterRedemptions = function() {
     width: 90%;
     max-width: 600px;
     position: relative;
+}
+
+#viewUserPointsModal .modal-content {
+    max-width: 800px;
+}
+
+.text-success {
+    color: #28a745;
+}
+
+.text-danger {
+    color: #dc3545;
 }
 
 .close {
@@ -1511,6 +2259,301 @@ window.filterRedemptions = function() {
 
 .close:hover {
     color: #2d3436;
+}
+
+/* Table Container Enhancement */
+.table-container {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+    position: relative;
+    overflow: visible;
+}
+
+.table-container .data-table {
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.data-table {
+    margin: 0;
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+.data-table tr {
+    vertical-align: bottom;
+}
+
+.data-table thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.data-table th {
+    font-weight: 600;
+    color: #495057;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+    vertical-align: top;
+}
+
+.data-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+    color: #2d3436;
+    vertical-align: bottom;
+}
+
+/* Ensure Status and Actions columns align at bottom - same row */
+.data-table tbody tr td:nth-child(5),
+.data-table tbody tr td:nth-child(6) {
+    vertical-align: bottom !important;
+    padding-bottom: 15px !important;
+    white-space: nowrap;
+}
+
+.data-table tbody tr {
+    vertical-align: bottom;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.data-table .actions {
+    display: flex !important;
+    gap: 5px;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap !important;
+    min-width: 80px;
+    width: 100px;
+    vertical-align: bottom;
+}
+
+.data-table .actions button {
+    margin: 0 !important;
+    vertical-align: bottom;
+}
+
+.data-table .text-center {
+    text-align: center;
+    padding: 40px;
+    color: #636e72;
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-secondary {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+/* Button Styles */
+.btn-sm {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin: 0;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.btn-sm.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-sm.btn-info:hover {
+    background: #138496;
+}
+
+.btn-sm.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-sm.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-sm.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-sm.btn-success:hover {
+    background: #059669;
+}
+
+.btn-sm.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-sm.btn-danger:hover {
+    background: #dc2626;
+}
+
+/* Square buttons for Rewards table */
+.btn-sm.btn-square {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    border-radius: 4px;
+}
+
+.btn-sm.btn-square i {
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* Filters Section Styling */
+.filters-section {
+    margin-bottom: 30px;
+}
+
+.filters-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+}
+
+.filters-form {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-input-wrapper,
+.filter-select-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.filter-input,
+.filter-select {
+    width: 100%;
+    padding: 12px 15px 12px 45px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    color: #495057;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-input::placeholder {
+    color: #adb5bd;
+}
+
+.filter-select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-form {
+        flex-direction: column;
+    }
+    
+    .filter-input-wrapper,
+    .filter-select-wrapper {
+        width: 100%;
+    }
+    
+    .data-table {
+        font-size: 0.85rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px;
+    }
+
+    .data-table .actions {
+        flex-direction: column;
+    }
 }
 
 .form-group {

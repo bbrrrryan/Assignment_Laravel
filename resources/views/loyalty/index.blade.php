@@ -30,8 +30,97 @@
 </div>
 
 <script>
+// Define getTotalPoints function early
+function getTotalPoints() {
+    const element = document.getElementById('totalPoints');
+    return element ? parseInt(element.textContent) || 0 : 0;
+}
+
+// Define redeemReward function early to ensure it's available
+window.redeemReward = async function(rewardId, pointsRequired) {
+    console.log('redeemReward called with:', { rewardId, pointsRequired });
+    
+    const totalPoints = getTotalPoints();
+    console.log('Total points:', totalPoints);
+    
+    // Check points before confirming
+    if (totalPoints < pointsRequired) {
+        const errorMsg = `Insufficient points. Required: ${pointsRequired}, Available: ${totalPoints}`;
+        console.log('Insufficient points, showing toast:', errorMsg);
+        console.log('showToast function exists:', typeof showToast === 'function');
+        console.log('window.showToast exists:', typeof window.showToast === 'function');
+        console.log('toastContainer exists:', !!document.getElementById('toastContainer'));
+        
+        if (typeof showToast === 'function') {
+            try {
+                showToast(errorMsg, 'error');
+            } catch (e) {
+                console.error('Error showing toast:', e);
+                alert(errorMsg);
+            }
+        } else if (typeof window.showToast === 'function') {
+            try {
+                window.showToast(errorMsg, 'error');
+            } catch (e) {
+                console.error('Error showing toast:', e);
+                alert(errorMsg);
+            }
+        } else {
+            alert(errorMsg);
+        }
+        return;
+    }
+    
+    if (!confirm(`Redeem this reward for ${pointsRequired} points?`)) {
+        console.log('User cancelled redemption');
+        return;
+    }
+
+    console.log('Proceeding with redemption...');
+    
+    try {
+        const result = await API.post('/loyalty/rewards/redeem', { reward_id: rewardId });
+        console.log('Redemption result:', result);
+
+        if (result.success) {
+            const successMsg = 'Reward redeemed successfully! Awaiting approval.';
+            if (typeof showToast === 'function') {
+                showToast(successMsg, 'success');
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(successMsg, 'success');
+            } else {
+                alert(successMsg);
+            }
+            loadPoints();
+            loadRewards();
+        } else {
+            // Show error message from API
+            const errorMessage = result.error || result.message || result.data?.message || 'Error redeeming reward';
+            console.log('Redemption error:', errorMessage);
+            if (typeof showToast === 'function') {
+                showToast(errorMessage, 'error');
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(errorMessage, 'error');
+            } else {
+                alert(errorMessage);
+            }
+        }
+    } catch (error) {
+        console.error('Error redeeming reward:', error);
+        const errorMsg = error.message || 'An error occurred while redeeming the reward';
+        if (typeof showToast === 'function') {
+            showToast(errorMsg, 'error');
+        } else if (typeof window.showToast === 'function') {
+            window.showToast(errorMsg, 'error');
+        } else {
+            alert(errorMsg);
+        }
+    }
+};
+
 // Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded fired');
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
         alert('Error: API functions not loaded. Please refresh the page.');
@@ -40,7 +129,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!API.requireAuth()) return;
 
+    console.log('Initializing loyalty...');
+    
+    // Set up event delegation for redeem buttons (only once)
+    const rewardsContainer = document.getElementById('loyaltyContent');
+    if (rewardsContainer) {
+        // Remove any existing event listeners by cloning the element
+        const newContainer = rewardsContainer.cloneNode(true);
+        rewardsContainer.parentNode.replaceChild(newContainer, rewardsContainer);
+        
+        // Add event delegation to the container
+        document.getElementById('loyaltyContent').addEventListener('click', function(e) {
+            const button = e.target.closest('button[data-reward-id]');
+            if (button && !button.disabled) {
+                e.preventDefault();
+                e.stopPropagation();
+                const rewardId = parseInt(button.getAttribute('data-reward-id'));
+                const pointsRequired = parseInt(button.getAttribute('data-points-required'));
+                console.log('Redeem button clicked for reward:', rewardId, 'Points required:', pointsRequired);
+                console.log('redeemReward function exists:', typeof window.redeemReward === 'function');
+                if (typeof window.redeemReward === 'function') {
+                    window.redeemReward(rewardId, pointsRequired);
+                } else {
+                    console.error('redeemReward function not found!');
+                    alert('Error: Redeem function not available. Please refresh the page.');
+                }
+            }
+        });
+    }
+    
     initLoyalty();
+    console.log('redeemReward function available:', typeof window.redeemReward === 'function');
 });
 
 let currentTab = 'points';
@@ -83,14 +202,18 @@ async function loadPointsHistory() {
                     </tr>
                 </thead>
                 <tbody>
-                    ${history.map(item => `
+                    ${history.map(item => {
+                        const formattedAction = formatActionType(item.action_type);
+                        const formattedDescription = formatDescription(item.action_type, item.description);
+                        return `
                         <tr>
                             <td>${formatDate(item.created_at)}</td>
-                            <td>${item.action_type}</td>
+                            <td>${formattedAction}</td>
                             <td class="${item.points > 0 ? 'text-success' : 'text-danger'}">${item.points > 0 ? '+' : ''}${item.points}</td>
-                            <td>${item.description || '-'}</td>
+                            <td>${formattedDescription}</td>
                         </tr>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </tbody>
             </table>
         `;
@@ -115,19 +238,34 @@ async function loadRewards() {
 
         container.innerHTML = `
             <div class="rewards-grid">
-                ${rewards.map(reward => `
+                ${rewards.map(reward => {
+                    const totalPoints = getTotalPoints();
+                    const hasEnoughPoints = totalPoints >= reward.points_required;
+                    const isOutOfStock = reward.stock_quantity !== null && reward.stock_quantity <= 0;
+                    const isDisabled = !hasEnoughPoints || isOutOfStock;
+                    
+                    const buttonClass = isDisabled ? 'btn-primary btn-disabled' : 'btn-primary';
+                    const buttonId = `redeemBtn_${reward.id}`;
+                    
+                    return `
                     <div class="reward-card">
                         <h3>${reward.name}</h3>
                         <p>${reward.description || ''}</p>
                         <div class="reward-points">
                             <strong>${reward.points_required} Points</strong>
                         </div>
-                        <button class="btn-primary" onclick="redeemReward(${reward.id}, ${reward.points_required})" 
-                                ${getTotalPoints() < reward.points_required ? 'disabled' : ''}>
+                        ${isOutOfStock ? '<p style="color: #dc3545; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-exclamation-circle"></i> Out of Stock</p>' : ''}
+                        ${!hasEnoughPoints && !isOutOfStock ? '<p style="color: #ff9800; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-info-circle"></i> Insufficient Points</p>' : ''}
+                        <button id="${buttonId}" class="${buttonClass}" 
+                                ${isDisabled ? 'disabled' : ''} 
+                                data-reward-id="${reward.id}"
+                                data-points-required="${reward.points_required}"
+                                style="${isDisabled ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;'}">
                             Redeem
                         </button>
                 </div>
-            `).join('')}
+            `;
+                }).join('')}
             </div>
         `;
     } else {
@@ -181,19 +319,80 @@ function getTotalPoints() {
     return parseInt(document.getElementById('totalPoints').textContent) || 0;
 }
 
-window.redeemReward = async function(rewardId, pointsRequired) {
-    if (!confirm(`Redeem this reward for ${pointsRequired} points?`)) return;
-
-    const result = await API.post('/loyalty/rewards/redeem', { reward_id: rewardId });
-
-    if (result.success) {
-        alert('Reward redeemed successfully! Awaiting approval.');
-        loadPoints();
-        loadRewards();
-    } else {
-        alert(result.error || 'Error redeeming reward');
+function formatActionType(actionType) {
+    if (!actionType) return '-';
+    
+    const actionMap = {
+        'redemption_refund': 'Redemption refund',
+        'reward_redemption': 'Reward redemption'
+    };
+    
+    // If we have a mapping, use it
+    if (actionMap[actionType]) {
+        return actionMap[actionType];
     }
-};
+    
+    // Otherwise, format by replacing underscores with spaces and capitalizing
+    return actionType
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function formatDescription(actionType, description) {
+    // For redemption_refund, use specific description
+    if (actionType === 'redemption_refund') {
+        return 'Refunded for rejected redemption';
+    }
+    
+    // For other types, use the provided description or default
+    return description || '-';
+}
 </script>
+
+<style>
+.btn-primary.btn-disabled {
+    background: #6c757d !important;
+    color: white !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.btn-primary.btn-disabled:hover {
+    background: #6c757d !important;
+    opacity: 0.7;
+}
+
+button:disabled.btn-primary.btn-disabled {
+    background: #6c757d !important;
+    opacity: 0.7;
+}
+
+.reward-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+.reward-card h3 {
+    color: #2d3436;
+    margin-bottom: 10px;
+    font-size: 1.3rem;
+}
+
+.reward-card p {
+    color: #636e72;
+    margin-bottom: 15px;
+    min-height: 40px;
+}
+
+.reward-points {
+    margin: 20px 0;
+    font-size: 1.1rem;
+    color: #a31f37;
+}
+</style>
 @endsection
 

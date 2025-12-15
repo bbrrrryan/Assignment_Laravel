@@ -18,6 +18,7 @@ class Feedback extends Model
         'type',
         'subject',
         'message',
+        'image',
         'rating',
         'status',
         'reviewed_by',

@@ -149,6 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}', [FeedbackController::class, 'destroy']);
             Route::put('/{id}/respond', [FeedbackController::class, 'respond']);
             Route::put('/{id}/block', [FeedbackController::class, 'block']);
+            Route::put('/{id}/reject', [FeedbackController::class, 'reject']);
         });
     });
 
@@ -181,6 +182,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/pending-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingRescheduleRequests']); // Must be before /{id}
             Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
             Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
+            Route::put('/{id}/complete', [BookingController::class, 'complete']);
             Route::put('/{id}/approve-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approveReschedule']);
             Route::put('/{id}/reject-reschedule', [\App\Http\Controllers\Admin\AdminBookingController::class, 'rejectReschedule']);
             Route::put('/{id}', [\App\Http\Controllers\Admin\AdminBookingController::class, 'update']);

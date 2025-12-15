@@ -246,10 +246,23 @@ class LoyaltyController extends Controller
             'description' => 'nullable|string',
             'points_required' => 'required|integer|min:1',
             'reward_type' => 'required|in:certificate,badge,privilege,physical',
-            'image_url' => 'nullable|string',
+            'image_url' => 'nullable|string', // Can be base64 image string or URL
             'stock_quantity' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
+
+        // Validate base64 image if provided
+        if ($request->has('image_url') && $request->image_url) {
+            // Check if it's a base64 image string
+            if (preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image_url)) {
+                // Check base64 string length (limit to ~1.5MB base64, which is ~1MB actual image)
+                if (strlen($request->image_url) > 1500000) {
+                    return response()->json([
+                        'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.'
+                    ], 422);
+                }
+            }
+        }
 
         $reward = Reward::create($validated);
         return response()->json(['message' => 'Reward created successfully', 'data' => $reward], 201);
@@ -271,6 +284,19 @@ class LoyaltyController extends Controller
             'stock_quantity' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
+
+        // Validate base64 image if provided
+        if ($request->has('image_url') && $request->image_url) {
+            // Check if it's a base64 image string
+            if (preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image_url)) {
+                // Check base64 string length (limit to ~1.5MB base64, which is ~1MB actual image)
+                if (strlen($request->image_url) > 1500000) {
+                    return response()->json([
+                        'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.'
+                    ], 422);
+                }
+            }
+        }
 
         $reward->update($validated);
         return response()->json(['message' => 'Reward updated successfully', 'data' => $reward]);

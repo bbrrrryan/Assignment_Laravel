@@ -5,31 +5,60 @@
 @section('content')
 <div class="page-container">
     <div class="page-header">
-        <h1 id="feedbacksTitle">Feedback Management</h1>
-        <button id="submitFeedbackBtn" class="btn-primary" onclick="showCreateModal()" style="display: none;">
-            <i class="fas fa-plus"></i> Submit Feedback
-        </button>
+        <div class="page-header-content">
+            <h1 id="feedbacksTitle">Feedback Management</h1>
+            <p id="feedbacksSubtitle">Submit and manage your feedback, complaints, and suggestions</p>
+        </div>
+        <div>
+            <button id="submitFeedbackBtn" class="btn-header-white" onclick="showCreateModal()" style="display: none;">
+                <i class="fas fa-plus"></i> <span>Submit Feedback</span>
+            </button>
+        </div>
     </div>
 
-    <div class="filters">
-        <select id="typeFilter" onchange="filterFeedbacks()">
-            <option value="">All Types</option>
-            <option value="complaint">Complaint</option>
-            <option value="suggestion">Suggestion</option>
-            <option value="compliment">Compliment</option>
-            <option value="general">General</option>
-        </select>
-        <select id="statusFilter" onchange="filterFeedbacks()">
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="under_review">Under Review</option>
-            <option value="resolved">Resolved</option>
-            <option value="rejected">Rejected</option>
-            <option value="blocked">Blocked</option>
-        </select>
+    <!-- Search and Filters -->
+    <div class="filters-section">
+        <div class="filters-card">
+            <div class="filters-form">
+                <div class="filter-input-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <input type="text" id="searchFilter" placeholder="Search by subject or message..." 
+                           class="filter-input" onkeyup="filterFeedbacks()">
+                </div>
+                
+                <div class="filter-select-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <select id="typeFilter" class="filter-select" onchange="filterFeedbacks()">
+                        <option value="">All Types</option>
+                        <option value="complaint">Complaint</option>
+                        <option value="suggestion">Suggestion</option>
+                        <option value="compliment">Compliment</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                
+                <div class="filter-select-wrapper">
+                    <div class="filter-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <select id="statusFilter" class="filter-select" onchange="filterFeedbacks()">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="under_review">Under Review</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div id="feedbacksList" class="feedbacks-container">
+    <!-- Feedbacks Table -->
+    <div id="feedbacksList" class="table-container">
         <p>Loading feedbacks...</p>
     </div>
 </div>
@@ -56,6 +85,29 @@
             <div class="form-group">
                 <label>Message *</label>
                 <textarea id="feedbackMessage" required rows="5" placeholder="Describe your feedback, complaint, or suggestion..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Rating (1-5) *</label>
+                <select id="feedbackRating" required>
+                    <option value="">Select Rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+                <small>Rate your experience from 1 to 5</small>
+            </div>
+            <div class="form-group">
+                <label>Image (Optional)</label>
+                <input type="file" id="feedbackImage" accept="image/*" onchange="handleImageUpload(event)">
+                <small>Upload an image related to your feedback (JPG, PNG, GIF). Maximum size: 1MB</small>
+                <div id="imagePreview" style="margin-top: 10px; display: none;">
+                    <img id="previewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #ddd;">
+                    <button type="button" onclick="removeImage()" style="margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        <i class="fas fa-times"></i> Remove
+                    </button>
+                </div>
             </div>
             <div class="form-group">
                 <label>Related Facility (Optional)</label>
@@ -185,10 +237,20 @@ async function loadFacilities() {
     }
 }
 
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return 'N/A';
+    const d = new Date(dateTimeString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${date} ${time}`;
+}
+
 function displayFeedbacks(feedbacksToShow) {
     const container = document.getElementById('feedbacksList');
     if (feedbacksToShow.length === 0) {
-        container.innerHTML = '<p>No feedbacks found</p>';
+        container.innerHTML = '<div class="table-container"><table class="data-table"><tbody><tr><td colspan="8" class="text-center">No feedbacks found</td></tr></tbody></table></div>';
         return;
     }
 
@@ -201,117 +263,117 @@ function displayFeedbacks(feedbacksToShow) {
         return dateB - dateA;
     });
 
-    container.innerHTML = sortedFeedbacks.map(feedback => {
-        // Format status for display
-        const formatStatus = (status) => {
-            const statusMap = {
-                'pending': 'Pending',
-                'under_review': 'Under Review',
-                'resolved': 'Resolved',
-                'rejected': 'Rejected',
-                'blocked': 'Blocked'
-            };
-            return statusMap[status] || status;
-        };
+    container.innerHTML = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    ${isAdmin ? '<th>User</th>' : ''}
+                    <th>Subject</th>
+                    <th>Type</th>
+                    <th>Rating</th>
+                    ${!isAdmin ? '<th>Facility</th>' : ''}
+                    <th>Status</th>
+                    <th>Created Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${sortedFeedbacks.map(feedback => {
+                    // Format status for display
+                    const formatStatus = (status) => {
+                        const statusMap = {
+                            'pending': 'Pending',
+                            'under_review': 'Under Review',
+                            'resolved': 'Resolved',
+                            'rejected': 'Rejected',
+                            'blocked': 'Blocked'
+                        };
+                        return statusMap[status] || status;
+                    };
 
-        return `
-        <div class="feedback-card">
-            <div class="feedback-header">
-                <div class="feedback-title-section">
-                    <h3>${feedback.subject || 'No Subject'}</h3>
-                    <div class="feedback-meta-badges">
-                        <span class="feedback-type type-${feedback.type}">${feedback.type || 'general'}</span>
-                        <span class="status-badge status-${feedback.status}">${formatStatus(feedback.status)}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="feedback-content">
-                <p class="${isAdmin ? 'feedback-message-admin' : 'feedback-message-user'}">${feedback.message || 'No message'}</p>
-                ${!isAdmin && feedback.facility ? `
-                    <div class="feedback-facility"><i class="fas fa-building"></i> ${feedback.facility.name}</div>
-                ` : ''}
-            </div>
-${feedback.status === 'pending' ? `
-<div class="status-notice pending-notice status-notice-fixed ${isAdmin ? 'status-notice-admin' : ''}">
-                <i class="fas fa-clock"></i>
-                <div>
-                    <strong>Pending Review</strong>
-                    <p>Waiting for admin to review this feedback.</p>
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.status === 'under_review' ? `
-            <div class="status-notice under-review-notice ${isAdmin ? 'status-notice-admin' : ''}">
-                <i class="fas fa-eye"></i>
-                <div>
-                    <strong>Under Review</strong>
-                    <p>Admin is currently reviewing this feedback.</p>
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.status === 'blocked' || feedback.is_blocked ? `
-            <div class="status-notice blocked-notice ${isAdmin ? 'status-notice-admin' : ''}">
-                <i class="fas fa-ban"></i>
-                <div>
-                    <strong>Blocked</strong>
-                    <p>This feedback has been blocked and is not visible to other users.</p>
-                    ${feedback.block_reason ? `<p class="block-reason"><strong>Reason:</strong> ${feedback.block_reason}</p>` : ''}
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.status === 'rejected' ? `
-            <div class="status-notice rejected-notice ${isAdmin ? 'status-notice-admin' : ''}">
-                <i class="fas fa-times-circle"></i>
-                <div>
-                    <strong>Rejected</strong>
-                    <p>This feedback has been rejected by admin.</p>
-                </div>
-            </div>
-            ` : ''}
-            ${isAdmin && feedback.status === 'resolved' ? `
-            <div class="status-notice resolved-notice status-notice-admin">
-                <i class="fas fa-check-circle"></i>
-                <div>
-                    <strong>Resolved</strong>
-                    <p>This feedback has been resolved by admin.</p>
-                    ${feedback.admin_response ? `<p class="resolved-response" style="margin-top: 8px; font-size: 0.85rem;"><strong>Response:</strong> ${feedback.admin_response}</p>` : ''}
-                </div>
-            </div>
-            ` : ''}
-            ${!isAdmin && feedback.admin_response ? `
-            <div class="admin-response">
-                <div class="admin-response-header">
-                    <i class="fas fa-user-shield"></i>
-                    <strong>Admin Response</strong>
-                </div>
-                <p>${feedback.admin_response}</p>
-            </div>
-            ` : ''}
-            <div class="feedback-footer">
-                <div class="feedback-meta">
-                    <span class="feedback-user"><i class="fas fa-user"></i> ${feedback.user ? feedback.user.name : 'Unknown User'}</span>
-                    <span class="feedback-time"><i class="fas fa-clock"></i> ${formatDateTime(feedback.created_at)}</span>
-                </div>
-                <div class="feedback-actions">
-                    <button class="btn-sm btn-primary" onclick="viewFeedback(${feedback.id})">
-                        <i class="fas fa-eye"></i> View
-                    </button>
-                </div>
-            </div>
-        </div>
+                    // Get status badge class
+                    const getStatusBadgeClass = (status) => {
+                        if (status === 'resolved') return 'badge-success';
+                        if (status === 'pending') return 'badge-warning';
+                        if (status === 'under_review') return 'badge-info';
+                        if (status === 'blocked' || status === 'rejected') return 'badge-danger';
+                        return 'badge-secondary';
+                    };
+
+                    // Get type badge class
+                    const getTypeBadgeClass = (type) => {
+                        if (type === 'complaint') return 'badge-danger';
+                        if (type === 'suggestion') return 'badge-info';
+                        if (type === 'compliment') return 'badge-success';
+                        return 'badge-secondary';
+                    };
+
+                    // Rating stars
+                    const ratingStars = feedback.rating !== null && feedback.rating !== undefined 
+                        ? Array.from({length: 5}, (_, i) => 
+                            `<i class="fas fa-star ${i < feedback.rating ? 'text-warning' : 'text-muted'}" style="color: ${i < feedback.rating ? '#ffc107' : '#e0e0e0'}; font-size: 0.85rem;"></i>`
+                          ).join('') + ` <span style="margin-left: 5px; font-weight: 600;">${feedback.rating}/5</span>`
+                        : 'N/A';
+
+                    return `
+                    <tr>
+                        ${isAdmin ? `<td>${feedback.user ? feedback.user.name : 'Unknown User'}</td>` : ''}
+                        <td>${feedback.subject || 'No Subject'}</td>
+                        <td>
+                            <span class="badge ${getTypeBadgeClass(feedback.type)}">
+                                ${feedback.type || 'general'}
+                            </span>
+                        </td>
+                        <td style="white-space: nowrap;">${ratingStars}</td>
+                        ${!isAdmin ? `<td>${feedback.facility ? feedback.facility.name : 'N/A'}</td>` : ''}
+                        <td>
+                            <span class="badge ${getStatusBadgeClass(feedback.status)}">
+                                ${formatStatus(feedback.status)}
+                            </span>
+                        </td>
+                        <td>${formatDateTime(feedback.created_at)}</td>
+                        <td class="actions">
+                            <button class="btn-sm btn-info" onclick="viewFeedback(${feedback.id})" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${isAdmin && feedback.status !== 'resolved' && !feedback.is_blocked ? `
+                                <button class="btn-sm btn-success" onclick="replyToFeedback(${feedback.id})" title="Reply">
+                                    <i class="fas fa-reply"></i>
+                                </button>
+                            ` : ''}
+                            ${isAdmin && !feedback.is_blocked ? `
+                                <button class="btn-sm btn-danger" onclick="blockFeedback(${feedback.id})" title="Block">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+                }).join('')}
+            </tbody>
+        </table>
     `;
-    }).join('');
 }
 
 // Make functions global
 window.filterFeedbacks = function() {
+    const search = document.getElementById('searchFilter').value.toLowerCase().trim();
     const type = document.getElementById('typeFilter').value;
     const status = document.getElementById('statusFilter').value;
 
     const filtered = feedbacks.filter(f => {
+        // Search filter - check subject and message
+        const matchSearch = !search || 
+            (f.subject && f.subject.toLowerCase().includes(search)) ||
+            (f.message && f.message.toLowerCase().includes(search));
+        
+        // Type filter
         const matchType = !type || f.type === type;
+        
+        // Status filter
         const matchStatus = !status || f.status === status;
-        return matchType && matchStatus;
+        
+        return matchSearch && matchType && matchStatus;
     });
 
     displayFeedbacks(filtered);
@@ -325,6 +387,20 @@ window.showCreateModal = function() {
 
 window.closeModal = function() {
     document.getElementById('feedbackModal').style.display = 'none';
+    // Reset image selection
+    selectedImageBase64 = null;
+    const imageInput = document.getElementById('feedbackImage');
+    if (imageInput) {
+        imageInput.value = '';
+    }
+    const imagePreview = document.getElementById('imagePreview');
+    if (imagePreview) {
+        imagePreview.style.display = 'none';
+    }
+    const previewImg = document.getElementById('previewImg');
+    if (previewImg) {
+        previewImg.src = '';
+    }
 };
 
 window.viewFeedback = function(id) {
@@ -458,13 +534,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         alert('Response submitted successfully!');
                     }
                 } else {
-                    alert(result.error || 'Error submitting response');
+                    if (typeof showToast === 'function') {
+                        showToast(result.error || 'Error submitting response', 'error');
+                    } else {
+                        alert(result.error || 'Error submitting response');
+                    }
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
             } catch (error) {
                 console.error('Error submitting reply:', error);
-                alert('An error occurred while submitting the response');
+                if (typeof showToast === 'function') {
+                    showToast('An error occurred while submitting the response', 'error');
+                } else {
+                    alert('An error occurred while submitting the response');
+                }
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
@@ -525,13 +609,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         alert('Feedback blocked successfully!');
                     }
                 } else {
-                    alert(result.error || 'Error blocking feedback');
+                    if (typeof showToast === 'function') {
+                        showToast(result.error || 'Error blocking feedback', 'error');
+                    } else {
+                        alert(result.error || 'Error blocking feedback');
+                    }
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
             } catch (error) {
                 console.error('Error blocking feedback:', error);
-                alert('An error occurred while blocking the feedback');
+                if (typeof showToast === 'function') {
+                    showToast('An error occurred while blocking the feedback', 'error');
+                } else {
+                    alert('An error occurred while blocking the feedback');
+                }
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
@@ -549,6 +641,78 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Image handling variables
+let selectedImageBase64 = null;
+
+// Handle image upload and convert to base64
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    // Validate file type
+    if (!file.type.match('image.*')) {
+        if (typeof showToast === 'function') {
+            showToast('Please select a valid image file', 'error');
+        } else {
+            alert('Please select a valid image file');
+        }
+        event.target.value = '';
+        return;
+    }
+
+    // Validate file size (max 1MB to avoid database packet size issues)
+    // Base64 encoding increases size by ~33%, so 1MB file becomes ~1.33MB base64
+    if (file.size > 1 * 1024 * 1024) {
+        if (typeof showToast === 'function') {
+            showToast('Image size must be less than 1MB. Please compress your image before uploading.', 'error');
+        } else {
+            alert('Image size must be less than 1MB. Please compress your image before uploading.');
+        }
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        
+        // Double check base64 size (should be less than ~1.5MB)
+        if (base64.length > 1500000) {
+            if (typeof showToast === 'function') {
+                showToast('Image is too large. Please use a smaller image (max 1MB).', 'error');
+            } else {
+                alert('Image is too large. Please use a smaller image (max 1MB).');
+            }
+            event.target.value = '';
+            document.getElementById('imagePreview').style.display = 'none';
+            return;
+        }
+
+        selectedImageBase64 = base64;
+        // Show preview
+        document.getElementById('previewImg').src = selectedImageBase64;
+        document.getElementById('imagePreview').style.display = 'block';
+    };
+    reader.onerror = function() {
+        if (typeof showToast === 'function') {
+            showToast('Error reading image file', 'error');
+        } else {
+            alert('Error reading image file');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Remove selected image
+function removeImage() {
+    selectedImageBase64 = null;
+    document.getElementById('feedbackImage').value = '';
+    document.getElementById('imagePreview').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+}
+
 // Bind form submit event
 document.addEventListener('DOMContentLoaded', function() {
     const feedbackForm = document.getElementById('feedbackForm');
@@ -560,17 +724,33 @@ document.addEventListener('DOMContentLoaded', function() {
         type: document.getElementById('feedbackType').value,
         subject: document.getElementById('feedbackSubject').value,
         message: document.getElementById('feedbackMessage').value,
-        facility_id: document.getElementById('feedbackFacility').value || null
+        rating: parseInt(document.getElementById('feedbackRating').value),
+        facility_id: document.getElementById('feedbackFacility').value || null,
+        image: selectedImageBase64 || null
     };
 
             const result = await API.post('/feedbacks', data);
 
             if (result.success) {
+                // Reset image selection
+                selectedImageBase64 = null;
+                document.getElementById('feedbackImage').value = '';
+                document.getElementById('imagePreview').style.display = 'none';
+                document.getElementById('previewImg').src = '';
+                
                 window.closeModal();
                 loadFeedbacks();
-                alert('Feedback submitted successfully!');
+                if (typeof showToast === 'function') {
+                    showToast('Feedback submitted successfully!', 'success');
+                } else {
+                    alert('Feedback submitted successfully!');
+                }
             } else {
-                alert(result.error || 'Error submitting feedback');
+                if (typeof showToast === 'function') {
+                    showToast(result.error || 'Error submitting feedback', 'error');
+                } else {
+                    alert(result.error || 'Error submitting feedback');
+                }
             }
         });
     }
@@ -578,6 +758,305 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+/* Filters Section Styling */
+.filters-section {
+    margin-bottom: 30px;
+}
+
+.filters-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+}
+
+.filters-form {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-input-wrapper,
+.filter-select-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.filter-input,
+.filter-select {
+    width: 100%;
+    padding: 12px 15px 12px 45px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    color: #495057;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-input::placeholder {
+    color: #adb5bd;
+}
+
+.filter-select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+/* Table Container Enhancement */
+.table-container {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+    position: relative;
+    overflow: visible;
+}
+
+.table-container .data-table {
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.data-table {
+    margin: 0;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.data-table th {
+    font-weight: 600;
+    color: #495057;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.data-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #f1f2f6;
+    color: #2d3436;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.data-table .actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.data-table .text-center {
+    text-align: center;
+    padding: 40px;
+    color: #636e72;
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-secondary {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+/* Button Styles */
+.btn-sm {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-sm.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-sm.btn-info:hover {
+    background: #138496;
+}
+
+.btn-sm.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-sm.btn-success:hover {
+    background: #059669;
+}
+
+.btn-sm.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-sm.btn-danger:hover {
+    background: #dc2626;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-form {
+        flex-direction: column;
+    }
+    
+    .filter-input-wrapper,
+    .filter-select-wrapper {
+        width: 100%;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+    }
+    
+    .page-header-content h1 {
+        font-size: 1.8rem;
+    }
+
+    .data-table {
+        font-size: 0.85rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px;
+    }
+
+    .data-table .actions {
+        flex-direction: column;
+    }
+}
+
+/* Page Header Styles */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 30px;
+    background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.page-header-content {
+    padding: 10px 0;
+}
+
+.page-header-content h1 {
+    font-size: 2.2rem;
+    color: #ffffff;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.page-header-content p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+.btn-header-white {
+    background-color: #ffffff;
+    color: #cb2d3e; 
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-header-white:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.btn-header-white:active {
+    transform: translateY(0);
+}
+
 /* Reply Modal Styles */
 .reply-feedback-info {
     margin-bottom: 20px;
