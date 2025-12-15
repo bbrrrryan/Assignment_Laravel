@@ -35,7 +35,7 @@
         </form>
 
         <div class="auth-footer">
-            <p>Didn't receive the code? <a href="#" id="resendOtpLink" onclick="resendOtp(event)">Resend OTP</a></p>
+            <p>Didn't receive the code? <a href="#" id="resendOtpLink">Resend OTP</a></p>
             <p>Already verified? <a href="{{ route('login') }}">Sign in</a></p>
         </div>
 
@@ -43,65 +43,6 @@
     </div>
 </div>
 
-<script>
-document.getElementById('verifyOtpForm').addEventListener('submit', function(e) {
-    const otpInput = document.getElementById('otp_code');
-    const otpValue = otpInput.value.replace(/\D/g, ''); // Remove non-digits
-    
-    if (otpValue.length !== 6) {
-        e.preventDefault();
-        document.getElementById('errorMessage').textContent = 'Please enter 6-digit OTP code';
-        document.getElementById('errorMessage').style.display = 'block';
-        return false;
-    }
-    
-    otpInput.value = otpValue;
-});
-
-// Auto format OTP input
-document.getElementById('otp_code').addEventListener('input', function(e) {
-    this.value = this.value.replace(/\D/g, '').slice(0, 6);
-});
-
-// Resend OTP function
-async function resendOtp(event) {
-    event.preventDefault();
-    
-    const email = document.getElementById('email').value;
-    if (!email) {
-        showToast('Please enter your email address first', 'error');
-        return;
-    }
-    
-    const resendLink = document.getElementById('resendOtpLink');
-    const originalText = resendLink.textContent;
-    resendLink.textContent = 'Sending...';
-    resendLink.style.pointerEvents = 'none';
-    
-    try {
-        const response = await fetch('/api/resend-otp', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify({ email: email })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showToast('OTP code resent successfully. Please check your email.', 'success');
-        } else {
-            showToast(data.message || 'Failed to resend OTP. Please try again.', 'error');
-        }
-    } catch (error) {
-        showToast('Network error. Please try again.', 'error');
-    } finally {
-        resendLink.textContent = originalText;
-        resendLink.style.pointerEvents = 'auto';
-    }
-}
-</script>
+<script src="{{ asset('js/auth/verify-otp.js') }}"></script>
 @endsection
 
