@@ -386,9 +386,11 @@ function displayAnnouncements(announcements, paginationData = null) {
             : `<span class="badge badge-secondary">Inactive</span>`;
         const createdBy = announcement.creator?.name || 'System';
         const createdAt = formatDateTime(announcement.created_at);
+        const showUrl = `/admin/announcements/${announcement.id}`;
+        const editUrl = `/admin/announcements/${announcement.id}/edit`;
         
         return `
-            <tr class="table-row-clickable" onclick="window.location.href='{{ route('admin.announcements.show', '') }}/${announcement.id}'">
+            <tr class="table-row-clickable" onclick="window.location.href='${showUrl}'">
                 <td>${announcement.id}</td>
                 <td>${announcement.title}</td>
                 <td>${typeBadge}</td>
@@ -397,10 +399,10 @@ function displayAnnouncements(announcements, paginationData = null) {
                 <td>${createdAt}</td>
                 <td>${statusBadge}</td>
                 <td class="actions">
-                    <a href="{{ route('admin.announcements.show', '') }}/${announcement.id}" class="btn-sm btn-info" title="View">
+                    <a href="${showUrl}" class="btn-sm btn-info" title="View">
                         <i class="fas fa-eye"></i>
                     </a>
-                    <a href="{{ route('admin.announcements.edit', '') }}/${announcement.id}" class="btn-sm btn-warning" title="Edit">
+                    <a href="${editUrl}" class="btn-sm btn-warning" title="Edit">
                         <i class="fas fa-edit"></i>
                     </a>
                 </td>
