@@ -89,7 +89,7 @@
 
     <!-- Loading Indicator -->
     <div id="announcementSearchLoading" style="display: none; text-align: center; padding: 20px;">
-        <i class="fas fa-spinner fa-spin"></i> 正在搜索...
+        <i class="fas fa-spinner"></i> Loading announcements...
     </div>
 
     <!-- Announcements Table -->
