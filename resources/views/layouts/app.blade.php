@@ -870,7 +870,8 @@
                         titleElement.textContent = 'Pending Bookings';
                     }
                     if (viewAllLink) {
-                        viewAllLink.href = '/bookings';
+                        // Admin/Staff should go to admin bookings page
+                        viewAllLink.href = '/admin/bookings';
                     }
                     
                     // Admin/Staff bell only displays user booking requests
@@ -1042,7 +1043,7 @@
                         <li><a href="{{ route('home') }}">Home</a></li>
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                         <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
-                        <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
+                        <li><a href="{{ route('notifications.index') }}">Announcements</a></li>
                         <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                     @endif

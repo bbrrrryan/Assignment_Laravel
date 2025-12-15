@@ -158,7 +158,7 @@ class UserCRUDManagementController extends AdminBaseController
                 fputcsv($file, [
                     $user->name,
                     $user->email,
-                    '', // Password should be empty in export for security
+                    $user->password, // Export hashed password (never plain text)
                     $user->role,
                     $user->phone_number ?? '',
                     $user->address ?? '',
@@ -313,10 +313,19 @@ class UserCRUDManagementController extends AdminBaseController
                 }
 
                 // Create user
+                // If password already looks like a bcrypt hash (e.g. exported from system),
+                // store it as-is. Otherwise, hash the plain text password.
+                $rawPassword = $userData['password'];
+                $hashedPassword = $rawPassword;
+                if (!preg_match('/^\$2y\$\d{2}\$.{53}$/', $rawPassword)) {
+                    // Not a bcrypt hash, so hash it before saving
+                    $hashedPassword = Hash::make($rawPassword);
+                }
+
                 $createData = [
                     'name' => $userData['name'],
                     'email' => $userData['email'],
-                    'password' => Hash::make($userData['password']),
+                    'password' => $hashedPassword,
                     'role' => $userData['role'],
                     'phone_number' => $userData['phone_number'],
                     'address' => $userData['address'],

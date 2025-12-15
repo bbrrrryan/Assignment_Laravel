@@ -14,11 +14,10 @@
             <a href="{{ route('admin.announcements.edit', $announcement->id) }}" class="btn-primary">
                 <i class="fas fa-edit"></i> Edit
             </a>
-            <form action="{{ route('admin.announcements.destroy', $announcement->id) }}" method="POST" 
-                  style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this announcement?');">
+            <form id="deleteAnnouncementForm" action="{{ route('admin.announcements.destroy', $announcement->id) }}" method="POST" style="display: inline;">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn-danger">
+                <button type="button" class="btn-danger" onclick="showDeleteConfirmModal()">
                     <i class="fas fa-trash"></i> Delete
                 </button>
             </form>
@@ -78,16 +77,16 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Created At:</span>
-                    <span class="detail-value">{{ $announcement->created_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->created_at->toIso8601String() }}"></span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Updated At:</span>
-                    <span class="detail-value">{{ $announcement->updated_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->updated_at->toIso8601String() }}"></span>
                 </div>
                 @if($announcement->published_at)
                 <div class="detail-row">
                     <span class="detail-label">Published At:</span>
-                    <span class="detail-value">{{ $announcement->published_at->format('Y-m-d H:i:s') }}</span>
+                    <span class="detail-value" data-datetime="{{ $announcement->published_at->toIso8601String() }}"></span>
                 </div>
                 @endif
                 @if($announcement->expires_at)
@@ -104,6 +103,27 @@
                     {{ $announcement->content }}
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteConfirmModal" class="confirm-modal" style="display: none;">
+    <div class="confirm-modal-content">
+        <div class="confirm-modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Deletion</h3>
+        </div>
+        <div class="confirm-modal-body">
+            <p>Are you sure you want to delete this announcement?</p>
+            <p class="confirm-modal-warning"><strong>This action cannot be undone.</strong></p>
+        </div>
+        <div class="confirm-modal-footer">
+            <button type="button" class="btn-confirm-cancel" onclick="closeDeleteConfirmModal()">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn-confirm-delete" onclick="confirmDeleteAnnouncement()">
+                <i class="fas fa-trash"></i> Delete
+            </button>
         </div>
     </div>
 </div>
@@ -314,6 +334,194 @@
     background: #5a6268;
     color: white;
 }
+
+/* Delete Confirmation Modal Styles */
+.confirm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.confirm-modal-content {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 450px;
+    width: 90%;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.confirm-modal-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fff3cd;
+    border-radius: 8px 8px 0 0;
+}
+
+.confirm-modal-header h3 {
+    margin: 0;
+    color: #856404;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.confirm-modal-header i {
+    color: #ffc107;
+}
+
+.confirm-modal-body {
+    padding: 25px;
+}
+
+.confirm-modal-body p {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.confirm-modal-warning {
+    color: #dc3545 !important;
+    font-weight: 500;
+}
+
+.confirm-modal-footer {
+    padding: 15px 25px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+}
+
+.btn-confirm-cancel {
+    background: #6c757d;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s;
+}
+
+.btn-confirm-cancel:hover {
+    background: #5a6268;
+}
+
+.btn-confirm-delete {
+    background: #dc3545;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s;
+}
+
+.btn-confirm-delete:hover {
+    background: #c82333;
+}
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Format all datetime fields using the same format as the list page
+    function formatDateTime(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    // Format all datetime elements
+    document.querySelectorAll('[data-datetime]').forEach(function(element) {
+        const datetime = element.getAttribute('data-datetime');
+        if (datetime) {
+            element.textContent = formatDateTime(datetime);
+        }
+    });
+});
+
+// Delete Confirmation Modal Functions
+function showDeleteConfirmModal() {
+    const modal = document.getElementById('deleteConfirmModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeDeleteConfirmModal() {
+    const modal = document.getElementById('deleteConfirmModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function confirmDeleteAnnouncement() {
+    const form = document.getElementById('deleteAnnouncementForm');
+    if (form) {
+        form.submit();
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('deleteConfirmModal');
+    if (modal && event.target === modal) {
+        closeDeleteConfirmModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeDeleteConfirmModal();
+    }
+});
+</script>
 @endsection
 
