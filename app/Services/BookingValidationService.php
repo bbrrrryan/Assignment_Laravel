@@ -37,7 +37,6 @@ class BookingValidationService
             'end_time' => 'required|string',
             'purpose' => 'required|string|max:500',
             'expected_attendees' => $expectedAttendeesRule,
-            'special_requirements' => 'nullable',
             'attendees_passports' => 'nullable|array',
             'attendees_passports.*' => 'nullable|string|max:255',
         ];

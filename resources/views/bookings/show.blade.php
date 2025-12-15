@@ -6,7 +6,7 @@
 <div class="page-container">
     <div class="page-header">
         <h1>Booking Details</h1>
-        <a href="{{ route('bookings.index') }}" class="btn-secondary">
+        <a href="{{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? route('admin.bookings.index') : route('bookings.index') }}" class="btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Bookings
         </a>
     </div>
@@ -16,6 +16,7 @@
     </div>
 </div>
 
+@if(!auth()->user()->isAdmin() && !auth()->user()->isStaff())
 <!-- Cancel Booking Confirmation Modal -->
 <div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
     <div class="cancel-modal-content" onclick="event.stopPropagation()">
@@ -63,12 +64,14 @@
         </div>
     </div>
 </div>
+@endif
 
 <link rel="stylesheet" href="{{ asset('css/bookings/show.css') }}">
 <script>
     // Set Blade variables for external JavaScript
     window.bookingId = {{ $id }};
-    window.bookingsIndexUrl = '{{ route('bookings.index') }}';
+    window.bookingsIndexUrl = '{{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? route('admin.bookings.index') : route('bookings.index') }}';
+    window.isAdminOrStaff = {{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? 'true' : 'false' }};
 </script>
 <script src="{{ asset('js/bookings/show.js') }}"></script>
 @endsection

@@ -78,6 +78,78 @@
                     <p>Approved Bookings</p>
                 </div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ \App\Models\Booking::where('status', 'rejected')->count() }}</h3>
+                    <p>Rejected Bookings</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-ban"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ \App\Models\Booking::where('status', 'cancelled')->count() }}</h3>
+                    <p>Cancelled Bookings</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-check-double"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ \App\Models\Booking::where('status', 'completed')->count() }}</h3>
+                    <p>Completed Bookings</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Reports & Analytics Section -->
+    <div class="module-section">
+        <h2 class="module-title">
+            <i class="fas fa-chart-bar"></i> Booking Reports & Analytics
+        </h2>
+        
+        <!-- Date Range Filter -->
+        <div class="reports-filter-section" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="reportStartDate" class="form-label">Start Date</label>
+                    <input type="date" id="reportStartDate" class="form-control" value="{{ now()->subDays(30)->format('Y-m-d') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="reportEndDate" class="form-label">End Date</label>
+                    <input type="date" id="reportEndDate" class="form-control" value="{{ now()->format('Y-m-d') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="reportFacility" class="form-label">Facility (Optional)</label>
+                    <select id="reportFacility" class="form-select">
+                        <option value="">All Facilities</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button class="btn btn-primary" id="generateReportsBtn" style="width: 100%;">
+                            <i class="fas fa-sync"></i> Generate Reports
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Content -->
+        <div class="reports-container" style="padding: 20px; background: white; border-radius: 8px;">
+            <div id="bookingReportsContent">
+                <div class="text-center" style="padding: 40px;">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-3">Loading booking reports...</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -285,4 +357,376 @@
 
     </div>
 </div>
+
+<!-- Booking Reports & Statistics JavaScript -->
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Load facilities for filter
+async function loadFacilitiesForReport() {
+    try {
+        const result = await API.get('/facilities');
+        if (result.success && result.data) {
+            // Handle paginated response - facilities are in result.data.data.data
+            let facilities = [];
+            if (result.data.data) {
+                // Check if it's a paginated response
+                if (Array.isArray(result.data.data)) {
+                    facilities = result.data.data;
+                } else if (result.data.data.data && Array.isArray(result.data.data.data)) {
+                    // Paginated response
+                    facilities = result.data.data.data;
+                } else if (result.data.data && Array.isArray(result.data)) {
+                    facilities = result.data;
+                }
+            }
+            
+            const select = document.getElementById('reportFacility');
+            if (select && Array.isArray(facilities)) {
+                facilities.forEach(facility => {
+                    const option = document.createElement('option');
+                    option.value = facility.id;
+                    option.textContent = facility.name;
+                    select.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        // Silently fail - facilities filter is optional
+    }
+}
+
+// Load booking reports
+async function loadBookingReports() {
+    const startDate = document.getElementById('reportStartDate')?.value;
+    const endDate = document.getElementById('reportEndDate')?.value;
+    const facilityId = document.getElementById('reportFacility')?.value || '';
+    const container = document.getElementById('bookingReportsContent');
+
+    if (!startDate || !endDate) {
+        showError('Please select both start and end dates');
+        return;
+    }
+
+    // Show loading
+    if (container) {
+        container.innerHTML = '<div class="text-center" style="padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i><p class="text-muted mt-3">Loading booking reports...</p></div>';
+    }
+
+    const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+    });
+    if (facilityId) {
+        params.append('facility_id', facilityId);
+    }
+
+    try {
+        const result = await API.get(`/bookings/reports?${params.toString()}`);
+        
+        if (result.success) {
+            if (result.data && result.data.data) {
+                displayBookingReports(result.data.data);
+            } else if (result.data) {
+                displayBookingReports(result.data);
+            } else {
+                const errorMsg = 'No data received from server';
+                if (container) {
+                    container.innerHTML = `<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
+                } else {
+                    showError(errorMsg);
+                }
+            }
+        } else {
+            const errorMsg = result.error || result.data?.message || 'Failed to load booking reports';
+            if (container) {
+                container.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
+            } else {
+                showError(errorMsg);
+            }
+        }
+    } catch (error) {
+        const errorMsg = 'Error loading booking reports: ' + (error.message || 'Unknown error');
+        if (container) {
+            container.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`;
+        } else {
+            showError(errorMsg);
+        }
+    }
+}
+
+// Display booking reports
+function displayBookingReports(data) {
+    const container = document.getElementById('bookingReportsContent');
+    if (!container) return;
+    
+    if (!data) {
+        container.innerHTML = '<div class="alert alert-warning">No data received</div>';
+        return;
+    }
+    
+    if (!data.status_stats) {
+        data.status_stats = {
+            pending: 0,
+            approved: 0,
+            rejected: 0,
+            cancelled: 0,
+            completed: 0
+        };
+    }
+
+    let html = `
+        <div class="row g-4">
+            <!-- Status Distribution Pie Chart -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-chart-pie"></i> Booking Status Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="statusChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bookings by Date Line Chart -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-calendar-day"></i> Bookings Trend by Date</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="dateChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bookings by Facility Bar Chart -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-building"></i> Bookings by Facility</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="facilityChart" style="max-height: 400px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+    
+    // Render charts after HTML is inserted
+    setTimeout(() => {
+        renderStatusChart(data.status_stats);
+        renderDateChart(data.bookings_by_date || []);
+        renderFacilityChart(data.bookings_by_facility || []);
+    }, 100);
+}
+
+// Chart instances storage
+let statusChart = null;
+let dateChart = null;
+let facilityChart = null;
+
+// Render Status Distribution Pie Chart
+function renderStatusChart(statusStats) {
+    const ctx = document.getElementById('statusChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (statusChart) {
+        statusChart.destroy();
+    }
+    
+    statusChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Pending', 'Approved', 'Rejected', 'Cancelled', 'Completed'],
+            datasets: [{
+                data: [
+                    statusStats.pending || 0,
+                    statusStats.approved || 0,
+                    statusStats.rejected || 0,
+                    statusStats.cancelled || 0,
+                    statusStats.completed || 0
+                ],
+                backgroundColor: [
+                    '#fff3cd',
+                    '#d1e7dd',
+                    '#f8d7da',
+                    '#d3d3d3',
+                    '#cfe2ff'
+                ],
+                borderColor: [
+                    '#ffc107',
+                    '#28a745',
+                    '#dc3545',
+                    '#6c757d',
+                    '#007bff'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed || 0;
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Render Bookings by Date Line Chart
+function renderDateChart(bookingsByDate) {
+    const ctx = document.getElementById('dateChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (dateChart) {
+        dateChart.destroy();
+    }
+    
+    const dates = bookingsByDate.map(item => new Date(item.date).toLocaleDateString());
+    const pending = bookingsByDate.map(item => item.pending || 0);
+    const approved = bookingsByDate.map(item => item.approved || 0);
+    const total = bookingsByDate.map(item => item.total || 0);
+    
+    dateChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Pending',
+                    data: pending,
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Approved',
+                    data: approved,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Total',
+                    data: total,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Render Bookings by Facility Bar Chart
+function renderFacilityChart(bookingsByFacility) {
+    const ctx = document.getElementById('facilityChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (facilityChart) {
+        facilityChart.destroy();
+    }
+    
+    // Sort by bookings count (descending) and take top 10
+    const sorted = [...bookingsByFacility].sort((a, b) => (b.total_bookings || 0) - (a.total_bookings || 0)).slice(0, 10);
+    
+    const facilities = sorted.map(item => item.facility_name || 'Unknown');
+    const bookings = sorted.map(item => item.total_bookings || 0);
+    
+    facilityChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: facilities,
+            datasets: [{
+                label: 'Total Bookings',
+                data: bookings,
+                backgroundColor: 'rgba(0, 123, 255, 0.6)',
+                borderColor: '#007bff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Helper function to show error
+function showError(message) {
+    if (typeof showToast !== 'undefined') {
+        showToast(message, 'error');
+    } else {
+        alert(message);
+    }
+}
+
+// Load reports when tab is clicked
+document.addEventListener('DOMContentLoaded', function() {
+    // Load facilities for filter dropdown
+    loadFacilitiesForReport();
+    
+    // Automatically load reports on page load
+    // Wait a bit for the page to fully render
+    setTimeout(function() {
+        loadBookingReports();
+    }, 500);
+    
+    // Load reports when Generate button is clicked
+    const generateBtn = document.getElementById('generateReportsBtn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', function() {
+            loadBookingReports();
+        });
+    }
+
+});
+</script>
 @endsection

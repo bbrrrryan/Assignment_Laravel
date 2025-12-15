@@ -38,12 +38,18 @@ class UserFactory
             $roleName = 'student';
         }
 
-        return User::create([
+        $userData = [
             'name' => $name,
             'email' => $email,
             'password' => Hash::make($password), 
             'role' => $roleName,
-            'status' => 'active' 
-        ]);
+            'status' => 'active'
+        ];
+        
+        if ($roleName === 'student') {
+            $userData['studentid'] = User::generateStudentId();
+        }
+        
+        return User::create($userData);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\BookingSlot;
 use App\Models\Facility;
 use Carbon\Carbon;
 
@@ -184,6 +185,7 @@ class BookingCapacityService
 
     /**
      * Check max booking hours limit for user on a specific date
+     * This method calculates total hours from booking_slots table to ensure accuracy
      */
     public function checkMaxBookingHours(
         int $userId,
@@ -193,18 +195,24 @@ class BookingCapacityService
         int $maxBookingHours,
         ?int $excludeBookingId = null
     ): array {
-        $query = Booking::where('user_id', $userId)
+        // Get all bookings for this user, facility, and date
+        $bookingsQuery = Booking::where('user_id', $userId)
             ->where('facility_id', $facilityId)
             ->whereDate('booking_date', $bookingDate)
             ->whereIn('status', ['pending', 'approved']);
         
         if ($excludeBookingId) {
-            $query->where('id', '!=', $excludeBookingId);
+            $bookingsQuery->where('id', '!=', $excludeBookingId);
         }
         
-        $userBookingsOnDate = $query->get();
+        $userBookingsOnDate = $bookingsQuery->pluck('id');
         
-        $totalUserBookingHours = $userBookingsOnDate->sum('duration_hours');
+        // Calculate total hours from booking_slots table for accurate calculation
+        // This ensures we count all slots, not just the duration_hours field
+        $totalUserBookingHours = BookingSlot::whereIn('booking_id', $userBookingsOnDate)
+            ->whereDate('slot_date', $bookingDate)
+            ->sum('duration_hours');
+        
         $totalAfterBooking = $totalUserBookingHours + $durationHours;
         
         if ($totalAfterBooking > $maxBookingHours) {
