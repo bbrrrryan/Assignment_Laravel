@@ -203,6 +203,7 @@ class AnnouncementController extends Controller
      */
     public function unreadCount()
     {
+        /** @var \App\Models\User $user */
         $user = auth()->user();
         $count = $user->announcements()
             ->where('is_active', true)
@@ -224,6 +225,7 @@ class AnnouncementController extends Controller
      */
     public function myAnnouncements(Request $request)
     {
+        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         $query = $user->announcements()
@@ -251,6 +253,7 @@ class AnnouncementController extends Controller
     public function markAsRead(string $id)
     {
         $announcement = Announcement::findOrFail($id);
+        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         if (!$user->announcements()->where('announcements.id', $id)->exists()) {
@@ -279,6 +282,7 @@ class AnnouncementController extends Controller
     public function markAsUnread(string $id)
     {
         $announcement = Announcement::findOrFail($id);
+        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         // Check if announcement should be visible to this user (same logic as getUnreadItems)
@@ -300,6 +304,8 @@ class AnnouncementController extends Controller
         }
 
         // Check if user should see this announcement (same logic as getUnreadItems)
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
         $targetAudience = $announcement->target_audience;
         $role = strtolower($user->role ?? '');
         $shouldSee = false;
