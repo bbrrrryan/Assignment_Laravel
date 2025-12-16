@@ -5,187 +5,160 @@
 @section('content')
 <div class="container">
     <div class="page-header">
-        <div>
+        <div class="page-header-content">
             <h1>Facility Details</h1>
-            <p>{{ $facility->name }}</p>
+            <p>View facility information and statistics</p>
         </div>
         <div>
-            <a href="{{ route('admin.facilities.edit', $facility->id) }}" class="btn-primary">
-                <i class="fas fa-edit"></i> Edit
+            <a href="{{ route('admin.facilities.edit', $facility->id) }}" class="btn-header-white">
+                <i class="fas fa-edit"></i> Edit Facility
             </a>
-            <a href="{{ route('admin.facilities.index') }}" class="btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to List
+            <a href="{{ route('admin.facilities.index') }}" class="btn-header-white">
+                <i class="fas fa-arrow-left"></i> Back to Facilities
             </a>
         </div>
     </div>
 
-    <div class="details-container">
+    <div class="details-section">
         <div class="details-card">
-            <div class="details-section">
-                <h2>Basic Information</h2>
-                <div class="detail-row">
-                    <span class="detail-label">ID:</span>
-                    <span class="detail-value">{{ $facility->id }}</span>
+            <h2><i class="fas fa-building"></i> Facility Information</h2>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>ID</label>
+                    <p>{{ $facility->id }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Name:</span>
-                    <span class="detail-value">{{ $facility->name }}</span>
+                <div class="detail-item">
+                    <label>Name</label>
+                    <p>{{ $facility->name }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Code:</span>
-                    <span class="detail-value">{{ $facility->code }}</span>
+                <div class="detail-item">
+                    <label>Code</label>
+                    <p>{{ $facility->code }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Type:</span>
-                    <span class="detail-value">{{ ucfirst($facility->type) }}</span>
+                <div class="detail-item">
+                    <label>Type</label>
+                    <p>
+                        <span class="badge badge-info">
+                            {{ ucfirst($facility->type) }}
+                        </span>
+                    </p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Location:</span>
-                    <span class="detail-value">{{ $facility->location }}</span>
+                <div class="detail-item">
+                    <label>Location</label>
+                    <p>{{ $facility->location }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Capacity:</span>
-                    <span class="detail-value">{{ $facility->capacity }} people</span>
+                <div class="detail-item">
+                    <label>Capacity</label>
+                    <p>{{ $facility->capacity }} people</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value">
+                <div class="detail-item">
+                    <label>Status</label>
+                    <p>
                         <span class="badge badge-{{ $facility->status === 'available' ? 'success' : ($facility->status === 'maintenance' ? 'warning' : 'secondary') }}">
                             {{ ucfirst($facility->status) }}
                         </span>
-                    </span>
+                    </p>
                 </div>
                 @if($facility->description)
-                <div class="detail-row">
-                    <span class="detail-label">Description:</span>
-                    <span class="detail-value">{{ $facility->description }}</span>
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label>Description</label>
+                    <p>{{ $facility->description }}</p>
                 </div>
                 @endif
                 @if($facility->image_url)
-                <div class="detail-row">
-                    <span class="detail-label">Image:</span>
-                    <span class="detail-value">
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label>Image</label>
+                    <p>
                         <img src="{{ $facility->image_url }}" alt="{{ $facility->name }}" 
-                             class="img-thumbnail facility-image" style="max-width: 400px; max-height: 400px; cursor: pointer;"
+                             class="img-thumbnail facility-image" style="max-width: 400px; max-height: 400px; cursor: pointer; border-radius: 8px;"
                              onclick="window.open('{{ $facility->image_url }}', '_blank')">
                         <br>
-                        <a href="{{ $facility->image_url }}" target="_blank" class="btn-sm btn-info mt-2" style="display: inline-block;">
+                        <a href="{{ $facility->image_url }}" target="_blank" style="display: inline-block; margin-top: 10px; color: #0066cc; text-decoration: none;">
                             <i class="fas fa-external-link-alt"></i> View Full Image
                         </a>
-                    </span>
+                    </p>
                 </div>
                 @endif
             </div>
+        </div>
 
-            <div class="details-section">
-                <h2>Booking Settings</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Requires Approval:</span>
-                    <span class="detail-value">{{ $facility->requires_approval ? 'Yes' : 'No' }}</span>
+        <div class="details-card">
+            <h2><i class="fas fa-calendar-alt"></i> Booking Settings</h2>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>Requires Approval</label>
+                    <p>{{ $facility->requires_approval ? 'Yes' : 'No' }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Max Booking Hours:</span>
-                    <span class="detail-value">{{ $facility->max_booking_hours ?? 4 }} hours</span>
+                <div class="detail-item">
+                    <label>Max Booking Hours</label>
+                    <p>{{ $facility->max_booking_hours ?? 4 }} hours</p>
                 </div>
+                @if($facility->enable_multi_attendees)
+                <div class="detail-item">
+                    <label>Multi-Attendees</label>
+                    <p>Enabled</p>
+                </div>
+                @if($facility->max_attendees)
+                <div class="detail-item">
+                    <label>Max Attendees</label>
+                    <p>{{ $facility->max_attendees }} people</p>
+                </div>
+                @endif
+                @endif
                 @if($facility->available_day && !empty($facility->available_day) && $facility->available_time)
-                <div class="detail-row">
-                    <span class="detail-label">Available Days & Times:</span>
-                    <span class="detail-value">
-                        <div class="mb-2">
-                            <strong>Available Days:</strong>
-                            <div class="d-flex flex-wrap gap-2 mt-1">
-                                @php
-                                    $dayNames = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
-                                                 'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
-                                                 'sunday' => 'Sunday'];
-                                @endphp
-                                @foreach($facility->available_day as $dayKey)
-                                    <span class="badge bg-primary">{{ $dayNames[$dayKey] ?? ucfirst($dayKey) }}</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        <div>
-                            <strong>Time Range:</strong>
-                            <span class="badge bg-success">
-                                {{ $facility->available_time['start'] ?? 'N/A' }} - {{ $facility->available_time['end'] ?? 'N/A' }}
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label>Available Days</label>
+                    <p>
+                        @php
+                            $dayNames = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
+                                         'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
+                                         'sunday' => 'Sunday'];
+                        @endphp
+                        @foreach($facility->available_day as $dayKey)
+                            <span class="badge badge-info" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">
+                                {{ $dayNames[$dayKey] ?? ucfirst($dayKey) }}
                             </span>
-                        </div>
-                    </span>
+                        @endforeach
+                    </p>
+                </div>
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label>Time Range</label>
+                    <p>
+                        <span class="badge badge-success">
+                            {{ $facility->available_time['start'] ?? 'N/A' }} - {{ $facility->available_time['end'] ?? 'N/A' }}
+                        </span>
+                    </p>
                 </div>
                 @else
-                <div class="detail-row">
-                    <span class="detail-label">Available Days & Times:</span>
-                    <span class="detail-value text-muted">Not set</span>
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label>Available Days & Times</label>
+                    <p style="color: #6c757d;">Not set</p>
                 </div>
                 @endif
             </div>
+        </div>
+    </div>
 
-            <div class="details-section">
-                <h2>Statistics</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Total Bookings:</span>
-                    <span class="detail-value">{{ $facility->bookings->count() }}</span>
+    <div class="details-section">
+        <div class="details-card" style="grid-column: 1 / -1;">
+            <h2><i class="fas fa-chart-bar"></i> Statistics</h2>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>Total Bookings</label>
+                    <p>{{ $facility->bookings->count() }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Created At:</span>
-                    <span class="detail-value">{{ $facility->created_at->format('Y-m-d H:i:s') }}</span>
+                <div class="detail-item">
+                    <label>Created At</label>
+                    <p>{{ $facility->created_at->format('M d, Y H:i') }}</p>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Updated At:</span>
-                    <span class="detail-value">{{ $facility->updated_at->format('Y-m-d H:i:s') }}</span>
+                <div class="detail-item">
+                    <label>Updated At</label>
+                    <p>{{ $facility->updated_at->format('M d, Y H:i') }}</p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-.details-container {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.details-card {
-    background: white;
-    border-radius: 8px;
-    padding: 30px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.details-section {
-    margin-bottom: 30px;
-    padding-bottom: 30px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.details-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.details-section h2 {
-    color: #2c3e50;
-    margin-bottom: 20px;
-    font-size: 1.5em;
-}
-
-.detail-row {
-    display: flex;
-    margin-bottom: 15px;
-    align-items: flex-start;
-}
-
-.detail-label {
-    font-weight: 600;
-    color: #555;
-    min-width: 180px;
-    margin-right: 20px;
-}
-
-.detail-value {
-    color: #333;
-    flex: 1;
-}
-</style>
+<link rel="stylesheet" href="{{ asset('css/admin/facilities.css') }}">
 @endsection

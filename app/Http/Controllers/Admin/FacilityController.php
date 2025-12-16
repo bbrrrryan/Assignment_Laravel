@@ -13,7 +13,7 @@ class FacilityController extends AdminBaseController
      */
     public function index(Request $request)
     {
-        $query = Facility::query();
+        $query = Facility::where('is_deleted', false);
 
         // Search filter
         if ($request->has('search') && $request->search) {
@@ -60,7 +60,7 @@ class FacilityController extends AdminBaseController
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:facilities,code',
-            'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
+            'type' => 'required|in:classroom,laboratory,sports,auditorium,library',
             'location' => 'required|string|max:255',
             'capacity' => 'required|integer|min:1',
             'description' => 'nullable|string',
@@ -136,7 +136,7 @@ class FacilityController extends AdminBaseController
      */
     public function show(string $id)
     {
-        $facility = Facility::with('bookings')->findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
         return view('admin.facilities.show', compact('facility'));
     }
 
@@ -145,7 +145,7 @@ class FacilityController extends AdminBaseController
      */
     public function edit(string $id)
     {
-        $facility = Facility::findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
         return view('admin.facilities.edit', compact('facility'));
     }
 
@@ -154,12 +154,12 @@ class FacilityController extends AdminBaseController
      */
     public function update(Request $request, string $id)
     {
-        $facility = Facility::findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:facilities,code,' . $id,
-            'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
+            'type' => 'required|in:classroom,laboratory,sports,auditorium,library',
             'location' => 'required|string|max:255',
             'capacity' => 'required|integer|min:1',
             'description' => 'nullable|string',
@@ -237,21 +237,13 @@ class FacilityController extends AdminBaseController
     }
 
     /**
-     * Remove the specified facility
+     * Remove the specified facility (Soft delete)
      */
     public function destroy(string $id)
     {
-        $facility = Facility::findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
         
-        // Delete associated image if exists
-        if ($facility->image_url) {
-            $imagePath = public_path($facility->image_url);
-            if (File::exists($imagePath)) {
-                File::delete($imagePath);
-            }
-        }
-        
-        $facility->delete();
+        $facility->update(['is_deleted' => true]);
 
         return redirect()->route('admin.facilities.index')
             ->with('success', 'Facility deleted successfully!');

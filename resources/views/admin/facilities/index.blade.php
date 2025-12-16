@@ -51,8 +51,6 @@
                         <option value="sports" {{ request('type') === 'sports' ? 'selected' : '' }}>Sports</option>
                         <option value="auditorium" {{ request('type') === 'auditorium' ? 'selected' : '' }}>Auditorium</option>
                         <option value="library" {{ request('type') === 'library' ? 'selected' : '' }}>Library</option>
-                        <option value="cafeteria" {{ request('type') === 'cafeteria' ? 'selected' : '' }}>Cafeteria</option>
-                        <option value="other" {{ request('type') === 'other' ? 'selected' : '' }}>Other</option>
                     </select>
                 </div>
                 
@@ -65,7 +63,6 @@
                         <option value="available" {{ request('status') === 'available' ? 'selected' : '' }}>Available</option>
                         <option value="maintenance" {{ request('status') === 'maintenance' ? 'selected' : '' }}>Maintenance</option>
                         <option value="unavailable" {{ request('status') === 'unavailable' ? 'selected' : '' }}>Unavailable</option>
-                        <option value="reserved" {{ request('status') === 'reserved' ? 'selected' : '' }}>Reserved</option>
                     </select>
                 </div>
                 
@@ -126,14 +123,9 @@
                             <a href="{{ route('admin.facilities.edit', $facility->id) }}" class="btn-sm btn-warning" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <form action="{{ route('admin.facilities.destroy', $facility->id) }}" method="POST" 
-                                  style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this facility?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn-sm btn-danger" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+                            <button type="button" class="btn-sm btn-danger" title="Delete" onclick="showDeleteModal({{ $facility->id }}, '{{ $facility->name }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 @empty
@@ -151,7 +143,40 @@
     </div>
 </div>
 
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Delete</h3>
+            <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete this facility?</p>
+            <p><strong>Facility Name:</strong> <span id="deleteFacilityName"></span></p>
+        </div>
+        <div class="modal-footer">
+            <form id="deleteForm" method="POST" style="display: inline;">
+                @csrf
+                @method('DELETE')
+                <button type="button" class="btn-secondary" onclick="closeDeleteModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="submit" class="btn-danger" style="padding: 10px 20px !important;">
+                    <i class="fas fa-trash"></i> Delete Facility
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
+/* Container Styling - Expanded Width */
+.container {
+    max-width: 75%;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
 /* Page Header Styling */
 .page-header {
     display: flex;
@@ -162,6 +187,7 @@
     background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    width: 100%;
 }
 
 .page-header-content {
@@ -186,6 +212,7 @@
 /* Filters Section Styling */
 .filters-section {
     margin-bottom: 30px;
+    width: 100%;
 }
 
 .filters-card {
@@ -194,6 +221,7 @@
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     border: 1px solid #e9ecef;
+    width: 100%;
 }
 
 .filters-form {
@@ -207,7 +235,7 @@
 .filter-select-wrapper {
     position: relative;
     flex: 1;
-    min-width: 200px;
+    min-width: 250px;
 }
 
 .filter-icon {
@@ -340,7 +368,24 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1400px) {
+    .container {
+        max-width: 98%;
+    }
+}
+
+@media (max-width: 1200px) {
+    .data-table {
+        min-width: 1000px;
+    }
+}
+
 @media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+        padding: 0 15px;
+    }
+    
     .filters-form {
         flex-direction: column;
     }
@@ -348,6 +393,7 @@
     .filter-input-wrapper,
     .filter-select-wrapper {
         width: 100%;
+        min-width: 100%;
     }
     
     .btn-search,
@@ -365,6 +411,10 @@
     .page-header-content h1 {
         font-size: 1.8rem;
     }
+    
+    .table-container {
+        overflow-x: auto;
+    }
 }
 
 /* Table Container Enhancement */
@@ -374,11 +424,20 @@
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     overflow: hidden;
     border: 1px solid #e9ecef;
+    width: 100%;
+    overflow-x: auto;
 }
 
 .data-table {
-    margin: 0;
+    width: 100%;
+    min-width: 1200px;
 }
+
+.data-table th,
+.data-table td {
+    padding: 15px 20px;
+}
+
 
 .data-table thead {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -485,5 +544,157 @@
         gap: 5px;
     }
 }
+
+/* Delete Modal Styling */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 2px solid #f1f3f5;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-header h3 i {
+    color: #dc3545;
+}
+
+.modal-close {
+    font-size: 28px;
+    font-weight: bold;
+    color: #6c757d;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.modal-close:hover {
+    color: #dc3545;
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.modal-body p {
+    margin: 0 0 15px 0;
+    color: #495057;
+    line-height: 1.6;
+}
+
+.modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+.modal-body strong {
+    color: #2c3e50;
+}
+
+.text-warning {
+    color: #856404;
+    background-color: #fff3cd;
+    padding: 12px;
+    border-radius: 6px;
+    border-left: 4px solid #ffc107;
+}
+
+.text-warning i {
+    margin-right: 8px;
+}
+
+.modal-footer {
+    padding: 20px 25px;
+    border-top: 2px solid #f1f3f5;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: #ffffff;
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 6px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(220, 53, 69, 0.4);
+}
 </style>
+
+<script>
+function showDeleteModal(facilityId, facilityName) {
+    const modal = document.getElementById('deleteModal');
+    const form = document.getElementById('deleteForm');
+    const nameSpan = document.getElementById('deleteFacilityName');
+    
+    nameSpan.textContent = facilityName;
+    form.action = '{{ route("admin.facilities.destroy", ":id") }}'.replace(':id', facilityId);
+    modal.style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('deleteModal');
+    if (event.target === modal) {
+        closeDeleteModal();
+    }
+}
+</script>
 @endsection

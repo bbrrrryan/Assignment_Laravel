@@ -3,345 +3,212 @@
 @section('title', 'Edit Facility - TARUMT FMS')
 
 @section('content')
-<div class="container-fluid py-4">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-1 fw-bold text-dark">Edit Facility</h1>
-            <p class="text-muted mb-0">Update facility information</p>
+<div class="container">
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1>Edit Facility</h1>
+            <p>Update facility information</p>
         </div>
-        <a href="{{ route('admin.facilities.index') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-2"></i> Back to List
-        </a>
+        <div>
+            <a href="{{ route('admin.facilities.index') }}" class="btn-header-white">
+                <i class="fas fa-arrow-left"></i> Back to Facilities
+            </a>
+        </div>
     </div>
 
-    <!-- Error Messages -->
-    @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <h5 class="alert-heading">
-                <i class="fas fa-exclamation-triangle me-2"></i>Please fix the following errors:
-            </h5>
-            <ul class="mb-0">
-                @foreach($errors->all() as $error)
+    @if ($errors->any())
+        <div class="alert alert-error">
+            <h5><i class="fas fa-exclamation-triangle"></i> Please fix the following errors:</h5>
+            <ul>
+                @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    <!-- Form Card -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0 fw-semibold">
-                <i class="fas fa-edit me-2 text-primary"></i>Edit Facility Information
-            </h5>
-        </div>
-        <div class="card-body">
-            <form action="{{ route('admin.facilities.update', $facility->id) }}" method="POST" enctype="multipart/form-data">
-                @csrf
-                @method('PUT')
+    <div class="form-card">
+        <form method="POST" action="{{ route('admin.facilities.update', $facility->id) }}" enctype="multipart/form-data">
+            @csrf
+            @method('PUT')
+            
+            <div class="form-section">
+                <h3><i class="fas fa-info-circle"></i> Basic Information</h3>
+                
+                <div class="form-group">
+                    <label for="name">Name <span class="required">*</span></label>
+                    <input type="text" id="name" name="name" value="{{ old('name', $facility->name) }}" required class="form-input">
+                </div>
 
-                <!-- Basic Information Section -->
-                <div class="mb-4">
-                    <h5 class="text-primary mb-3 border-bottom pb-2">
-                        <i class="fas fa-info-circle me-2"></i>Basic Information
-                    </h5>
+                <div class="form-group">
+                    <label for="code">Code <span class="required">*</span></label>
+                    <input type="text" id="code" name="code" value="{{ old('code', $facility->code) }}" required class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label for="type">Type <span class="required">*</span></label>
+                    <select id="type" name="type" required class="form-select">
+                        <option value="">Select Type</option>
+                        <option value="classroom" {{ old('type', $facility->type) === 'classroom' ? 'selected' : '' }}>Classroom</option>
+                        <option value="laboratory" {{ old('type', $facility->type) === 'laboratory' ? 'selected' : '' }}>Laboratory</option>
+                        <option value="sports" {{ old('type', $facility->type) === 'sports' ? 'selected' : '' }}>Sports</option>
+                        <option value="auditorium" {{ old('type', $facility->type) === 'auditorium' ? 'selected' : '' }}>Auditorium</option>
+                        <option value="library" {{ old('type', $facility->type) === 'library' ? 'selected' : '' }}>Library</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Location <span class="required">*</span></label>
+                    <input type="text" id="location" name="location" value="{{ old('location', $facility->location) }}" required class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label for="capacity">Capacity <span class="required">*</span></label>
+                    <input type="number" id="capacity" name="capacity" value="{{ old('capacity', $facility->capacity) }}" required min="1" class="form-input">
+                    <small>Number of people the facility can accommodate</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="status">Status <span class="required">*</span></label>
+                    <select id="status" name="status" required class="form-select">
+                        <option value="available" {{ old('status', $facility->status) === 'available' ? 'selected' : '' }}>Available - Facility is ready for use</option>
+                        <option value="maintenance" {{ old('status', $facility->status) === 'maintenance' ? 'selected' : '' }}>Maintenance - Facility is under maintenance</option>
+                        <option value="unavailable" {{ old('status', $facility->status) === 'unavailable' ? 'selected' : '' }}>Unavailable - Facility is not available</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3" class="form-input">{{ old('description', $facility->description) }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="image">Facility Image</label>
+                    @if($facility->image_url)
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; color: #6c757d; font-weight: 600;">Current Image:</label>
+                            <img src="{{ $facility->image_url }}" alt="Current facility image" 
+                                 class="img-thumbnail facility-image" style="max-width: 400px; max-height: 400px; cursor: pointer; border-radius: 8px;"
+                                 onclick="window.open('{{ $facility->image_url }}', '_blank')">
+                            <br>
+                            <a href="{{ $facility->image_url }}" target="_blank" style="display: inline-block; margin-top: 10px; color: #0066cc; text-decoration: none;">
+                                <i class="fas fa-external-link-alt"></i> View Full Image
+                            </a>
+                        </div>
+                    @endif
+                    <input type="file" id="image" name="image" 
+                           accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" class="form-input" style="padding: 8px;">
+                    <small>Upload a new image to replace the current one (JPEG, PNG, JPG, GIF, WEBP). Max size: 2MB</small>
+                    <div id="imagePreview" style="margin-top: 15px; display: none;">
+                        <label style="display: block; margin-bottom: 8px; color: #6c757d; font-weight: 600;">New Image Preview:</label>
+                        <img id="previewImg" src="" alt="Preview" class="img-thumbnail" style="max-width: 400px; max-height: 400px; border-radius: 8px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-calendar-alt"></i> Booking Settings</h3>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="requires_approval" 
+                               name="requires_approval" value="1" 
+                               {{ old('requires_approval', $facility->requires_approval) ? 'checked' : '' }}
+                               style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                        Requires Approval
+                    </label>
+                    <small>If checked, bookings for this facility require admin approval</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="max_booking_hours">Max Booking Hours</label>
+                    <input type="number" id="max_booking_hours" 
+                           name="max_booking_hours" value="{{ old('max_booking_hours', $facility->max_booking_hours ?? 4) }}" 
+                           min="1" max="24" class="form-input">
+                    <small>Maximum duration per booking (default: 4 hours)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enable_multi_attendees" 
+                               name="enable_multi_attendees" value="1" 
+                               {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'checked' : '' }}
+                               style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                        Enable Multi-Attendees
+                    </label>
+                    <small>Allow multiple attendees to be specified for bookings</small>
+                </div>
+
+                <div class="form-group" id="max_attendees_container" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'block' : 'none' }};">
+                    <label for="max_attendees">Maximum Attendees <span class="required" id="max_attendees_required" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'inline' : 'none' }};">*</span></label>
+                    <input type="number" id="max_attendees" 
+                           name="max_attendees" value="{{ old('max_attendees', $facility->max_attendees) }}" 
+                           min="1" max="{{ old('capacity', $facility->capacity) }}" class="form-input">
+                    <small>Maximum number of attendees allowed per booking (cannot exceed facility capacity)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Available Days & Times</label>
+                    <small style="display: block; margin-bottom: 15px;">Select the available days and set the time range</small>
                     
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="name" name="name" 
-                                   value="{{ old('name', $facility->name) }}" required>
+                    @php
+                        $days = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
+                                 'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
+                                 'sunday' => 'Sunday'];
+                        $currentDays = old('available_day') ?: ($facility->available_day ?? []);
+                        $currentTime = old('available_time') ?: ($facility->available_time ?? ['start' => '08:00', 'end' => '18:00']);
+                        $startTime = $currentTime['start'] ?? '08:00';
+                        $endTime = $currentTime['end'] ?? '18:00';
+                    @endphp
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #495057;">Select Available Days:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            @foreach($days as $dayKey => $dayName)
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" 
+                                       id="day_{{ $dayKey }}" 
+                                       name="available_day[]" 
+                                       value="{{ $dayKey }}" 
+                                       {{ in_array($dayKey, $currentDays) ? 'checked' : '' }}
+                                       style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                <span>{{ $dayName }}</span>
+                            </label>
+                            @endforeach
                         </div>
-
-                        <div class="col-md-6">
-                            <label for="code" class="form-label">Code <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="code" name="code" 
-                                   value="{{ old('code', $facility->code) }}" required>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <label for="start_time" style="display: block; margin-bottom: 8px; font-weight: 600; color: #495057;">Start Time:</label>
+                            <input type="time" id="start_time" 
+                                   name="available_time[start]" 
+                                   value="{{ old('available_time.start', $startTime) }}" 
+                                   required class="form-input">
                         </div>
-
-                        <div class="col-md-6">
-                            <label for="type" class="form-label">Type <span class="text-danger">*</span></label>
-                            <select class="form-select" id="type" name="type" required>
-                                <option value="">Select Type</option>
-                                <option value="classroom" {{ old('type', $facility->type) === 'classroom' ? 'selected' : '' }}>Classroom</option>
-                                <option value="laboratory" {{ old('type', $facility->type) === 'laboratory' ? 'selected' : '' }}>Laboratory</option>
-                                <option value="sports" {{ old('type', $facility->type) === 'sports' ? 'selected' : '' }}>Sports</option>
-                                <option value="auditorium" {{ old('type', $facility->type) === 'auditorium' ? 'selected' : '' }}>Auditorium</option>
-                                <option value="library" {{ old('type', $facility->type) === 'library' ? 'selected' : '' }}>Library</option>
-                                <option value="cafeteria" {{ old('type', $facility->type) === 'cafeteria' ? 'selected' : '' }}>Cafeteria</option>
-                                <option value="other" {{ old('type', $facility->type) === 'other' ? 'selected' : '' }}>Other</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="location" class="form-label">Location <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="location" name="location" 
-                                   value="{{ old('location', $facility->location) }}" required>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="capacity" class="form-label">Capacity <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="capacity" name="capacity" 
-                                   value="{{ old('capacity', $facility->capacity) }}" required min="1">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="status" class="form-label">Status</label>
-                            <select class="form-select" id="status" name="status">
-                                <option value="available" {{ old('status', $facility->status) === 'available' ? 'selected' : '' }}>Available</option>
-                                <option value="maintenance" {{ old('status', $facility->status) === 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-                                <option value="unavailable" {{ old('status', $facility->status) === 'unavailable' ? 'selected' : '' }}>Unavailable</option>
-                                <option value="reserved" {{ old('status', $facility->status) === 'reserved' ? 'selected' : '' }}>Reserved</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3">{{ old('description', $facility->description) }}</textarea>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="image" class="form-label">Facility Image</label>
-                            @if($facility->image_url)
-                                <div class="mb-2">
-                                    <label class="form-label text-muted">Current Image:</label>
-                                    <div>
-                                        <img src="{{ $facility->image_url }}" alt="Current facility image" 
-                                             class="img-thumbnail" style="max-width: 300px; max-height: 300px;">
-                                    </div>
-                                </div>
-                            @endif
-                            <input type="file" class="form-control" id="image" name="image" 
-                                   accept="image/jpeg,image/png,image/jpg,image/gif,image/webp">
-                            <small class="form-text text-muted">Upload a new image to replace the current one (JPEG, PNG, JPG, GIF, WEBP). Max size: 2MB</small>
-                            <div id="imagePreview" class="mt-2" style="display: none;">
-                                <label class="form-label text-muted">New Image Preview:</label>
-                                <div>
-                                    <img id="previewImg" src="" alt="Preview" class="img-thumbnail" style="max-width: 300px; max-height: 300px;">
-                                </div>
-                            </div>
+                        <div>
+                            <label for="end_time" style="display: block; margin-bottom: 8px; font-weight: 600; color: #495057;">End Time:</label>
+                            <input type="time" id="end_time" 
+                                   name="available_time[end]" 
+                                   value="{{ old('available_time.end', $endTime) }}" 
+                                   required class="form-input">
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Booking Settings Section -->
-                <div class="mb-4">
-                    <h5 class="text-primary mb-3 border-bottom pb-2">
-                        <i class="fas fa-calendar-alt me-2"></i>Booking Settings
-                    </h5>
-                    
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="requires_approval" 
-                                       name="requires_approval" value="1" {{ old('requires_approval', $facility->requires_approval) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="requires_approval">
-                                    Requires Approval
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="max_booking_hours" class="form-label">Max Booking Hours</label>
-                            <input type="number" class="form-control" id="max_booking_hours" 
-                                   name="max_booking_hours" value="{{ old('max_booking_hours', $facility->max_booking_hours ?? 4) }}" 
-                                   min="1" max="24">
-                        </div>
-
-                        <div class="col-12">
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="enable_multi_attendees" 
-                                       name="enable_multi_attendees" value="1" {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="enable_multi_attendees">
-                                    Enable Multi-Attendees
-                                </label>
-                                <small class="form-text text-muted d-block">Allow multiple attendees to be specified for bookings</small>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6" id="max_attendees_container" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'block' : 'none' }};">
-                            <label for="max_attendees" class="form-label">Maximum Attendees <span class="text-danger" id="max_attendees_required" style="display: {{ old('enable_multi_attendees', $facility->enable_multi_attendees ?? false) ? 'inline' : 'none' }};">*</span></label>
-                            <input type="number" class="form-control" id="max_attendees" 
-                                   name="max_attendees" value="{{ old('max_attendees', $facility->max_attendees) }}" 
-                                   min="1" max="{{ old('capacity', $facility->capacity) }}">
-                            <small class="form-text text-muted">Maximum number of attendees allowed per booking (cannot exceed facility capacity)</small>
-                        </div>
-
-                        <script>
-                        // Define function immediately so it's available for onclick
-                        window.toggleMaxAttendeesField = function() {
-                            const enableMultiAttendees = document.getElementById('enable_multi_attendees');
-                            const maxAttendeesContainer = document.getElementById('max_attendees_container');
-                            const maxAttendeesInput = document.getElementById('max_attendees');
-                            const maxAttendeesRequired = document.getElementById('max_attendees_required');
-                            const capacityInput = document.getElementById('capacity');
-                            
-                            if (!enableMultiAttendees || !maxAttendeesContainer || !maxAttendeesInput) {
-                                return;
-                            }
-                            
-                            if (enableMultiAttendees.checked) {
-                                maxAttendeesContainer.style.display = 'block';
-                                if (maxAttendeesRequired) {
-                                    maxAttendeesRequired.style.display = 'inline';
-                                }
-                                maxAttendeesInput.setAttribute('required', 'required');
-                                if (capacityInput && capacityInput.value) {
-                                    maxAttendeesInput.setAttribute('max', capacityInput.value);
-                                }
-                            } else {
-                                maxAttendeesContainer.style.display = 'none';
-                                if (maxAttendeesRequired) {
-                                    maxAttendeesRequired.style.display = 'none';
-                                }
-                                maxAttendeesInput.removeAttribute('required');
-                                maxAttendeesInput.value = '';
-                            }
-                        };
-                        
-                        // Bind event when DOM is ready
-                        document.addEventListener('DOMContentLoaded', function() {
-                            const enableMultiAttendees = document.getElementById('enable_multi_attendees');
-                            if (enableMultiAttendees) {
-                                enableMultiAttendees.addEventListener('change', window.toggleMaxAttendeesField);
-                                
-                                // Set initial state
-                                if (enableMultiAttendees.checked) {
-                                    window.toggleMaxAttendeesField();
-                                }
-                                
-                                // Update max when capacity changes
-                                const capacityInput = document.getElementById('capacity');
-                                const maxAttendeesInput = document.getElementById('max_attendees');
-                                if (capacityInput && maxAttendeesInput) {
-                                    capacityInput.addEventListener('change', function() {
-                                        if (this.value && enableMultiAttendees.checked) {
-                                            maxAttendeesInput.setAttribute('max', this.value);
-                                        }
-                                    });
-                                }
-                            }
-                        });
-                        </script>
-
-                        <div class="col-12">
-                            <label class="form-label">Available Days & Times</label>
-                            <small class="form-text text-muted d-block mb-3">Select the available days and set the time range</small>
-                            
-                            @php
-                                $days = ['monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday', 
-                                         'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday', 
-                                         'sunday' => 'Sunday'];
-                                $currentDays = old('available_day') ?: ($facility->available_day ?? []);
-                                $currentTime = old('available_time') ?: ($facility->available_time ?? ['start' => '08:00', 'end' => '18:00']);
-                                $startTime = $currentTime['start'] ?? '08:00';
-                                $endTime = $currentTime['end'] ?? '18:00';
-                            @endphp
-                            
-                            <!-- Available Days (Checkboxes) -->
-                            <div class="mb-4">
-                                <label class="form-label fw-semibold mb-2">Select Available Days</label>
-                                <div class="row g-2">
-                                    @foreach($days as $dayKey => $dayName)
-                                    <div class="col-md-3 col-sm-4 col-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   id="day_{{ $dayKey }}" 
-                                                   name="available_day[]" 
-                                                   value="{{ $dayKey }}" 
-                                                   {{ in_array($dayKey, $currentDays) ? 'checked' : '' }}>
-                                            <label class="form-check-label" for="day_{{ $dayKey }}">
-                                                {{ $dayName }}
-                                            </label>
-                                        </div>
-                                    </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                            
-                            <!-- Available Time Range -->
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label for="start_time" class="form-label">Start Time</label>
-                                    <input type="time" class="form-control" 
-                                           id="start_time" 
-                                           name="available_time[start]" 
-                                           value="{{ old('available_time.start', $startTime) }}" 
-                                           required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="end_time" class="form-label">End Time</label>
-                                    <input type="time" class="form-control" 
-                                           id="end_time" 
-                                           name="available_time[end]" 
-                                           value="{{ old('available_time.end', $endTime) }}" 
-                                           required>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Form Actions -->
-                <div class="d-flex justify-content-end gap-2 pt-3 border-top">
-                    <a href="{{ route('admin.facilities.index') }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-2"></i> Cancel
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i> Update Facility
-                    </button>
-                </div>
-            </form>
-        </div>
+            <div class="form-actions">
+                <a href="{{ route('admin.facilities.index') }}" class="btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-save"></i> Update Facility
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Image preview
-        const imageInput = document.getElementById('image');
-        if (imageInput) {
-            imageInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                const preview = document.getElementById('imagePreview');
-                const previewImg = document.getElementById('previewImg');
-                
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        previewImg.src = e.target.result;
-                        preview.style.display = 'block';
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    preview.style.display = 'none';
-                }
-            });
-        }
-
-        // Time validation - ensure end time is after start time
-        const startTimeInput = document.getElementById('start_time');
-        const endTimeInput = document.getElementById('end_time');
-        
-        if (startTimeInput && endTimeInput) {
-            function validateTimeRange() {
-                const startTime = startTimeInput.value;
-                const endTime = endTimeInput.value;
-                
-                if (startTime && endTime && startTime >= endTime) {
-                    endTimeInput.setCustomValidity('结束时间必须晚于开始时间');
-                } else {
-                    endTimeInput.setCustomValidity('');
-                }
-            }
-            
-            startTimeInput.addEventListener('change', validateTimeRange);
-            endTimeInput.addEventListener('change', validateTimeRange);
-        }
-    });
-</script>
-@endpush
+<link rel="stylesheet" href="{{ asset('css/admin/facilities.css') }}">
+<script src="{{ asset('js/admin/facilities/form.js') }}"></script>
 @endsection

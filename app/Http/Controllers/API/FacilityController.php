@@ -10,7 +10,8 @@ class FacilityController extends Controller
 {
     public function index(Request $request)
     {
-        $facilities = Facility::when($request->type, fn($q) => $q->where('type', $request->type))
+        $facilities = Facility::where('is_deleted', false)
+            ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->paginate(15);
         
@@ -56,9 +57,19 @@ class FacilityController extends Controller
         return response()->json(['data' => $facility], 201);
     }
 
-    public function show(string $id)
+    public function show(string $id, Request $request)
     {
-        return response()->json(['data' => Facility::with('bookings')->findOrFail($id)]);
+        $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
+        
+        // Check if user is student and facility type is not allowed
+        $user = $request->user();
+        if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
+            return response()->json([
+                'message' => 'You are not allowed to view this facility.'
+            ], 403);
+        }
+        
+        return response()->json(['data' => $facility]);
     }
 
     public function update(Request $request, string $id)
@@ -79,7 +90,7 @@ class FacilityController extends Controller
      */
     public function availability(string $id, Request $request)
     {
-        $facility = Facility::findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
         
         $request->validate([
             'date' => 'required|date',
@@ -207,7 +218,7 @@ class FacilityController extends Controller
      */
     public function utilization(string $id, Request $request)
     {
-        $facility = Facility::findOrFail($id);
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
         
         $startDate = $request->get('start_date', now()->startOfMonth());
         $endDate = $request->get('end_date', now()->endOfMonth());
