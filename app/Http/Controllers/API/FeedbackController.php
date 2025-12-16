@@ -8,6 +8,8 @@ use App\Models\LoyaltyPoint;
 use App\Models\LoyaltyRule;
 use App\Models\Notification;
 use App\Models\User;
+use App\Factories\FeedbackFactory;
+use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -86,7 +88,17 @@ class FeedbackController extends Controller
             }
         }
 
-        $feedback = Feedback::create($validated + ['user_id' => auth()->id()]);
+        $feedback = FeedbackFactory::makeFeedback(
+            auth()->id(),
+            $validated['type'],
+            $validated['subject'],
+            $validated['message'],
+            $validated['rating'],
+            $validated['facility_id'] ?? null,
+            $validated['booking_id'] ?? null,
+            $validated['image'] ?? null,
+            'pending' // Default status
+        );
         
         // Don't send "Feedback Submitted" confirmation to students
         // Only notify admins about new feedback
@@ -176,14 +188,14 @@ class FeedbackController extends Controller
                     ->first();
 
                 if (!$existingPoint) {
-                    LoyaltyPoint::create([
-                        'user_id' => $feedback->user_id,
-                        'points' => $rule->points,
-                        'action_type' => 'feedback_resolved',
-                        'related_id' => $feedback->id,
-                        'related_type' => Feedback::class,
-                        'description' => $rule->description ?? "Feedback resolved: {$feedback->subject}",
-                    ]);
+                    LoyaltyFactory::makeLoyaltyPoint(
+                        $feedback->user_id,
+                        $rule->points,
+                        'feedback_resolved',
+                        $rule->description ?? "Feedback resolved: {$feedback->subject}",
+                        $feedback->id,
+                        Feedback::class
+                    );
                 }
             }
         } catch (\Exception $e) {

@@ -5,13 +5,14 @@ namespace App\Observers;
 use App\Models\Booking;
 use App\Models\LoyaltyPoint;
 use App\Models\LoyaltyRule;
+use App\Factories\LoyaltyFactory;
 use Illuminate\Support\Facades\Log;
 
 class BookingObserver
 {
     /**
      * Handle the Booking "updated" event.
-     * Check if points should be awarded when booking status is updated
+     * Checgitk if points should be awarded when booking status is updated
      */
     public function updated(Booking $booking)
     {
@@ -67,15 +68,14 @@ class BookingObserver
                 }
 
                 // Create points record
-                LoyaltyPoint::create([
-                    'user_id' => $booking->user_id,
-                    'points' => $rule->points,
-                    'action_type' => $rule->action_type,
-                    'related_id' => $booking->id,
-                    'related_type' => Booking::class,
-                    'description' => $rule->description
-                        ?? "Facility booking ({$rule->action_type}): {$booking->booking_number}",
-                ]);
+                LoyaltyFactory::makeLoyaltyPoint(
+                    $booking->user_id,
+                    $rule->points,
+                    $rule->action_type,
+                    $rule->description ?? "Facility booking ({$rule->action_type}): Booking #{$booking->id}",
+                    $booking->id,
+                    Booking::class
+                );
 
                 Log::info("Awarded {$rule->points} points to user #{$booking->user_id} for {$rule->action_type} on booking #{$booking->id}");
             }
