@@ -197,6 +197,25 @@ class FeedbackController extends Controller
         ]);
     }
 
+    /**
+     * Get feedbacks for a specific facility
+     */
+    public function getFacilityFeedbacks(Request $request, string $facilityId)
+    {
+        $feedbacks = Feedback::with(['user'])
+            ->where('facility_id', $facilityId)
+            ->where('is_blocked', false) // Only show non-blocked feedbacks
+            ->where('status', '!=', 'rejected') // Exclude rejected feedbacks
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+        
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedbacks,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
+    }
+
     public function update(Request $request, string $id)
     {
         $feedback = Feedback::findOrFail($id);

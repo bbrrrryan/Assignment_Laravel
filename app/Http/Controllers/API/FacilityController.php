@@ -10,10 +10,45 @@ class FacilityController extends Controller
 {
     public function index(Request $request)
     {
-        $facilities = Facility::where('is_deleted', false)
-            ->when($request->type, fn($q) => $q->where('type', $request->type))
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->paginate(15);
+        $user = $request->user();
+        
+        // Base query: exclude deleted and unavailable facilities
+        $query = Facility::where('is_deleted', false)
+            ->where('status', '!=', 'unavailable');
+        
+        // Filter by user role: students can only see sports and library
+        if ($user && $user->isStudent()) {
+            $query->whereIn('type', ['sports', 'library']);
+        }
+        // Staff can see all types, so no additional filter needed
+        
+        // Apply type filter if provided
+        if ($request->type) {
+            // For students, ensure they can only filter by allowed types
+            if ($user && $user->isStudent() && !in_array($request->type, ['sports', 'library'])) {
+                // Invalid type for student, return empty result
+                $query->whereRaw('1 = 0'); // Force no results
+            } else {
+                $query->where('type', $request->type);
+            }
+        }
+        
+        // Apply status filter if provided (excluding unavailable)
+        if ($request->status && $request->status !== 'unavailable') {
+            $query->where('status', $request->status);
+        }
+        
+        // Apply search filter if provided
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%");
+            });
+        }
+        
+        $facilities = $query->paginate(9);
         
         // Get booking date from request if provided
         $bookingDate = $request->get('booking_date');

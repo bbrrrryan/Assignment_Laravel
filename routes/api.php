@@ -147,6 +147,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // User routes
         Route::post('/', [FeedbackController::class, 'store']);
         Route::get('/user/my-feedbacks', [FeedbackController::class, 'myFeedbacks']);
+        Route::get('/facility/{facilityId}', [FeedbackController::class, 'getFacilityFeedbacks']);
         Route::get('/{id}', [FeedbackController::class, 'show']);
         
         // Admin only routes
