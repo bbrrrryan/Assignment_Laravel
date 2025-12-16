@@ -12,16 +12,47 @@ use App\Factories\FeedbackFactory;
 use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class FeedbackController extends Controller
 {
     public function index(Request $request)
     {
-        $feedbacks = Feedback::with(['user', 'facility'])
+        $feedbacks = Feedback::with(['user'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->orderBy('created_at', 'desc')
             ->paginate(15);
-        return response()->json(['data' => $feedbacks]);
+        
+        // ✅ Service Consumption: Get facility info via HTTP from Facility Management Module
+        $feedbacks->getCollection()->transform(function ($feedback) {
+            if ($feedback->facility_id) {
+                try {
+                    $baseUrl = config('app.url', 'http://localhost:8000');
+                    $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
+                    
+                    $facilityResponse = Http::timeout(10)->post($apiUrl, [
+                        'facility_id' => $feedback->facility_id,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ]);
+                    
+                    if ($facilityResponse->successful()) {
+                        $facilityData = $facilityResponse->json();
+                        if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
+                            $feedback->facility_info = $facilityData['data']['facility'];
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Exception when calling Facility Management Module: ' . $e->getMessage());
+                }
+            }
+            return $feedback;
+        });
+        
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedbacks,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     /**
@@ -50,11 +81,13 @@ class FeedbackController extends Controller
         $count = Feedback::where('status', 'pending')->count();
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Pending feedbacks retrieved successfully',
             'data' => [
                 'feedbacks' => $feedbacks,
                 'count' => $count,
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -75,7 +108,9 @@ class FeedbackController extends Controller
             // Check if it's a valid base64 image string
             if (!preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image)) {
                 return response()->json([
-                    'message' => 'Invalid image format. Please upload a valid image (JPG, PNG, or GIF).'
+                    'status' => 'F', // IFA Standard: F (Fail)
+                    'message' => 'Invalid image format. Please upload a valid image (JPG, PNG, or GIF).',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 422);
             }
             
@@ -83,7 +118,9 @@ class FeedbackController extends Controller
             // Base64 encoding increases size by ~33%, so 1.5MB base64 ≈ 1MB image
             if (strlen($request->image) > 1500000) {
                 return response()->json([
-                    'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.'
+                    'status' => 'F', // IFA Standard: F (Fail)
+                    'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 422);
             }
         }
@@ -104,7 +141,11 @@ class FeedbackController extends Controller
         // Only notify admins about new feedback
         $this->notifyAdminsAboutFeedback($feedback);
         
-        return response()->json(['data' => $feedback], 201);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ], 201);
     }
 
     public function show(Request $request, string $id)
@@ -113,7 +154,11 @@ class FeedbackController extends Controller
         
         // Allow users to view their own feedbacks, or admin to view any
         if (!$request->user()->isAdmin() && $feedback->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => 'Unauthorized',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 403);
         }
         
         // If admin/staff views a pending feedback, automatically change status to under_review
@@ -130,7 +175,11 @@ class FeedbackController extends Controller
             $feedback->load('reviewer');
         }
         
-        return response()->json(['data' => $feedback]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function myFeedbacks(Request $request)
@@ -141,20 +190,32 @@ class FeedbackController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
         
-        return response()->json(['data' => $feedbacks]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedbacks,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function update(Request $request, string $id)
     {
         $feedback = Feedback::findOrFail($id);
         $feedback->update($request->all());
-        return response()->json(['data' => $feedback]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function destroy(string $id)
     {
         Feedback::findOrFail($id)->delete();
-        return response()->json(['message' => 'Deleted']);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'message' => 'Deleted',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function respond(Request $request, string $id)
@@ -208,7 +269,11 @@ class FeedbackController extends Controller
             $this->notifyUserAboutFeedbackResolution($feedback);
         }
 
-        return response()->json(['data' => $feedback]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function block(Request $request, string $id)
@@ -219,7 +284,11 @@ class FeedbackController extends Controller
             'block_reason' => $request->reason,
             'status' => 'blocked',
         ]);
-        return response()->json(['data' => $feedback]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function reject(Request $request, string $id)
@@ -230,7 +299,11 @@ class FeedbackController extends Controller
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
         ]);
-        return response()->json(['data' => $feedback]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $feedback,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     /**

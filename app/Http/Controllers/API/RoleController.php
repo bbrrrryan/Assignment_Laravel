@@ -22,13 +22,21 @@ class RoleController extends Controller
             'description' => 'nullable',
             'is_active' => 'boolean',
         ]));
-        return response()->json(['data' => $role], 201);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $role,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ], 201);
     }
 
     public function show(string $id)
     {
         $role = Role::findOrFail($id);
-        return response()->json(['data' => $role]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $role,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function update(Request $request, string $id)
@@ -39,12 +47,20 @@ class RoleController extends Controller
             'description' => 'nullable',
             'is_active' => 'boolean',
         ]));
-        return response()->json(['data' => $role]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $role,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function destroy(string $id)
     {
         Role::findOrFail($id)->delete();
-        return response()->json(['message' => 'Role deleted']);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'message' => 'Role deleted',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 }
