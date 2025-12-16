@@ -703,8 +703,8 @@
                             }
                         }
                     }
-                } else if (isAdmin || isStaff) {
-                    // For admin/staff: get pending bookings count
+                } else if (isAdmin) {
+                    // For admin: get pending bookings count
                     const result = await API.get('/bookings/pending?limit=0');
                     let count = 0;
                     if (result && result.success !== false) {
@@ -796,8 +796,8 @@
                 const isStudent = API.isStudent();
                 const viewAllLink = document.getElementById('viewAllLink');
                 
-                // Student: show Announcements & Notifications
-                // Staff/Admin: show only pending bookings
+                // Student/Staff: show Announcements & Notifications
+                // Admin: show only pending bookings
                 if (isStudent) {
                     // For students: show unread announcements and notifications
                     if (titleElement) {
@@ -864,17 +864,17 @@
                             </div>
                         `;
                     }).join('');
-                } else if (isAdmin || isStaff) {
-                    // For admin/staff: ONLY show pending bookings (no announcements)
+                } else if (isAdmin) {
+                    // For admin: ONLY show pending bookings (no announcements)
                     if (titleElement) {
                         titleElement.textContent = 'Pending Bookings';
                     }
                     if (viewAllLink) {
-                        // Admin/Staff should go to admin bookings page
+                        // Admin should go to admin bookings page
                         viewAllLink.href = '/admin/bookings';
                     }
                     
-                    // Admin/Staff bell only displays user booking requests
+                    // Admin bell only displays user booking requests
                     const result = await API.get('/bookings/pending?limit=10');
                     console.log('Pending bookings API result:', result);
                     
@@ -1029,8 +1029,8 @@
         <nav>
             <ul>
                 @auth
-                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
-                        {{-- Admin/Staff Navigation --}}
+                    @if(auth()->user()->isAdmin())
+                        {{-- Admin Navigation --}}
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
@@ -1039,7 +1039,7 @@
                         <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback Management</a></li>
                     @else
-                        {{-- Student Navigation --}}
+                        {{-- Staff and Student Navigation (User Site) --}}
                         <li><a href="{{ route('home') }}">Home</a></li>
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                         <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
