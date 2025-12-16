@@ -143,6 +143,51 @@ class AdminBookingController extends AdminBaseController
     }
 
     /**
+     * Cancel an approved booking (Admin only)
+     */
+    public function cancel(Request $request, string $id)
+    {
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $booking = Booking::findOrFail($id);
+
+        if ($booking->status !== 'approved') {
+            return response()->json([
+                'message' => 'Only approved bookings can be cancelled by admin',
+            ], 400);
+        }
+
+        $booking->update([
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+            'cancellation_reason' => $request->reason,
+        ]);
+
+        // Create status history
+        try {
+            $user = auth()->user();
+            $notes = 'Booking cancelled by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
+            $booking->statusHistory()->create([
+                'status' => 'cancelled',
+                'changed_by' => auth()->id(),
+                'notes' => $notes,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+        }
+
+        // Send notification to user
+        $this->notificationService->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled by admin. Reason: ' . $request->reason);
+
+        return response()->json([
+            'message' => 'Booking cancelled successfully',
+            'data' => $booking->load(['user', 'facility', 'attendees']),
+        ]);
+    }
+
+    /**
      * Mark booking as completed
      */
     public function markComplete(string $id)

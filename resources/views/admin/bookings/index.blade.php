@@ -129,6 +129,52 @@
     </div>
 </div>
 
+<!-- Cancel Approved Booking Confirmation Modal -->
+<div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
+    <div class="cancel-modal-content" onclick="event.stopPropagation()">
+        <div class="cancel-modal-header" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-bottom: 2px solid #fbbf24;">
+            <div class="cancel-modal-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                <i class="fas fa-ban"></i>
+            </div>
+            <h3 style="color: #d97706;">Cancel Approved Booking</h3>
+            <span class="cancel-modal-close" onclick="closeCancelModal()">&times;</span>
+        </div>
+        <div class="cancel-modal-body">
+            <p class="cancel-warning-text" style="color: #d97706;">
+                Are you sure you want to cancel this approved booking? This action will notify the user and cannot be undone.
+            </p>
+            <div class="cancel-reason-section">
+                <label for="cancelReason" class="cancel-reason-label">
+                    <i class="fas fa-comment-alt"></i> Reason for Cancellation <span class="text-danger">*</span>
+                </label>
+                <select id="cancelReason" class="cancel-reason-select" onchange="handleCancelReasonChange()">
+                    <option value="">Select a reason...</option>
+                    <option value="facility_maintenance">Facility Maintenance</option>
+                    <option value="emergency">Emergency Situation</option>
+                    <option value="policy_violation">Policy Violation</option>
+                    <option value="user_request">User Request</option>
+                    <option value="other">Other (Please specify)</option>
+                </select>
+                <textarea 
+                    id="customCancelReason" 
+                    class="cancel-custom-reason" 
+                    placeholder="Please provide additional details..."
+                    style="display: none;"
+                    rows="3"
+                ></textarea>
+            </div>
+        </div>
+        <div class="cancel-modal-footer">
+            <button class="btn-cancel-modal" onclick="closeCancelModal()">
+                <i class="fas fa-times"></i> Close
+            </button>
+            <button class="btn-confirm-cancel" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <i class="fas fa-ban"></i> Confirm Cancellation
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Create/Edit Booking Modal -->
 <div id="bookingModal" class="modal" style="display: none;">
     <div class="modal-content modal-large">
