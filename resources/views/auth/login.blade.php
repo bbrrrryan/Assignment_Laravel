@@ -51,7 +51,7 @@
 
         <div id="errorMessage" class="error-message" style="display: none;"></div>
     <script src="{{ asset('js/auth/login.js') }}"></script>
-</div>
+    </div>
 </div>
 @endsection
 

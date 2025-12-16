@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Booking Details - TARUMT FMS')
 
@@ -6,7 +6,7 @@
 <div class="page-container">
     <div class="page-header">
         <h1>Booking Details</h1>
-        <a href="{{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? route('admin.bookings.index') : route('bookings.index') }}" class="btn-secondary">
+        <a href="{{ auth()->user()->isAdmin() ? route('admin.bookings.index') : route('bookings.index') }}" class="btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Bookings
         </a>
     </div>
@@ -16,7 +16,7 @@
     </div>
 </div>
 
-@if(!auth()->user()->isAdmin() && !auth()->user()->isStaff())
+@if(!auth()->user()->isAdmin())
 <!-- Cancel Booking Confirmation Modal -->
 <div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
     <div class="cancel-modal-content" onclick="event.stopPropagation()">
@@ -70,8 +70,8 @@
 <script>
     // Set Blade variables for external JavaScript
     window.bookingId = {{ $id }};
-    window.bookingsIndexUrl = '{{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? route('admin.bookings.index') : route('bookings.index') }}';
-    window.isAdminOrStaff = {{ (auth()->user()->isAdmin() || auth()->user()->isStaff()) ? 'true' : 'false' }};
+    window.bookingsIndexUrl = '{{ auth()->user()->isAdmin() ? route('admin.bookings.index') : route('bookings.index') }}';
+    window.isAdmin = {{ auth()->user()->isAdmin() ? 'true' : 'false' }};
 </script>
 <script src="{{ asset('js/bookings/show.js') }}"></script>
 @endsection

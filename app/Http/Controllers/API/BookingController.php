@@ -301,15 +301,6 @@ class BookingController extends Controller
             $user->activityLogs()->create([
                 'action' => 'create_booking',
                 'description' => "Created booking for facility: {$facility->name} on {$validated['booking_date']}",
-                'metadata' => [
-                    'booking_id' => $booking->id,
-                    'facility_id' => $facility->id,
-                    'facility_name' => $facility->name,
-                    'booking_date' => $validated['booking_date'],
-                    'start_time' => $validated['start_time'],
-                    'end_time' => $validated['end_time'],
-                    'status' => $booking->status,
-                ],
             ]);
         } catch (\Exception $e) {
             // Activity log is optional, continue even if it fails

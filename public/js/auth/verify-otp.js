@@ -35,17 +35,23 @@ document.addEventListener('DOMContentLoaded', function() {
 async function resendOtp(event) {
     event.preventDefault();
     
+    // Get email from URL parameter first (most secure), then from form input
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailFromUrl = urlParams.get('email');
     const emailInput = document.getElementById('email');
-    if (!emailInput || !emailInput.value) {
+    const emailFromForm = emailInput ? emailInput.value : null;
+    
+    // Prioritize URL email (cannot be tampered), fallback to form email
+    const email = emailFromUrl || emailFromForm;
+    
+    if (!email) {
         if (typeof showToast === 'function') {
-            showToast('Please enter your email address first', 'error');
+            showToast('Email address not found. Please register again.', 'error');
         } else {
-            alert('Please enter your email address first');
+            alert('Email address not found. Please register again.');
         }
         return;
     }
-    
-    const email = emailInput.value;
     const resendLink = document.getElementById('resendOtpLink');
     const originalText = resendLink ? resendLink.textContent : '';
     

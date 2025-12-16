@@ -427,11 +427,10 @@
                 }
             }, 4000);
         }
-        
-<<<<<<< HEAD
+
         // Make showToast available globally
         window.showToast = showToast;
-=======
+
         // Custom confirm dialog that returns a Promise
         function showConfirm(message, title) {
             return new Promise(function(resolve) {
@@ -540,7 +539,10 @@
                 };
             });
         }
->>>>>>> origin/bryan
+
+        // Make showConfirm and showPrompt available globally
+        window.showConfirm = showConfirm;
+        window.showPrompt = showPrompt;
     </script>
     
     <style>
@@ -709,11 +711,16 @@
                         }
                     }
                 } else if (isAdmin || isStaff) {
-                    // For admin/staff: get unread notifications count (same as students)
-                    const result = await API.get('/notifications/user/unread-count');
+                    // For admin/staff: get pending bookings count
+                    const result = await API.get('/bookings/pending?limit=0');
                     let count = 0;
-                    if (result && result.success !== false && result.data && result.data.count !== undefined) {
-                        count = result.data.count;
+                    if (result && result.success !== false && result.data) {
+                        // Check if result.data has items array (pending bookings) or count property
+                        if (result.data.items && Array.isArray(result.data.items)) {
+                            count = result.data.items.length;
+                        } else if (result.data.count !== undefined) {
+                            count = result.data.count;
+                        }
                     }
                     
                     const badge = document.getElementById('notificationNavBadge');
@@ -791,8 +798,8 @@
                 const isStudent = API.isStudent();
                 const viewAllLink = document.getElementById('viewAllLink');
                 
-                // Student: show Announcements & Notifications
-                // Staff/Admin: show only pending bookings
+                // Student/Staff: show Announcements & Notifications
+                // Admin: show only pending bookings
                 if (isStudent) {
                     // For students: show unread announcements and notifications
                     if (titleElement) {
@@ -860,17 +867,18 @@
                         `;
                     }).join('');
                 } else if (isAdmin || isStaff) {
-                    // For admin/staff: show Announcements & Notifications (same as students)
+                    // For admin/staff: ONLY show pending bookings (no announcements)
                     if (titleElement) {
                         titleElement.textContent = 'Notifications';
                     }
                     if (viewAllLink) {
-                        viewAllLink.href = '/admin/announcements';
+                        // Admin/Staff should go to admin bookings page
+                        viewAllLink.href = '/admin/bookings';
                     }
                     
-                    // Get unread announcements and notifications
-                    const result = await API.get('/notifications/user/unread-items?limit=10&only_unread=true');
-                    console.log('Unread items API result (full):', JSON.stringify(result, null, 2));
+                    // Admin/Staff bell only displays user booking requests
+                    const result = await API.get('/bookings/pending?limit=10');
+                    console.log('Pending bookings API result:', result);
                     
                     // Extract items from response
                     let items = [];
@@ -1037,8 +1045,8 @@
         <nav>
             <ul>
                 @auth
-                    @if(auth()->user()->isAdmin() || auth()->user()->isStaff())
-                        {{-- Admin/Staff Navigation --}}
+                    @if(auth()->user()->isAdmin())
+                        {{-- Admin Navigation --}}
                         <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                         <li><a href="{{ route('admin.users.index') }}">User Management</a></li>
                         <li><a href="{{ route('admin.facilities.index') }}">Facility Management</a></li>
@@ -1047,7 +1055,7 @@
                         <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback Management</a></li>
                     @else
-                        {{-- Student Navigation --}}
+                        {{-- Staff and Student Navigation (User Site) --}}
                         <li><a href="{{ route('home') }}">Home</a></li>
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                         <li><a href="{{ route('bookings.index') }}">Bookings</a></li>

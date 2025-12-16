@@ -77,7 +77,9 @@ class AuthController extends Controller
         ];
         
         if ($role === 'student') {
-            $userData['studentid'] = User::generateStudentId();
+            $userData['personal_id'] = User::generateStudentId();
+        } elseif ($role === 'staff') {
+            $userData['personal_id'] = User::generateStaffId();
         }
         
         try {
@@ -155,7 +157,6 @@ class AuthController extends Controller
         $user->activityLogs()->create([
             'action' => 'login',
             'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -176,7 +177,6 @@ class AuthController extends Controller
         $request->user()->activityLogs()->create([
             'action' => 'logout',
             'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
         ]);
 
         $request->user()->currentAccessToken()->delete();
