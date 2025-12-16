@@ -120,11 +120,33 @@ class AuthController extends Controller
             'otp_code' => 'required|string|size:6',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // Get email from request - prioritize URL parameter for security (cannot be tampered)
+        $emailFromUrl = $request->query('email');
+        $emailFromForm = $request->input('email');
+        
+        // Use URL email if available (more secure), otherwise use form email
+        $emailToVerify = $emailFromUrl ?: $emailFromForm;
+
+        $user = User::where('email', $emailToVerify)->first();
 
         if (!$user) {
             return back()->withErrors([
                 'otp_code' => 'Email not found.',
+            ])->withInput();
+        }
+        
+        // Security check: If form email is provided and differs from URL email or user's email,
+        // reject the request (prevents email tampering even if readonly is bypassed)
+        if ($emailFromForm && $emailFromForm !== $user->email) {
+            return back()->withErrors([
+                'email' => 'Email cannot be changed during verification.',
+            ])->withInput();
+        }
+        
+        // Additional check: If URL email exists and form email exists, they must match
+        if ($emailFromUrl && $emailFromForm && $emailFromUrl !== $emailFromForm) {
+            return back()->withErrors([
+                'email' => 'Email mismatch detected. Please use the email from the verification link.',
             ])->withInput();
         }
 

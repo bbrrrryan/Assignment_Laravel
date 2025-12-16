@@ -10,7 +10,12 @@
             <h1>User Management</h1>
             <p>Manage all users in the system</p>
         </div>
-        <div>
+        <div class="d-flex" style="gap: 10px;">
+            @if(auth()->user()->isAdmin())
+                <a href="{{ route('admin.users.create') }}" class="btn-header-white">
+                    <i class="fas fa-user-plus"></i> Add Staff
+                </a>
+            @endif
             <a href="{{ route('admin.users.export-csv') }}" class="btn-header-white">
                 <i class="fas fa-download"></i> Export CSV
             </a>

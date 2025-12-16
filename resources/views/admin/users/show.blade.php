@@ -36,10 +36,10 @@
                     <label>Email</label>
                     <p>{{ $user->email }}</p>
                 </div>
-                @if($user->role === 'student' && $user->studentid)
+                @if(($user->role === 'student' || $user->role === 'staff') && $user->personal_id)
                 <div class="detail-item">
-                    <label>Student ID</label>
-                    <p>{{ $user->studentid }}</p>
+                    <label>{{ $user->role === 'student' ? 'Student ID' : 'Staff ID' }}</label>
+                    <p>{{ $user->personal_id }}</p>
                 </div>
                 @endif
                 <div class="detail-item">

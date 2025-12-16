@@ -77,7 +77,9 @@ class AuthController extends Controller
         ];
         
         if ($role === 'student') {
-            $userData['studentid'] = User::generateStudentId();
+            $userData['personal_id'] = User::generateStudentId();
+        } elseif ($role === 'staff') {
+            $userData['personal_id'] = User::generateStaffId();
         }
         
         try {

@@ -98,7 +98,9 @@ class UserController extends Controller
         ];
         
         if ($request->role === 'student') {
-            $userData['studentid'] = User::generateStudentId();
+            $userData['personal_id'] = User::generateStudentId();
+        } elseif ($request->role === 'staff') {
+            $userData['personal_id'] = User::generateStaffId();
         }
         
         $user = User::create($userData);
@@ -332,7 +334,9 @@ class UserController extends Controller
                     }
 
                     if ($userData['role'] === 'student') {
-                        $userData['studentid'] = User::generateStudentId();
+                        $userData['personal_id'] = User::generateStudentId();
+                    } elseif ($userData['role'] === 'staff') {
+                        $userData['personal_id'] = User::generateStaffId();
                     }
 
                     User::create($userData);

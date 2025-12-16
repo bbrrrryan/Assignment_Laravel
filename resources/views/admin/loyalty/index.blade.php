@@ -2371,7 +2371,7 @@ async function loadUsersForDeduct() {
             users.forEach(user => {
                 const option = document.createElement('option');
                 option.value = user.id;
-                option.textContent = `${user.name} (${user.email})${user.studentid ? ' - ' + user.studentid : ''}`;
+                option.textContent = `${user.name} (${user.email})${user.personal_id ? ' - ' + user.personal_id : ''}`;
                 select.appendChild(option);
             });
             

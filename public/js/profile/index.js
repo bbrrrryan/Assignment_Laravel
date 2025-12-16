@@ -30,11 +30,11 @@ function displayProfile(user) {
     document.getElementById('profileRole').textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
     document.getElementById('profileRole').className = 'role-badge role-' + roleName.toLowerCase();
 
-    // Show studentid if user is a student
+    // Show personal_id if user is a student or staff
     const studentIdElement = document.getElementById('profileStudentId');
-    if (user.role === 'student' && user.studentid) {
-        studentIdElement.textContent = user.studentid;
-        studentIdElement.className = 'role-badge role-student';
+    if ((user.role === 'student' || user.role === 'staff') && user.personal_id) {
+        studentIdElement.textContent = user.personal_id;
+        studentIdElement.className = 'role-badge role-' + user.role;
         studentIdElement.style.display = 'inline-block';
     } else {
         studentIdElement.style.display = 'none';

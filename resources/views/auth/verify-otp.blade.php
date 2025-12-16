@@ -15,10 +15,13 @@
             @csrf
             <div class="form-group">
                 <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" value="{{ old('email', request('email')) }}" required autofocus>
+                <input type="email" id="email" name="email" value="{{ old('email', $email ?? request('email')) }}" required readonly style="background-color: #f5f5f5; cursor: not-allowed;" autocomplete="off">
                 @error('email')
                     <span class="error-text">{{ $message }}</span>
                 @enderror
+                <small style="display: block; margin-top: 5px; color: #666;">
+                    <i class="fas fa-lock"></i> Email cannot be changed during verification
+                </small>
             </div>
 
             <div class="form-group">

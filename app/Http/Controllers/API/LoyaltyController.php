@@ -166,7 +166,7 @@ class LoyaltyController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('studentid', 'like', "%{$search}%");
+                  ->orWhere('personal_id', 'like', "%{$search}%");
             });
         }
 
@@ -175,7 +175,7 @@ class LoyaltyController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'studentid' => $user->studentid ?? null,
+                'personal_id' => $user->personal_id ?? null,
                 'total_points' => $user->loyaltyPoints()->sum('points'),
                 'points_count' => $user->loyaltyPoints()->count(),
             ];
