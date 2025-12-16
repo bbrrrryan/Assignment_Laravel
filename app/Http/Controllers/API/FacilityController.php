@@ -42,7 +42,11 @@ class FacilityController extends Controller
             return $facility;
         });
         
-        return response()->json(['data' => $facilities]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $facilities,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function store(Request $request)
@@ -54,7 +58,11 @@ class FacilityController extends Controller
             'location' => 'required',
             'capacity' => 'required|integer',
         ]));
-        return response()->json(['data' => $facility], 201);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $facility,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ], 201);
     }
 
     public function show(string $id, Request $request)
@@ -65,24 +73,38 @@ class FacilityController extends Controller
         $user = $request->user();
         if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
             return response()->json([
-                'message' => 'You are not allowed to view this facility.'
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => 'You are not allowed to view this facility.',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 403);
         }
         
-        return response()->json(['data' => $facility]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $facility,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function update(Request $request, string $id)
     {
         $facility = Facility::findOrFail($id);
         $facility->update($request->all());
-        return response()->json(['data' => $facility]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $facility,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     public function destroy(string $id)
     {
         Facility::findOrFail($id)->delete();
-        return response()->json(['message' => 'Deleted']);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'message' => 'Deleted',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     /**
@@ -153,6 +175,7 @@ class FacilityController extends Controller
             }
             
             return response()->json([
+                'status' => 'S', // IFA Standard
                 'message' => 'Availability checked',
                 'data' => [
                     'facility_id' => $facility->id,
@@ -169,11 +192,13 @@ class FacilityController extends Controller
                     'is_available' => $isAvailable,
                     'overlapping_bookings_count' => $overlappingBookings->count(),
                 ],
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ]);
         }
 
         // Return all bookings for the day with capacity information
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Availability retrieved',
             'data' => [
                 'facility_id' => $facility->id,
@@ -210,6 +235,7 @@ class FacilityController extends Controller
                     return $booking->expected_attendees ?? 1;
                 }),
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -247,6 +273,7 @@ class FacilityController extends Controller
             ->pluck('count', 'status');
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Utilization statistics retrieved',
             'data' => [
                 'facility' => [
@@ -266,6 +293,89 @@ class FacilityController extends Controller
                     'status_breakdown' => $statusBreakdown,
                 ],
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
+    }
+
+    /**
+     * Web Service API: Get facility information
+     * This endpoint is designed for inter-module communication
+     * Used by other modules (e.g., Booking Module) to query facility information
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     */
+    public function getFacilityInfo(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'facility_id' => 'required|exists:facilities,id',
+        ]);
+
+        $facility = Facility::where('is_deleted', false)
+            ->with('bookings')
+            ->findOrFail($request->facility_id);
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'Facility information retrieved successfully',
+            'data' => [
+                'facility' => $facility,
+                'capacity' => $facility->capacity,
+                'status' => $facility->status,
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
+    }
+
+    /**
+     * Web Service API: Check facility availability
+     * This endpoint is designed for inter-module communication
+     * Used by other modules (e.g., Booking Module) to check facility availability
+     */
+    public function checkAvailabilityService(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'facility_id' => 'required|exists:facilities,id',
+            'date' => 'required|date',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'expected_attendees' => 'nullable|integer|min:1',
+        ]);
+
+        $facility = Facility::where('is_deleted', false)->findOrFail($request->facility_id);
+        
+        // Use existing availability logic
+        $availability = $this->availability($facility->id, $request);
+        $data = json_decode($availability->getContent(), true);
+        
+        return response()->json([
+            'status' => 'S',
+            'message' => 'Availability checked successfully',
+            'data' => $data['data'] ?? $data,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 }

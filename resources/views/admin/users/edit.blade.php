@@ -59,14 +59,14 @@
                 <div class="form-group">
                     <label for="role">Role <span class="required">*</span></label>
                     {{-- Role is now read-only for all users (including admin) --}}
-                    <div class="role-display">
-                        <span class="badge badge-info">
-                            {{ ucfirst($user->role) }}
-                        </span>
-                    </div>
-                    <small class="text-muted">
+                        <div class="role-display">
+                            <span class="badge badge-info">
+                                {{ ucfirst($user->role) }}
+                            </span>
+                        </div>
+                        <small class="text-muted">
                         <i class="fas fa-info-circle"></i> User role cannot be changed here. Current role: <strong>{{ ucfirst($user->role) }}</strong>
-                    </small>
+                        </small>
                 </div>
             </div>
 

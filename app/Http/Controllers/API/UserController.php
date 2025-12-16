@@ -481,4 +481,63 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Web Service API: Get user IDs by criteria
+     * This endpoint is designed for inter-module communication
+     * Used by other modules (e.g., Announcement Module) to query users
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserIds(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $query = User::query();
+
+        // Filter by status (default: active)
+        $status = $request->get('status', 'active');
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        // Filter by role
+        if ($request->has('role')) {
+            $query->where('role', $request->role);
+        }
+
+        // Filter by specific user IDs
+        if ($request->has('user_ids') && is_array($request->user_ids)) {
+            $query->whereIn('id', $request->user_ids);
+        }
+
+        // Get only IDs
+        $userIds = $query->pluck('id')->toArray();
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'User IDs retrieved successfully',
+            'data' => [
+                'user_ids' => $userIds,
+                'count' => count($userIds),
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
+    }
+
 }

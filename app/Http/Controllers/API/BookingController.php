@@ -12,6 +12,7 @@ use App\Services\BookingCapacityService;
 use App\Services\BookingNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class BookingController extends Controller
 {
@@ -61,7 +62,11 @@ class BookingController extends Controller
         }
         
         $bookings = $query->paginate($perPage);
-        return response()->json(['data' => $bookings]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $bookings,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     /**
@@ -74,14 +79,43 @@ class BookingController extends Controller
             $facilityId = $request->input('facility_id');
             if (!$facilityId) {
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'message' => 'Facility ID is required',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 422);
             }
             
-            $facility = Facility::find($facilityId);
+            // ✅ Service Consumption: Get facility info via HTTP from Facility Management Module
+            $baseUrl = config('app.url', 'http://localhost:8000');
+            $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
+            
+            $facilityResponse = Http::timeout(10)->post($apiUrl, [
+                'facility_id' => $facilityId,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ]);
+            
+            if (!$facilityResponse->successful()) {
+                Log::warning('Failed to get facility from Facility Management Module', [
+                    'status' => $facilityResponse->status(),
+                    'response' => $facilityResponse->body(),
+                ]);
+                // Fallback to direct query
+                $facility = Facility::find($facilityId);
+            } else {
+                $facilityData = $facilityResponse->json();
+                if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
+                    // Convert array to Facility model instance
+                    $facility = Facility::find($facilityId);
+                } else {
+                    $facility = Facility::find($facilityId);
+                }
+            }
+            
             if (!$facility) {
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'message' => 'Facility not found',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 404);
             }
             
@@ -111,7 +145,9 @@ class BookingController extends Controller
                         
                         if ($slotEnd->lte($slotStart)) {
                             return response()->json([
+                                'status' => 'F', // IFA Standard: F (Fail)
                                 'message' => 'End time must be after start time for slot',
+                                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                             ], 422);
                         }
                         
@@ -130,14 +166,20 @@ class BookingController extends Controller
                         ];
                     } catch (\Exception $e) {
                         return response()->json([
+                            'status' => 'F', // IFA Standard: F (Fail)
                             'message' => 'Invalid time slot format: ' . $e->getMessage(),
+                            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                         ], 422);
                     }
                 }
                 
                 // Validate available day for first slot
                 if ($error = $this->validationService->validateAvailableDay($bookingDate, $facility)) {
-                    return response()->json(['message' => $error], 422);
+                    return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
+                        'message' => $error,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ], 422);
                 }
                 
                 // Validate each slot's available time
@@ -147,7 +189,11 @@ class BookingController extends Controller
                         $slot['end_time'],
                         $facility
                     )) {
-                        return response()->json(['message' => $error], 422);
+                        return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
+                        'message' => $error,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ], 422);
                     }
                 }
                 
@@ -173,19 +219,29 @@ class BookingController extends Controller
                     $validated['end_time'] = $this->validationService->parseDateTime($validated['end_time']);
                 } catch (\Exception $e) {
                     return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
                         'message' => 'Invalid date/time format. Please use the correct format.',
                         'error' => $e->getMessage(),
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                     ], 422);
                 }
 
                 // Validate time range
                 if ($error = $this->validationService->validateTimeRange($validated['start_time'], $validated['end_time'])) {
-                    return response()->json(['message' => $error], 422);
+                    return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
+                        'message' => $error,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ], 422);
                 }
 
                 // Validate available day
                 if ($error = $this->validationService->validateAvailableDay($validated['booking_date'], $facility)) {
-                    return response()->json(['message' => $error], 422);
+                    return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
+                        'message' => $error,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ], 422);
                 }
 
                 // Validate available time
@@ -194,7 +250,11 @@ class BookingController extends Controller
                     $validated['end_time'],
                     $facility
                 )) {
-                    return response()->json(['message' => $error], 422);
+                    return response()->json([
+                        'status' => 'F', // IFA Standard: F (Fail)
+                        'message' => $error,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    ], 422);
                 }
                 
                 // Create single slot for old format
@@ -214,7 +274,11 @@ class BookingController extends Controller
 
             // Validate facility status
             if ($error = $this->validationService->validateFacilityStatus($facility)) {
-                return response()->json(['message' => $error], 400);
+                return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
+                    'message' => $error,
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                ], 400);
             }
 
         // Calculate total duration from slots
@@ -222,7 +286,9 @@ class BookingController extends Controller
         
         if ($durationHours <= 0) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Invalid booking duration',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -237,7 +303,11 @@ class BookingController extends Controller
         );
         
         if (!$maxHoursCheck['available']) {
-            return response()->json(['message' => $maxHoursCheck['message']], 400);
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => $maxHoursCheck['message'],
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 400);
         }
 
         // Check capacity and multi-attendees setting
@@ -260,7 +330,11 @@ class BookingController extends Controller
             );
             
             if (!$capacityCheck['available']) {
-                return response()->json(['message' => $capacityCheck['message']], 409);
+                return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
+                    'message' => $capacityCheck['message'],
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                ], 409);
             }
         }
 
@@ -269,7 +343,9 @@ class BookingController extends Controller
         
         if (!$user->isStudent()) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only students can create bookings',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 403);
         }
         
@@ -357,13 +433,17 @@ class BookingController extends Controller
         ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 422);
         } catch (\Exception $e) {
             \Log::error('Booking creation error: ' . $e->getMessage());
             return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
                 'message' => 'Failed to create booking: ' . $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 500);
         }
     }
@@ -372,17 +452,25 @@ class BookingController extends Controller
     {
         try {
             $booking = Booking::with(['user', 'facility', 'statusHistory', 'attendees', 'slots'])->findOrFail($id);
-            return response()->json(['data' => $booking]);
+            return response()->json([
+                'status' => 'S', // IFA Standard
+                'data' => $booking,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Booking not found',
-                'error' => 'No query results for model [App\Models\Booking] ' . $id
+                'error' => 'No query results for model [App\Models\Booking] ' . $id,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 404);
         } catch (\Exception $e) {
             \Log::error('Error fetching booking: ' . $e->getMessage());
             return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
                 'message' => 'Error loading booking details',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 500);
         }
     }
@@ -395,7 +483,9 @@ class BookingController extends Controller
     public function destroy(string $id)
     {
         return response()->json([
+            'status' => 'F', // IFA Standard: F (Fail)
             'message' => 'Delete functionality is disabled. Please use reject or cancel instead.',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ], 403);
     }
 
@@ -408,7 +498,9 @@ class BookingController extends Controller
 
         if ($booking->status !== 'pending') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only pending bookings can be approved',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -428,7 +520,9 @@ class BookingController extends Controller
         
         if (!$capacityCheck['available']) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Cannot approve: ' . $capacityCheck['message'],
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 409);
         }
 
@@ -451,8 +545,10 @@ class BookingController extends Controller
         $this->notificationService->sendBookingNotification($booking, 'approved', 'Your booking has been approved!');
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking approved successfully',
             'data' => $booking->load(['user', 'facility', 'approver', 'attendees', 'slots']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -469,7 +565,9 @@ class BookingController extends Controller
 
         if ($booking->status !== 'pending') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only pending bookings can be rejected',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -495,8 +593,10 @@ class BookingController extends Controller
         $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your booking has been rejected. Reason: ' . $request->reason);
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking rejected successfully',
             'data' => $booking->load(['user', 'facility', 'attendees', 'slots']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -525,7 +625,11 @@ class BookingController extends Controller
             $this->notificationService->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled' . ($request->reason ? '. Reason: ' . $request->reason : ''));
         }
 
-        return response()->json(['data' => $booking]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $booking,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
     /**
@@ -539,7 +643,9 @@ class BookingController extends Controller
         // 只有管理员或员工可以完成预订
         if (!$user->isAdmin() && !$user->isStaff()) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only administrators and staff can complete bookings',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 403);
         }
 
@@ -548,7 +654,9 @@ class BookingController extends Controller
         // 只有已批准的预订可以完成
         if ($booking->status !== 'approved') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only approved bookings can be completed',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -574,8 +682,10 @@ class BookingController extends Controller
         $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been completed! Points have been awarded to your account.');
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking completed successfully',
             'data' => $booking->load(['user', 'facility', 'attendees']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -586,7 +696,11 @@ class BookingController extends Controller
             ->with(['user', 'facility', 'attendees', 'slots'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
-        return response()->json(['data' => $bookings]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $bookings,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
 
@@ -602,14 +716,38 @@ class BookingController extends Controller
             'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
-        $facility = Facility::findOrFail($facilityId);
+        // ✅ Service Consumption: Get facility info via HTTP from Facility Management Module
+        $baseUrl = config('app.url', 'http://localhost:8000');
+        $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
+        
+        $facilityResponse = Http::timeout(10)->post($apiUrl, [
+            'facility_id' => $facilityId,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
+        
+        if (!$facilityResponse->successful()) {
+            Log::warning('Failed to get facility from Facility Management Module', [
+                'status' => $facilityResponse->status(),
+            ]);
+            // Fallback to direct query
+            $facility = Facility::findOrFail($facilityId);
+        } else {
+            $facilityData = $facilityResponse->json();
+            if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
+                $facility = Facility::findOrFail($facilityId);
+            } else {
+                $facility = Facility::findOrFail($facilityId);
+            }
+        }
 
         // Check if facility is available
         if ($facility->status !== 'available') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'is_available' => false,
                 'message' => 'Facility is not available',
                 'reason' => $facility->status,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ]);
         }
 
@@ -622,9 +760,11 @@ class BookingController extends Controller
             if (!in_array($dayOfWeek, $facility->available_day)) {
                 $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'is_available' => false,
                     'message' => "This facility is not available on {$bookingDate->format('l, F j, Y')}. Available days: {$availableDaysStr}",
                     'reason' => 'day_not_available',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ]);
             }
         }
@@ -642,9 +782,11 @@ class BookingController extends Controller
             // Check against max_attendees if set
             if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'is_available' => false,
                     'message' => "Expected attendees ({$expectedAttendees}) exceed maximum allowed ({$facility->max_attendees}) for this facility",
                     'reason' => 'max_attendees_exceeded',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ]);
             }
         }
@@ -692,6 +834,7 @@ class BookingController extends Controller
         $availableCapacity = max(0, $facility->capacity - $totalAttendees);
 
         return response()->json([
+            'status' => $isAvailable ? 'S' : 'F', // IFA Standard
             'is_available' => $isAvailable,
             'message' => $isAvailable 
                 ? 'Time slot is available. Capacity allows this booking.' 
@@ -718,6 +861,7 @@ class BookingController extends Controller
                     ];
                 }),
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -749,11 +893,13 @@ class BookingController extends Controller
         $count = Booking::where('status', 'pending')->count();
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Pending bookings retrieved successfully',
             'data' => [
                 'bookings' => $bookings,
                 'count' => $count,
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 

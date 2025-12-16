@@ -39,9 +39,11 @@ class AuthController extends Controller
                 if ($existingUser->otp_expires_at && !$existingUser->otp_expires_at->isPast()) {
                     // Inactive account with valid OTP (pending verification), redirect to OTP verification page
                     return response()->json([
+                        'status' => 'S', // IFA Standard
                         'message' => 'OTP already sent. Please check your email and verify.',
                         'redirect_to_otp' => true,
                         'email' => $existingUser->email,
+                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                     ], 200);
                 } else if ($existingUser->otp_expires_at && $existingUser->otp_expires_at->isPast()) {
                     // Inactive account with expired OTP (unactivated registration), allow re-registration
@@ -112,17 +114,21 @@ class AuthController extends Controller
             
             // Return error response
             return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
                 'message' => 'Cannot send OTP email. Please check email configuration.',
                 'error' => 'Email sending failed: ' . $errorMessage,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 500);
         }
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Registration successful. Please check your email for OTP code.',
             'data' => [
                 'user_id' => $user->id,
                 'email' => $user->email,
-            ]
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ], 201);
     }
 
@@ -146,7 +152,9 @@ class AuthController extends Controller
 
         if ($user->status !== 'active') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Account is not active',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 403);
         }
 
@@ -162,9 +170,11 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Login successful',
             'user' => $user,
             'token' => $token,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -182,7 +192,9 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Logged out successfully',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -194,7 +206,9 @@ class AuthController extends Controller
         $user = $request->user();
         
         return response()->json([
+            'status' => 'S', // IFA Standard
             'user' => $user,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -211,14 +225,18 @@ class AuthController extends Controller
 
         if (!$user) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Email not found.',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 404);
         }
 
         // Check if account is already active
         if ($user->status === 'active') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Account already activated. Please login.',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -238,13 +256,17 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to resend OTP email: ' . $e->getMessage());
             return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
                 'message' => 'Cannot send OTP email. Please check email configuration.',
                 'error' => 'Email sending failed: ' . $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 500);
         }
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'OTP code resent successfully. Please check your email.',
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ], 200);
     }
 }

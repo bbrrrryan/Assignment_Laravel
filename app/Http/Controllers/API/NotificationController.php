@@ -13,6 +13,8 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
@@ -513,8 +515,91 @@ class NotificationController extends Controller
 
     /**
      * Get target users based on notification audience
+     * This method uses HTTP to call User Management Module's Web Service
+     * instead of directly querying the database (Inter-module communication)
      */
     private function getTargetUsers(Notification $notification): array
+    {
+        try {
+            // Get base URL for User Management Module
+            $baseUrl = config('app.url', 'http://localhost:8000');
+            $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
+
+            // Prepare request parameters based on target audience
+            // IFA Standard: Include timestamp in request (mandatory requirement)
+            $params = [
+                'status' => 'active',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            ];
+
+            switch ($notification->target_audience) {
+                case 'all':
+                    // Get all active users
+                    break;
+
+                case 'students':
+                    $params['role'] = 'student';
+                    break;
+
+                case 'staff':
+                    $params['role'] = 'staff';
+                    break;
+
+                case 'admins':
+                    $params['role'] = 'admin';
+                    break;
+
+                case 'specific':
+                    // For specific users, use the provided user IDs
+                    $targetUserIds = $notification->target_user_ids ?? [];
+                    if (empty($targetUserIds)) {
+                        return [];
+                    }
+                    $params['user_ids'] = $targetUserIds;
+                    break;
+
+                default:
+                    return [];
+            }
+
+            // Make HTTP request to User Management Module (Inter-module Web Service call)
+            $response = Http::timeout(10)->post($apiUrl, $params);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['data']['user_ids']) && is_array($data['data']['user_ids'])) {
+                    return $data['data']['user_ids'];
+                }
+            } else {
+                // Log error but don't fail completely
+                Log::warning('Failed to get user IDs from User Management Module', [
+                    'status' => $response->status(),
+                    'response' => $response->body(),
+                    'notification_id' => $notification->id,
+                ]);
+                
+                // Fallback to direct database query if HTTP call fails
+                return $this->getTargetUsersFallback($notification);
+            }
+        } catch (\Exception $e) {
+            // Log exception and fallback to direct query
+            Log::error('Exception when calling User Management Module', [
+                'message' => $e->getMessage(),
+                'notification_id' => $notification->id,
+            ]);
+            
+            // Fallback to direct database query
+            return $this->getTargetUsersFallback($notification);
+        }
+
+        return [];
+    }
+
+    /**
+     * Fallback method: Direct database query when HTTP call fails
+     * This maintains backward compatibility and ensures system reliability
+     */
+    private function getTargetUsersFallback(Notification $notification): array
     {
         switch ($notification->target_audience) {
             case 'all':

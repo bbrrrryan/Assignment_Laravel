@@ -11,9 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->renameColumn('studentid', 'personal_id');
-        });
+        // Check if personal_id already exists (migration may have been run manually)
+        if (Schema::hasColumn('users', 'personal_id')) {
+            // Column already exists, skip migration
+            return;
+        }
+        
+        // Check if studentid exists and needs to be renamed
+        if (Schema::hasColumn('users', 'studentid')) {
+            // MariaDB/MySQL doesn't support renameColumn, use raw SQL
+            \DB::statement('ALTER TABLE `users` CHANGE `studentid` `personal_id` VARCHAR(10) NULL');
+        }
     }
 
     /**
@@ -21,8 +29,16 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->renameColumn('personal_id', 'studentid');
-        });
+        // Check if studentid already exists
+        if (Schema::hasColumn('users', 'studentid')) {
+            // Column already exists, skip
+            return;
+        }
+        
+        // Check if personal_id exists and needs to be renamed back
+        if (Schema::hasColumn('users', 'personal_id')) {
+            // MariaDB/MySQL doesn't support renameColumn, use raw SQL
+            \DB::statement('ALTER TABLE `users` CHANGE `personal_id` `studentid` VARCHAR(10) NULL');
+        }
     }
 };

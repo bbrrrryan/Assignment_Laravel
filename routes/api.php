@@ -28,6 +28,12 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
 
+// Inter-module Web Service Routes (for module-to-module communication)
+// These routes are accessible for backend modules to communicate with each other
+Route::post('/users/service/get-ids', [UserController::class, 'getUserIds']);
+Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
+Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
+
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
     // Authentication routes
