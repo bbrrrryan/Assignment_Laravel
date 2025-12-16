@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\Facility;
+use App\Models\User;
+use App\Factories\AnnouncementFactory;
+use App\Models\Announcement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
@@ -125,7 +128,10 @@ class FacilityController extends AdminBaseController
             $validated['max_attendees'] = null;
         }
 
-        Facility::create($validated);
+        $facility = Facility::create($validated);
+
+        // Create announcement for new facility
+        $this->createFacilityAnnouncement($facility, 'new');
 
         return redirect()->route('admin.facilities.index')
             ->with('success', 'Facility created successfully!');
@@ -230,7 +236,21 @@ class FacilityController extends AdminBaseController
             $validated['max_attendees'] = null;
         }
 
+        // Check if status is being changed
+        $oldStatus = $facility->status;
+        $newStatus = $validated['status'] ?? $oldStatus;
+
         $facility->update($validated);
+
+        // Create announcement if status changed to unavailable or maintenance
+        if ($oldStatus !== $newStatus && in_array($newStatus, ['unavailable', 'maintenance'])) {
+            $this->createFacilityAnnouncement($facility, $newStatus);
+        }
+        
+        // Create announcement if status changed from unavailable or maintenance to available
+        if ($oldStatus !== $newStatus && $newStatus === 'available' && in_array($oldStatus, ['unavailable', 'maintenance'])) {
+            $this->createFacilityAnnouncement($facility, 'available');
+        }
 
         return redirect()->route('admin.facilities.index')
             ->with('success', 'Facility updated successfully!');
@@ -247,6 +267,143 @@ class FacilityController extends AdminBaseController
 
         return redirect()->route('admin.facilities.index')
             ->with('success', 'Facility deleted successfully!');
+    }
+
+    /**
+     * Create and publish announcement for facility events
+     * 
+     * @param Facility $facility
+     * @param string $eventType 'new', 'unavailable', 'maintenance', or 'available'
+     */
+    private function createFacilityAnnouncement(Facility $facility, string $eventType)
+    {
+        try {
+            $adminId = auth()->id();
+            
+            // Determine announcement details based on event type
+            switch ($eventType) {
+                case 'new':
+                    $title = "New Facility Added: {$facility->name}";
+                    $content = "\nWe are pleased to inform you that a new facility {$facility->name} (Code: {$facility->code}) is now available.";
+                    $content .= "\n\nFacility Details:";
+                    $content .= "\n- Type: " . ucfirst($facility->type);
+                    $content .= "\n- Location: {$facility->location}";
+                    $content .= "\n- Capacity: {$facility->capacity} people";
+                    if ($facility->description) {
+                        $content .= "\n- Description: {$facility->description}";
+                    }
+                    $content .= "\n\nYou can now start booking this facility.";
+                    $type = 'success';
+                    $priority = 'medium';
+                    break;
+
+                case 'unavailable':
+                    $title = "Facility Temporarily Unavailable: {$facility->name}";
+                    $content = "\nImportant Notice:\n The facility {$facility->name} (Code: {$facility->code}) is currently temporarily unavailable.";
+                    $content .= "\n\nFacility Details:";
+                    $content .= "\n- Location: {$facility->location}";
+                    $content .= "\n- Status: Unavailable";
+                    $content .= "\n\nWe are working to resolve this issue and will notify you when the facility becomes available again.";
+                    $content .= "\nWe apologize for any inconvenience caused.";
+                    $type = 'warning';
+                    $priority = 'high';
+                    break;
+
+                case 'maintenance':
+                    $title = "Facility Maintenance Notice: {$facility->name}";
+                    $content = "\nImportant Notice:\n The facility {$facility->name} (Code: {$facility->code}) is currently under maintenance.";
+                    $content .= "\n\nFacility Details:";
+                    $content .= "\n- Location: {$facility->location}";
+                    $content .= "\n- Status: Under Maintenance";
+                    $content .= "\n\nDuring this period, the facility will be unavailable for booking. We will notify you promptly once maintenance is completed.";
+                    $content .= "\nThank you for your understanding and cooperation.";
+                    $type = 'warning';
+                    $priority = 'high';
+                    break;
+
+                case 'available':
+                    $title = "Facility Now Available: {$facility->name}";
+                    $content = "\nGood News:\n The facility {$facility->name} (Code: {$facility->code}) is now available for booking again.";
+                    $content .= "\n\nFacility Details:";
+                    $content .= "\n- Type: " . ucfirst($facility->type);
+                    $content .= "\n- Location: {$facility->location}";
+                    $content .= "\n- Capacity: {$facility->capacity} people";
+                    if ($facility->description) {
+                        $content .= "\n- Description: {$facility->description}";
+                    }
+                    $content .= "\n- Status: Available";
+                    $content .= "\n\nYou can now proceed to book this facility. We appreciate your patience.";
+                    $type = 'success';
+                    $priority = 'high';
+                    break;
+
+                default:
+                    return; // Unknown event type, don't create announcement
+            }
+
+            // Create announcement using factory
+            $announcement = AnnouncementFactory::makeAnnouncement(
+                $type,
+                $title,
+                $content,
+                'all', // Target all users
+                $adminId,
+                $priority,
+                null, // No specific user IDs
+                now(), // Publish immediately
+                null, // No expiration
+                true  // Active
+            );
+
+            // Publish announcement to all users
+            $this->publishAnnouncementToAllUsers($announcement);
+
+        } catch (\Exception $e) {
+            // Log error but don't fail the facility operation
+            \Log::error('Failed to create facility announcement', [
+                'facility_id' => $facility->id,
+                'event_type' => $eventType,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Publish announcement to all active users
+     * 
+     * @param Announcement $announcement
+     */
+    private function publishAnnouncementToAllUsers(Announcement $announcement)
+    {
+        try {
+            // Get all active users
+            $targetUsers = User::where('status', 'active')->pluck('id')->toArray();
+
+            if (empty($targetUsers)) {
+                return;
+            }
+
+            // Attach announcement to all users
+            $syncData = [];
+            foreach ($targetUsers as $userId) {
+                $syncData[$userId] = [
+                    'is_read' => false,
+                ];
+            }
+
+            $announcement->users()->sync($syncData);
+
+            // Ensure published_at is set
+            if (!$announcement->published_at) {
+                $announcement->update(['published_at' => now()]);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to publish announcement to users', [
+                'announcement_id' => $announcement->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
 

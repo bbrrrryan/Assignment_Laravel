@@ -3,192 +3,113 @@
 @section('title', 'Facility Details - TARUMT FMS')
 
 @section('content')
-<div class="page-container">
+<div class="container">
     <div class="page-header">
-        <h1>Facility Details</h1>
-        <a href="{{ route('facilities.index') }}" class="btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Facilities
-        </a>
+        <div class="page-header-content">
+            <h1>Facility Details</h1>
+            <p>View facility information, book, and submit feedback</p>
+        </div>
+        <div>
+            <a href="{{ route('facilities.index') }}" class="btn-header-white">
+                <i class="fas fa-arrow-left"></i> Back to Facilities
+            </a>
+        </div>
     </div>
 
     <div id="facilityDetails" class="details-container">
         <p>Loading facility details...</p>
     </div>
+
+    <!-- Action Buttons Section -->
+    <div id="actionButtons" class="action-buttons-section" style="display: none;">
+        <div class="action-buttons-card">
+            <a href="#" id="addBookingBtn" class="btn-action btn-booking">
+                <i class="fas fa-calendar-plus"></i>
+                <span>Add Booking</span>
+            </a>
+            <button type="button" id="submitFeedbackBtn" class="btn-action btn-feedback" onclick="openFeedbackModal()">
+                <i class="fas fa-comment-alt"></i>
+                <span>Submit Feedback</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Feedbacks Section -->
+    <div id="feedbacksSection" class="feedbacks-section" style="display: none;">
+        <div class="feedbacks-card">
+            <h2><i class="fas fa-comments"></i> Facility Feedbacks</h2>
+            <div id="feedbacksList" class="feedbacks-list">
+                <p>Loading feedbacks...</p>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- Submit Feedback Modal -->
+<div id="feedbackModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeFeedbackModal()">&times;</span>
+        <h2>Submit Feedback</h2>
+        <form id="feedbackForm">
+            <input type="hidden" id="feedbackFacilityId">
+            <div class="form-group">
+                <label>Type *</label>
+                <select id="feedbackType" required>
+                    <option value="">Select Type</option>
+                    <option value="complaint">Complaint</option>
+                    <option value="suggestion">Suggestion</option>
+                    <option value="compliment">Compliment</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subject *</label>
+                <input type="text" id="feedbackSubject" required>
+            </div>
+            <div class="form-group">
+                <label>Message *</label>
+                <textarea id="feedbackMessage" required rows="5" placeholder="Describe your feedback, complaint, or suggestion..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Rating (1-5) *</label>
+                <select id="feedbackRating" required>
+                    <option value="">Select Rating</option>
+                    <option value="1">1 - Poor</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="3">3 - Good</option>
+                    <option value="4">4 - Very Good</option>
+                    <option value="5">5 - Excellent</option>
+                </select>
+                <small>Rate your experience from 1 to 5</small>
+            </div>
+            <div class="form-group">
+                <label>Image (Optional)</label>
+                <input type="file" id="feedbackImage" accept="image/*" onchange="handleImageUpload(event)">
+                <small>Upload an image related to your feedback (JPG, PNG, GIF). Maximum size: 1MB</small>
+                <div id="imagePreview" style="margin-top: 10px; display: none;">
+                    <img id="previewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #ddd;">
+                    <button type="button" onclick="removeImage()" style="margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        <i class="fas fa-times"></i> Remove
+                    </button>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Submit Feedback</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<link rel="stylesheet" href="{{ asset('css/facilities/index.css') }}">
+<script src="{{ asset('js/facilities/index.js') }}"></script>
 <script>
+// Initialize with facility ID
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof API === 'undefined') {
-        console.error('API.js not loaded!');
-        alert('Error: API functions not loaded. Please refresh the page.');
-        return;
-    }
-
-    if (!API.requireAuth()) return;
-
-    loadFacilityDetails();
-});
-
-async function loadFacilityDetails() {
     const facilityId = {{ $id }};
-    const result = await API.get(`/facilities/${facilityId}`);
-
-    if (result.success) {
-        const facility = result.data.data;
-        displayFacilityDetails(facility);
-    } else {
-        document.getElementById('facilityDetails').innerHTML = `
-            <div class="error-message">
-                <p>Error loading facility details: ${result.error || 'Unknown error'}</p>
-                <a href="{{ route('facilities.index') }}" class="btn-primary">Back to Facilities</a>
-            </div>
-        `;
+    if (typeof initFacilityShow === 'function') {
+        initFacilityShow(facilityId);
     }
-}
-
-function displayFacilityDetails(facility) {
-    const container = document.getElementById('facilityDetails');
-    
-    container.innerHTML = `
-        <div class="details-card">
-            <div class="details-section">
-                <h2>Facility Information</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Name:</span>
-                    <span class="detail-value">${facility.name || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Code:</span>
-                    <span class="detail-value">${facility.code || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Type:</span>
-                    <span class="detail-value">${facility.type || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="status-badge status-${facility.status}">${facility.status || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Location:</span>
-                    <span class="detail-value">${facility.location || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Capacity:</span>
-                    <span class="detail-value">${facility.capacity || 'N/A'} people</span>
-                </div>
-                ${facility.description ? `
-                <div class="detail-row">
-                    <span class="detail-label">Description:</span>
-                    <span class="detail-value">${facility.description}</span>
-                </div>
-                ` : ''}
-            </div>
-
-            ${facility.requires_approval !== undefined ? `
-            <div class="details-section">
-                <h2>Booking Information</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Requires Approval:</span>
-                    <span class="detail-value">${facility.requires_approval ? 'Yes' : 'No'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Max Booking Hours:</span>
-                    <span class="detail-value">${facility.max_booking_hours || 'N/A'} hours</span>
-                </div>
-                ${facility.available_day && facility.available_day.length > 0 && facility.available_time ? `
-                <div class="detail-row">
-                    <span class="detail-label">Available Days & Times:</span>
-                    <span class="detail-value">
-                        <div style="margin-bottom: 10px;">
-                            <strong>Available Days:</strong>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
-                                ${facility.available_day.map(dayKey => {
-                                    const dayNames = {
-                                        'monday': 'Monday',
-                                        'tuesday': 'Tuesday',
-                                        'wednesday': 'Wednesday',
-                                        'thursday': 'Thursday',
-                                        'friday': 'Friday',
-                                        'saturday': 'Saturday',
-                                        'sunday': 'Sunday'
-                                    };
-                                    return \`<span style="background: #007bff; color: white; padding: 4px 12px; border-radius: 4px; font-size: 0.9em;">\${dayNames[dayKey] || dayKey.charAt(0).toUpperCase() + dayKey.slice(1)}</span>\`;
-                                }).join('')}
-                            </div>
-                        </div>
-                        <div>
-                            <strong>Time Range:</strong>
-                            <span style="background: #28a745; color: white; padding: 4px 12px; border-radius: 4px; font-size: 0.9em; margin-left: 8px;">
-                                \${facility.available_time.start || 'N/A'} - \${facility.available_time.end || 'N/A'}
-                            </span>
-                        </div>
-                    </span>
-                </div>
-                ` : ''}
-            </div>
-            ` : ''}
-        </div>
-    `;
-}
+});
 </script>
-
-<style>
-.details-container {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.details-card {
-    background: white;
-    border-radius: 8px;
-    padding: 30px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.details-section {
-    margin-bottom: 30px;
-    padding-bottom: 30px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.details-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.details-section h2 {
-    color: #2c3e50;
-    margin-bottom: 20px;
-    font-size: 1.5em;
-}
-
-.detail-row {
-    display: flex;
-    margin-bottom: 15px;
-    align-items: flex-start;
-}
-
-.detail-label {
-    font-weight: 600;
-    color: #555;
-    min-width: 180px;
-    margin-right: 20px;
-}
-
-.detail-value {
-    color: #333;
-    flex: 1;
-}
-
-.error-message {
-    text-align: center;
-    padding: 40px;
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
-}
-</style>
 @endsection
-

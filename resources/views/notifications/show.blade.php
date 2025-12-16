@@ -7,7 +7,7 @@
 <div class="page-container">
     <div class="page-header">
         <h1>Notification Details</h1>
-        <a href="{{ (auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isStaff())) ? route('admin.announcements.index') : route('notifications.index') }}" class="btn-secondary">
+        <a href="{{ (auth()->check() && auth()->user()->isAdmin()) ? route('admin.announcements.index') : route('notifications.index') }}" class="btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Notifications
         </a>
     </div>
@@ -49,7 +49,7 @@ async function loadNotificationDetails() {
         document.getElementById('notificationDetails').innerHTML = `
             <div class="error-message">
                 <p>Error loading notification details: ${result.error || 'Unknown error'}</p>
-                <a href="{{ (auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isStaff())) ? route('admin.announcements.index') : route('notifications.index') }}" class="btn-primary">Back to Notifications</a>
+                <a href="{{ (auth()->check() && auth()->user()->isAdmin()) ? route('admin.announcements.index') : route('notifications.index') }}" class="btn-primary">Back to Notifications</a>
             </div>
         `;
     }
