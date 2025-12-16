@@ -164,7 +164,7 @@ function displayBookingDetails(booking) {
                 ` : ''}
             </div>
 
-            ${booking.status === 'pending' && !window.isAdminOrStaff ? `
+            ${booking.status === 'pending' && !window.isAdmin ? `
             <div class="details-actions">
                 <div class="cancel-booking-section">
                     <div class="cancel-warning">
@@ -172,6 +172,20 @@ function displayBookingDetails(booking) {
                         <span>You can cancel this pending booking if needed</span>
                     </div>
                     <button class="btn-cancel-booking" onclick="cancelBooking(${booking.id}, this)">
+                        <i class="fas fa-times-circle"></i>
+                        <span>Cancel Booking</span>
+                    </button>
+                </div>
+            </div>
+            ` : ''}
+            ${booking.status === 'approved' && window.isAdmin ? `
+            <div class="details-actions">
+                <div class="cancel-booking-section">
+                    <div class="cancel-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>You can cancel this approved booking if needed</span>
+                    </div>
+                    <button class="btn-cancel-booking" onclick="adminCancelBooking(${booking.id}, this)">
                         <i class="fas fa-times-circle"></i>
                         <span>Cancel Booking</span>
                     </button>
@@ -413,6 +427,141 @@ async function confirmCancelBooking() {
         if (confirmBtn) {
             confirmBtn.disabled = false;
             confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm Cancellation';
+        }
+    }
+}
+
+// Admin cancel booking functions
+let currentAdminCancelBookingId = null;
+
+function adminCancelBooking(id, buttonElement) {
+    currentAdminCancelBookingId = id;
+    
+    // Reset modal
+    document.getElementById('adminCancelReason').value = '';
+    document.getElementById('customAdminCancelReason').value = '';
+    document.getElementById('customAdminCancelReason').style.display = 'none';
+    document.getElementById('confirmAdminCancelBtn').disabled = true;
+    
+    // Show modal
+    document.getElementById('adminCancelBookingModal').style.display = 'flex';
+}
+
+function closeAdminCancelModal() {
+    document.getElementById('adminCancelBookingModal').style.display = 'none';
+    currentAdminCancelBookingId = null;
+    document.getElementById('adminCancelReason').value = '';
+    document.getElementById('customAdminCancelReason').value = '';
+    document.getElementById('customAdminCancelReason').style.display = 'none';
+    document.getElementById('confirmAdminCancelBtn').disabled = true;
+}
+
+function handleAdminCancelReasonChange() {
+    const reasonSelect = document.getElementById('adminCancelReason');
+    const customReason = document.getElementById('customAdminCancelReason');
+    const confirmBtn = document.getElementById('confirmAdminCancelBtn');
+    
+    if (reasonSelect.value === 'other') {
+        customReason.style.display = 'block';
+        customReason.required = true;
+        confirmBtn.disabled = !customReason.value.trim();
+    } else if (reasonSelect.value) {
+        customReason.style.display = 'none';
+        customReason.required = false;
+        confirmBtn.disabled = false;
+    } else {
+        customReason.style.display = 'none';
+        customReason.required = false;
+        confirmBtn.disabled = true;
+    }
+}
+
+// Add event listener for custom admin cancel reason input
+document.addEventListener('DOMContentLoaded', function() {
+    const customAdminCancelReason = document.getElementById('customAdminCancelReason');
+    if (customAdminCancelReason) {
+        customAdminCancelReason.addEventListener('input', function() {
+            const confirmBtn = document.getElementById('confirmAdminCancelBtn');
+            const reasonSelect = document.getElementById('adminCancelReason');
+            if (reasonSelect && reasonSelect.value === 'other') {
+                confirmBtn.disabled = !this.value.trim();
+            }
+        });
+    }
+});
+
+async function confirmAdminCancelBooking() {
+    if (!currentAdminCancelBookingId) {
+        if (typeof showToast === 'function') {
+            showToast('Error: Booking ID is missing. Please try again.', 'error');
+        } else {
+            alert('Error: Booking ID is missing. Please try again.');
+        }
+        return;
+    }
+    
+    const reasonSelect = document.getElementById('adminCancelReason');
+    const customReason = document.getElementById('customAdminCancelReason');
+    let reasonText = '';
+    
+    if (!reasonSelect.value) {
+        if (typeof showToast === 'function') {
+            showToast('Please select a reason for cancellation.', 'warning');
+        } else {
+            alert('Please select a reason for cancellation.');
+        }
+        return;
+    }
+    
+    if (reasonSelect.value === 'other') {
+        if (!customReason.value.trim()) {
+            if (typeof showToast === 'function') {
+                showToast('Please provide a reason for cancellation.', 'warning');
+            } else {
+                alert('Please provide a reason for cancellation.');
+            }
+            return;
+        }
+        reasonText = customReason.value.trim();
+    } else {
+        reasonText = reasonSelect.options[reasonSelect.selectedIndex].text;
+    }
+    
+    const confirmBtn = document.getElementById('confirmAdminCancelBtn');
+    const originalText = confirmBtn.innerHTML;
+    
+    try {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+        
+        const result = await API.put(`/bookings/${currentAdminCancelBookingId}/cancel`, { reason: reasonText });
+        closeAdminCancelModal();
+        
+        if (result.success) {
+            if (typeof showToast === 'function') {
+                showToast('Booking cancelled successfully!', 'success');
+            } else {
+                alert('Booking cancelled successfully!');
+            }
+            // Reload booking details to show updated status
+            loadBookingDetails();
+        } else {
+            if (typeof showToast === 'function') {
+                showToast(result.error || 'Error cancelling booking', 'error');
+            } else {
+                alert(result.error || 'Error cancelling booking');
+            }
+        }
+    } catch (error) {
+        if (typeof showToast === 'function') {
+            showToast('Error cancelling booking: ' + (error.message || 'An unexpected error occurred'), 'error');
+        } else {
+            alert('Error cancelling booking: ' + (error.message || 'An unexpected error occurred'));
+        }
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
         }
     }
 }

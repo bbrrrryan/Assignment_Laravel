@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/usage-statistics', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getUsageStatistics']);
             Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);
             Route::put('/{id}/reject', [\App\Http\Controllers\Admin\AdminBookingController::class, 'reject']);
+            Route::put('/{id}/cancel', [\App\Http\Controllers\Admin\AdminBookingController::class, 'cancel']);
             Route::put('/{id}/mark-complete', [\App\Http\Controllers\Admin\AdminBookingController::class, 'markComplete']);
         });
         
