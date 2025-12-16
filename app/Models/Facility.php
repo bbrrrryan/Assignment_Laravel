@@ -26,6 +26,7 @@ class Facility extends Model
         'image_url',
         'requires_approval',
         'max_booking_hours',
+        'is_deleted',
     ];
 
     protected $casts = [
@@ -34,6 +35,7 @@ class Facility extends Model
         'equipment' => 'array',
         'requires_approval' => 'boolean',
         'enable_multi_attendees' => 'boolean',
+        'is_deleted' => 'boolean',
     ];
 
     // Relationships
