@@ -13,13 +13,7 @@ class UserActivityLog extends Model
         'user_id',
         'action',
         'ip_address',
-        'user_agent',
         'description',
-        'metadata',
-    ];
-
-    protected $casts = [
-        'metadata' => 'array',
     ];
 
     // Relationships

@@ -109,7 +109,6 @@ class UserController extends Controller
         $currentUser->activityLogs()->create([
             'action' => 'create_user',
             'description' => "Created user: {$user->name}",
-            'metadata' => ['user_id' => $user->id],
         ]);
 
         return response()->json([
@@ -177,7 +176,6 @@ class UserController extends Controller
         $currentUser->activityLogs()->create([
             'action' => 'update_user',
             'description' => "Updated user: {$user->name}",
-            'metadata' => ['user_id' => $user->id, 'changes' => $updateData],
         ]);
 
         return response()->json([
@@ -201,7 +199,6 @@ class UserController extends Controller
         $currentUser->activityLogs()->create([
             'action' => 'delete_user',
             'description' => "Deleted user: {$user->name}",
-            'metadata' => ['user_id' => $user->id],
         ]);
 
         $user->delete();
@@ -355,7 +352,6 @@ class UserController extends Controller
             $currentUser->activityLogs()->create([
                 'action' => 'bulk_upload_users',
                 'description' => "Uploaded CSV: {$created} users created, {$failed} failed",
-                'metadata' => ['created' => $created, 'failed' => $failed],
             ]);
 
             return response()->json([

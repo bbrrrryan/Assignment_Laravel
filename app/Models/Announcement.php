@@ -20,8 +20,6 @@ class Announcement extends Model
         'published_at',
         'expires_at',
         'is_active',
-        'is_pinned',
-        'views_count',
     ];
 
     protected $casts = [
@@ -29,8 +27,6 @@ class Announcement extends Model
         'published_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_active' => 'boolean',
-        'is_pinned' => 'boolean',
-        'views_count' => 'integer',
     ];
 
     // Relationships
@@ -42,7 +38,7 @@ class Announcement extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'user_announcement')
-                    ->withPivot('is_read', 'read_at')
+                    ->withPivot('is_read', 'read_at', 'is_starred', 'starred_at')
                     ->withTimestamps();
     }
 }

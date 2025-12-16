@@ -68,10 +68,6 @@
                 <div class="detail-row">
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Views:</span>
-                    <span class="detail-value">{{ $announcement->views_count ?? 0 }}</span>
-                </div>
-                <div class="detail-row">
                     <span class="detail-label">Created By:</span>
                     <span class="detail-value">{{ $announcement->creator->name ?? 'System' }}</span>
                 </div>

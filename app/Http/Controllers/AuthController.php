@@ -54,7 +54,6 @@ class AuthController extends Controller
         $user->activityLogs()->create([
             'action' => 'login',
             'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
         ]);
 
         // Authenticate user and create session
@@ -94,7 +93,6 @@ class AuthController extends Controller
             $user->activityLogs()->create([
                 'action' => 'logout',
                 'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
             ]);
             
             // Delete all Sanctum tokens for this user

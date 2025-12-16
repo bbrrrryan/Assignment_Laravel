@@ -24,10 +24,9 @@ class AnnouncementFactory
      * @param string|null $publishedAt
      * @param string|null $expiresAt
      * @param bool $isActive
-     * @param bool $isPinned
      * @return Announcement
      */
-    public static function makeAnnouncement($type, $title, $content, $targetAudience, $createdBy = null, $priority = null, $targetUserIds = null, $publishedAt = null, $expiresAt = null, $isActive = true, $isPinned = false)
+    public static function makeAnnouncement($type, $title, $content, $targetAudience, $createdBy = null, $priority = null, $targetUserIds = null, $publishedAt = null, $expiresAt = null, $isActive = true)
     {
         // Normalize announcement type
         $announcementType = strtolower(trim($type));
@@ -70,8 +69,6 @@ class AnnouncementFactory
             'published_at' => $publishedAt,
             'expires_at' => $expiresAt,
             'is_active' => $isActive,
-            'is_pinned' => $isPinned,
-            'views_count' => 0,
         ]);
     }
 }

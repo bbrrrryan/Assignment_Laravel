@@ -80,7 +80,7 @@
         </div>
     <link rel="stylesheet" href="{{ asset('css/profile/index.css') }}">
     <script src="{{ asset('js/profile/index.js') }}"></script>
-</div>
+    </div>
 </div>
 
 <style>

@@ -155,7 +155,6 @@ class AuthController extends Controller
         $user->activityLogs()->create([
             'action' => 'login',
             'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -176,7 +175,6 @@ class AuthController extends Controller
         $request->user()->activityLogs()->create([
             'action' => 'logout',
             'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
         ]);
 
         $request->user()->currentAccessToken()->delete();

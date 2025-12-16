@@ -79,8 +79,7 @@ class AnnouncementController extends Controller
             $validated['target_user_ids'] ?? null,
             $validated['published_at'] ?? null,
             $validated['expires_at'] ?? null,
-            $request->is_active ?? true,
-            false
+            $request->is_active ?? true
         );
 
         return response()->json([
@@ -95,9 +94,6 @@ class AnnouncementController extends Controller
     public function show(string $id)
     {
         $announcement = Announcement::with(['creator', 'users'])->findOrFail($id);
-
-        // Increment views count
-        $announcement->increment('views_count');
 
         return response()->json([
             'message' => 'Announcement retrieved successfully',
