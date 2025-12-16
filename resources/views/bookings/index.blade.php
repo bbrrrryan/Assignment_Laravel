@@ -10,9 +10,9 @@
             <p id="bookingsSubtitle">Manage your facility bookings</p>
         </div>
         <div>
-            <button id="newBookingBtn" class="btn-header-white" onclick="showCreateModal()" style="display: none;">
+            <a href="{{ route('bookings.create') }}" id="newBookingBtn" class="btn-header-white" style="display: none;">
                 <i class="fas fa-plus"></i> New Booking
-            </button>
+            </a>
         </div>
     </div>
 

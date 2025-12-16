@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
 
     // Bookings Routes (User)
     Route::get('/bookings', [PageController::class, 'bookings'])->name('bookings.index');
+    Route::get('/bookings/create', [PageController::class, 'createBooking'])->name('bookings.create');
     Route::get('/bookings/{id}', [PageController::class, 'showBooking'])->name('bookings.show');
 
     // Notifications Routes

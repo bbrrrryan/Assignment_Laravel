@@ -8,6 +8,254 @@ let perPage = 15;
 let totalPages = 1;
 let totalBookings = 0;
 
+// Define global functions FIRST so they're available for onclick handlers
+window.showCreateModal = function() {
+    if (typeof loadFacilities === 'function') {
+        loadFacilities();
+    }
+    const form = document.getElementById('bookingForm');
+    if (form) {
+        form.reset();
+        delete form.dataset.bookingId;
+    }
+    
+    // Reset modal title and button
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const submitButtonText = document.getElementById('submitButtonText');
+    
+    if (modalTitle) modalTitle.textContent = 'Create New Booking';
+    if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+    if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
+    
+    // Reset time slot selection
+    selectedTimeSlots = [];
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    const selectedDateInput = document.getElementById('selectedBookingDate');
+    if (startTimeInput) startTimeInput.value = '';
+    if (endTimeInput) endTimeInput.value = '';
+    if (selectedDateInput) selectedDateInput.value = '';
+    
+    // Reset attendees field - hide by default, will show when facility is selected
+    const attendeesContainer = document.getElementById('attendeesFieldContainer');
+    const attendeesList = document.getElementById('attendeesList');
+    const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+    if (attendeesContainer) {
+        attendeesContainer.style.display = 'none';
+    }
+    if (attendeesList) {
+        attendeesList.innerHTML = ''; // Clear all attendee fields
+    }
+    if (addAttendeeBtn) {
+        addAttendeeBtn.style.display = 'none';
+    }
+    
+    // Reset facility multi-attendees settings
+    window.currentFacilityEnableMultiAttendees = false;
+    window.currentFacilityMaxAttendees = null;
+    
+    // Clear timetable and show placeholder
+    clearTimetable();
+    
+    // Clear any previous validation errors
+    const timeSlotError = document.getElementById('timeSlotError');
+    if (timeSlotError) {
+        timeSlotError.style.display = 'none';
+        timeSlotError.textContent = '';
+    }
+    
+    const modal = document.getElementById('bookingModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+    
+    // Ensure facility select has event listener
+    const facilitySelect = document.getElementById('bookingFacility');
+    if (facilitySelect) {
+        // Use onclick attribute for more reliable binding
+        facilitySelect.onchange = function() {
+            // Clear selected time slots when facility changes
+            selectedTimeSlots = [];
+            // Clear all selected slots visually
+            document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+                s.classList.remove('selected');
+            });
+            
+            if (this.value) {
+                loadTimetable(this.value);
+            } else {
+                clearTimetable();
+            }
+        };
+        
+        // If facility is already selected, load timetable
+        if (facilitySelect.value) {
+            setTimeout(() => {
+                loadTimetable(facilitySelect.value);
+            }, 100);
+        }
+    }
+};
+
+// Function to validate time range in real-time
+window.validateTimeRange = function() {
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
+    
+    // Clear previous errors
+    clearTimeValidationErrors();
+    
+    // Check if both times are filled
+    if (!startTimeInput || !endTimeInput || !startTimeInput.value || !endTimeInput.value) {
+        return true; // Allow empty values during input
+    }
+    
+    // Get facility time range (default to 08:00-20:00 if not set)
+    const facilityTimeRange = window.currentFacilityTimeRange || { start: '08:00', end: '20:00' };
+    const minTime = facilityTimeRange.start || '08:00';
+    const maxTime = facilityTimeRange.end || '20:00';
+    
+    // Extract time from datetime string if needed
+    let startTime = startTimeInput.value;
+    let endTime = endTimeInput.value;
+    
+    // If it's a datetime string, extract just the time part
+    if (startTime.includes(' ')) {
+        startTime = startTime.split(' ')[1].substring(0, 5); // Extract HH:mm
+    }
+    if (endTime.includes(' ')) {
+        endTime = endTime.split(' ')[1].substring(0, 5); // Extract HH:mm
+    }
+    
+    // Validate start time is within allowed range
+    if (startTime < minTime || startTime > maxTime) {
+        if (startTimeError) {
+            startTimeError.textContent = `Start time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`;
+            startTimeError.style.display = 'block';
+        }
+        startTimeInput.classList.add('is-invalid');
+        startTimeInput.setCustomValidity(`Start time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`);
+        return false;
+    }
+    
+    // Validate end time is within allowed range
+    if (endTime < minTime || endTime > maxTime) {
+        if (endTimeError) {
+            endTimeError.textContent = `End time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`;
+            endTimeError.style.display = 'block';
+        }
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity(`End time must be between ${formatTime12(minTime)} and ${formatTime12(maxTime)}`);
+        return false;
+    }
+    
+    // Compare times - end time must be after start time
+    if (startTime >= endTime) {
+        showTimeValidationError('End time must be after start time');
+        return false;
+    }
+    
+    return true;
+};
+
+// Function to show time validation error
+function showTimeValidationError(message) {
+    const endTimeError = document.getElementById('endTimeError');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (endTimeError) {
+        endTimeError.textContent = message;
+        endTimeError.style.display = 'block';
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.add('is-invalid');
+        endTimeInput.setCustomValidity(message);
+    }
+}
+
+// Function to clear time validation errors
+function clearTimeValidationErrors() {
+    const startTimeError = document.getElementById('startTimeError');
+    const endTimeError = document.getElementById('endTimeError');
+    const startTimeInput = document.getElementById('bookingStartTime');
+    const endTimeInput = document.getElementById('bookingEndTime');
+    
+    if (startTimeError) {
+        startTimeError.style.display = 'none';
+        startTimeError.textContent = '';
+    }
+    
+    if (endTimeError) {
+        endTimeError.style.display = 'none';
+        endTimeError.textContent = '';
+    }
+    
+    if (startTimeInput) {
+        startTimeInput.classList.remove('is-invalid');
+        startTimeInput.setCustomValidity('');
+    }
+    
+    if (endTimeInput) {
+        endTimeInput.classList.remove('is-invalid');
+        endTimeInput.setCustomValidity('');
+    }
+}
+
+// Function to validate booking date (must be tomorrow or later)
+window.validateBookingDate = function() {
+    const dateInput = document.getElementById('bookingDate');
+    const errorDiv = document.getElementById('bookingDateError');
+    
+    if (!dateInput || !dateInput.value) {
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+        dateInput?.classList.remove('is-invalid');
+        return true;
+    }
+    
+    const selectedDate = new Date(dateInput.value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    // Check if selected date is today or earlier
+    if (selectedDate <= today) {
+        if (errorDiv) {
+            errorDiv.textContent = 'You can only book from tomorrow onwards. Please select a future date.';
+            errorDiv.style.display = 'block';
+        }
+        dateInput.classList.add('is-invalid');
+        dateInput.setCustomValidity('You can only book from tomorrow onwards');
+        return false;
+    }
+    
+    // Date is valid
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+    }
+    dateInput.classList.remove('is-invalid');
+    dateInput.setCustomValidity('');
+    
+    // Update facilities when date is valid
+    updateFacilitiesByDate();
+    return true;
+};
+
+window.closeModal = function() {
+    const modal = document.getElementById('bookingModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+};
+
 window.sortByDate = function() {
     // Toggle sort order: asc -> desc -> asc (only two states)
     // If currently sorting by date, toggle between asc and desc
@@ -284,39 +532,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check authentication
     if (!API.requireAuth()) return;
 
-    // Check if we're on the create page or index page
-    const bookingsList = document.getElementById('bookingsList');
-    const bookingForm = document.getElementById('bookingForm');
-    
-    if (bookingsList) {
-        // This is the bookings index page
-        initBookings();
-    } else if (bookingForm) {
-        // This is the create booking page
-        initBookingForm();
-    }
+    initBookings();
 });
-
-// Initialize booking form for create page
-function initBookingForm() {
-    // Initialize facility time range and max booking hours
-    window.currentFacilityTimeRange = { start: '08:00', end: '20:00' };
-    window.currentFacilityMaxBookingHours = 1; // Default to 1 hour
-    
-    // Bind form submit event
-    bindBookingForm();
-    
-    // Load facilities
-    loadFacilities();
-    
-    // Setup facility select change handler
-    const facilitySelect = document.getElementById('bookingFacility');
-    if (facilitySelect) {
-        facilitySelect.onchange = function() {
-            handleFacilityChange(this);
-        };
-    }
-}
 
 function initBookings() {
     // Set minimum date to tomorrow for booking date input (users can only book from tomorrow onwards)
@@ -359,7 +576,7 @@ function initBookings() {
     if (newBookingBtn) {
         newBookingBtn.style.display = 'block';
     }
-    // Bind form submit event (for modal on index page)
+    // Bind form submit event
     bindBookingForm();
     
     loadBookings(currentPage || 1);
@@ -1955,9 +2172,9 @@ function bindBookingForm() {
         alert('Submit button not found');
         return;
     }
-    const originalHTML = submitBtn.innerHTML;
+    const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    submitBtn.textContent = 'Submitting...';
 
     // Validate time slot selection
     if (!selectedTimeSlots || selectedTimeSlots.length === 0) {
@@ -1967,7 +2184,7 @@ function bindBookingForm() {
             errorDiv.style.display = 'block';
         }
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
+        submitBtn.textContent = originalText;
         return;
     }
     
@@ -1992,7 +2209,7 @@ function bindBookingForm() {
             alert('Please select at least one time slot');
         }
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
+        submitBtn.textContent = originalText;
         return;
     }
     
@@ -2008,7 +2225,7 @@ function bindBookingForm() {
             alert('Please select a facility');
         }
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
+        submitBtn.textContent = originalText;
         return;
     }
     
@@ -2020,7 +2237,7 @@ function bindBookingForm() {
             alert('Please enter a purpose for the booking');
         }
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
+        submitBtn.textContent = originalText;
         return;
     }
     
@@ -2085,7 +2302,7 @@ function bindBookingForm() {
                     alert(`You have reached the maximum booking limit for this facility on this date.\n\nMaximum allowed: ${maxBookingHours} hour(s)\nYour current bookings: ${totalHours} hour(s)\nAfter this booking: ${totalHours + newBookingHours} hour(s)`);
                 }
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = originalHTML;
+                submitBtn.textContent = originalText;
                 return;
             }
         }
@@ -2117,7 +2334,7 @@ function bindBookingForm() {
                 alert('Please enter at least one attendee passport number.');
             }
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalHTML;
+            submitBtn.textContent = originalText;
             return;
         }
         
@@ -2202,75 +2419,52 @@ function bindBookingForm() {
         
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalHTML;
+            submitBtn.textContent = originalText;
         }
         
         if (successCount > 0) {
-            // Check if we're on create page or index page (modal)
-            const bookingsList = document.getElementById('bookingsList');
-            const isCreatePage = !bookingsList; // If bookingsList doesn't exist, we're on create page
+            window.closeModal();
+            loadBookings(currentPage || 1);
             
-            if (isCreatePage) {
-                // On create page - redirect to bookings index
-                if (errorCount === 0) {
-                    if (typeof showToast !== 'undefined') {
-                        showToast(`Successfully created ${successCount} booking(s)!`, 'success');
-                    } else {
-                        alert(`Successfully created ${successCount} booking(s)!`);
-                    }
-                    // Redirect to bookings index
-                    window.location.href = '/bookings';
+            // Reset form
+            document.getElementById('bookingForm').reset();
+            // Edit functionality removed
+            
+            // Reset attendees field
+            const attendeesContainer = document.getElementById('attendeesFieldContainer');
+            const attendeesInput = document.getElementById('bookingAttendees');
+            if (attendeesContainer) {
+                attendeesContainer.style.display = 'none';
+            }
+            if (attendeesInput) {
+                attendeesInput.value = '1'; // Set default to 1
+                attendeesInput.removeAttribute('required');
+            }
+            
+            // Reset facility multi-attendees settings
+            window.currentFacilityEnableMultiAttendees = false;
+            window.currentFacilityMaxAttendees = null;
+            
+            // Reset modal title and button
+            const modalTitle = document.getElementById('modalTitle');
+            const modalIcon = document.getElementById('modalIcon');
+            const submitButtonText = document.getElementById('submitButtonText');
+            
+            if (modalTitle) modalTitle.textContent = 'Create New Booking';
+            if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
+            if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
+            
+            if (errorCount === 0) {
+                if (typeof showToast !== 'undefined') {
+                    showToast(`Successfully created ${successCount} booking(s)!`, 'success');
                 } else {
-                    if (typeof showToast !== 'undefined') {
-                        showToast(`Created ${successCount} booking(s), but ${errorCount} failed. Please check the details.`, 'warning');
-                    } else {
-                        alert(`Created ${successCount} booking(s), but ${errorCount} failed:\n\n${errors.join('\n')}`);
-                    }
+                    alert(`Successfully created ${successCount} booking(s)!`);
                 }
             } else {
-                // On index page (modal) - close modal and reload
-                window.closeModal();
-                loadBookings(currentPage || 1);
-                
-                // Reset form
-                document.getElementById('bookingForm').reset();
-                
-                // Reset attendees field
-                const attendeesContainer = document.getElementById('attendeesFieldContainer');
-                const attendeesInput = document.getElementById('bookingAttendees');
-                if (attendeesContainer) {
-                    attendeesContainer.style.display = 'none';
-                }
-                if (attendeesInput) {
-                    attendeesInput.value = '1'; // Set default to 1
-                    attendeesInput.removeAttribute('required');
-                }
-                
-                // Reset facility multi-attendees settings
-                window.currentFacilityEnableMultiAttendees = false;
-                window.currentFacilityMaxAttendees = null;
-                
-                // Reset modal title and button
-                const modalTitle = document.getElementById('modalTitle');
-                const modalIcon = document.getElementById('modalIcon');
-                const submitButtonText = document.getElementById('submitButtonText');
-                
-                if (modalTitle) modalTitle.textContent = 'Create New Booking';
-                if (modalIcon) modalIcon.className = 'fas fa-plus-circle me-2 text-primary';
-                if (submitButtonText) submitButtonText.textContent = 'Submit Booking';
-                
-                if (errorCount === 0) {
-                    if (typeof showToast !== 'undefined') {
-                        showToast(`Successfully created ${successCount} booking(s)!`, 'success');
-                    } else {
-                        alert(`Successfully created ${successCount} booking(s)!`);
-                    }
+                if (typeof showToast !== 'undefined') {
+                    showToast(`Created ${successCount} booking(s), but ${errorCount} failed. Please check the details.`, 'warning');
                 } else {
-                    if (typeof showToast !== 'undefined') {
-                        showToast(`Created ${successCount} booking(s), but ${errorCount} failed. Please check the details.`, 'warning');
-                    } else {
-                        alert(`Created ${successCount} booking(s), but ${errorCount} failed:\n\n${errors.join('\n')}`);
-                    }
+                    alert(`Created ${successCount} booking(s), but ${errorCount} failed:\n\n${errors.join('\n')}`);
                 }
             }
         } else {
@@ -2283,7 +2477,7 @@ function bindBookingForm() {
     } catch (error) {
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalHTML;
+            submitBtn.textContent = originalText;
         }
         if (typeof showToast !== 'undefined') {
             showToast('Error creating bookings: ' + error.message, 'error');

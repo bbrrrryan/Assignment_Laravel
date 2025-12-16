@@ -108,6 +108,11 @@ class PageController extends Controller
         return view('bookings.index');
     }
 
+    public function createBooking()
+    {
+        return view('bookings.create');
+    }
+
     public function showBooking($id)
     {
         return view('bookings.show', compact('id'));
