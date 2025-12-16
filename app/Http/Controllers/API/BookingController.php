@@ -528,6 +528,57 @@ class BookingController extends Controller
         return response()->json(['data' => $booking]);
     }
 
+    /**
+     * Complete a booking (Admin/Staff only)
+     * 当预订完成时，Observer 会自动处理积分奖励
+     */
+    public function complete(string $id)
+    {
+        $user = auth()->user();
+
+        // 只有管理员或员工可以完成预订
+        if (!$user->isAdmin() && !$user->isStaff()) {
+            return response()->json([
+                'message' => 'Only administrators and staff can complete bookings',
+            ], 403);
+        }
+
+        $booking = Booking::findOrFail($id);
+
+        // 只有已批准的预订可以完成
+        if ($booking->status !== 'approved') {
+            return response()->json([
+                'message' => 'Only approved bookings can be completed',
+            ], 400);
+        }
+
+        // 更新状态为 completed
+        // Observer 会自动检测状态变化并奖励积分
+        $booking->update([
+            'status' => 'completed',
+        ]);
+
+        // Create status history
+        try {
+            $notes = 'Booking completed by ' . ($user->isAdmin() ? 'admin' : 'staff');
+            $booking->statusHistory()->create([
+                'status' => 'completed',
+                'changed_by' => auth()->id(),
+                'notes' => $notes,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
+        }
+
+        // Send notification to user
+        $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been completed! Points have been awarded to your account.');
+
+        return response()->json([
+            'message' => 'Booking completed successfully',
+            'data' => $booking->load(['user', 'facility', 'attendees']),
+        ]);
+    }
+
     public function myBookings(Request $request)
     {
         $perPage = $request->input('per_page', 15);

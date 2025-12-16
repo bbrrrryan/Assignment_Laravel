@@ -1,859 +1,181 @@
-@extends('layouts.app')
-
-@section('title', 'Loyalty Management - TARUMT FMS')
-
-@section('content')
-<div class="page-container">
-    <div class="page-header">
-        <div class="page-header-content">
-            <h1 id="loyaltyPageTitle">Loyalty Management</h1>
-            <p id="loyaltyPageSubtitle">Manage loyalty program rules, rewards, and points</p>
-        </div>
-        <div>
-            <button id="loyaltyHeaderBtn" class="btn-header-white" onclick="handleHeaderButtonClick()" style="display: none;">
-                <i class="fas fa-plus"></i> <span id="loyaltyHeaderBtnText">Create</span>
-            </button>
-        </div>
-    </div>
-
-    <div class="loyalty-admin-tabs">
-        <button class="tab-btn active" onclick="showAdminTab('rules', this)">Point Rules</button>
-        <button class="tab-btn" onclick="showAdminTab('rewards', this)">Rewards</button>
-        <button class="tab-btn" onclick="showAdminTab('redemptions', this)">Redemptions</button>
-        <button class="tab-btn" onclick="showAdminTab('points', this)">Points Tracking</button>
-        <button class="tab-btn" onclick="showAdminTab('certificates', this)">Certificates</button>
-        <button class="tab-btn" onclick="showAdminTab('reports', this)">Reports</button>
-    </div>
-
-    <div id="adminLoyaltyContent">
-        <p>Loading...</p>
-    </div>
-</div>
-
-<!-- Create/Edit Rule Modal -->
-<div id="ruleModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeRuleModal()">&times;</span>
-        <h2 id="ruleModalTitle">Create Point Rule</h2>
-        <form id="ruleForm">
-            <div class="form-group">
-                <label>Action Type *</label>
-                <input type="text" id="ruleActionType" required 
-                       placeholder="e.g., facility_booking, feedback_submission, event_attendance">
-                <small>Unique identifier for this action (lowercase, use underscores)</small>
-            </div>
-            <div class="form-group">
-                <label>Name *</label>
-                <input type="text" id="ruleName" required 
-                       placeholder="e.g., Facility Booking, Feedback Submission">
-                <small>Display name for this rule</small>
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="ruleDescription" rows="3" 
-                          placeholder="Optional description of this rule"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Points Awarded *</label>
-                <input type="number" id="rulePoints" required min="0" 
-                       placeholder="e.g., 10">
-                <small>Number of points to award for this action</small>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="ruleIsActive" checked> Active
-                </label>
-                <small>Only active rules will award points</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeRuleModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Save Rule</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Delete Confirmation Modal -->
-<div id="deleteConfirmModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 500px;">
-        <span class="close" onclick="closeDeleteConfirmModal()">&times;</span>
-        <h2>Confirm Delete</h2>
-        <div style="padding: 20px 0;">
-            <p id="deleteConfirmMessage">Are you sure you want to delete this rule? This action cannot be undone.</p>
-        </div>
-        <div class="form-actions">
-            <button type="button" class="btn-secondary" onclick="closeDeleteConfirmModal()">Cancel</button>
-            <button type="button" class="btn-danger" id="confirmDeleteBtn" onclick="handleConfirmDelete()">Delete</button>
-        </div>
-    </div>
-</div>
-
-<!-- Create/Edit Reward Modal -->
-<div id="rewardModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeRewardModal()">&times;</span>
-        <h2 id="rewardModalTitle">Create Reward</h2>
-        <form id="rewardForm">
-            <div class="form-group">
-                <label>Reward Name *</label>
-                <input type="text" id="rewardName" required 
-                       placeholder="e.g., Gold Certificate, VIP Badge">
-                <small>Display name for this reward</small>
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="rewardDescription" rows="3" 
-                          placeholder="Optional description of this reward"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Points Required *</label>
-                <input type="number" id="rewardPointsRequired" required min="1" 
-                       placeholder="e.g., 100">
-                <small>Minimum points needed to redeem this reward</small>
-            </div>
-            <div class="form-group">
-                <label>Reward Type *</label>
-                <select id="rewardType" required>
-                    <option value="">Select a type</option>
-                    <option value="certificate">Certificate</option>
-                    <option value="badge">Badge</option>
-                    <option value="privilege">Privilege</option>
-                    <option value="physical">Physical Item</option>
-                </select>
-                <small>Type of reward being offered</small>
-            </div>
-            <div class="form-group">
-                <label>Image (Optional)</label>
-                <input type="file" id="rewardImage" accept="image/*" onchange="handleRewardImageUpload(event)">
-                <small>Upload an image for this reward (JPG, PNG, GIF). Maximum size: 1MB</small>
-                <div id="rewardImagePreview" style="margin-top: 10px; display: none;">
-                    <img id="rewardPreviewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #ddd;">
-                    <button type="button" onclick="removeRewardImage()" style="margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        <i class="fas fa-times"></i> Remove
-                    </button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Stock Quantity</label>
-                <input type="number" id="rewardStockQuantity" min="0" 
-                       placeholder="Leave empty for unlimited">
-                <small>Leave empty for unlimited stock, or enter a number for limited quantity</small>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="rewardIsActive" checked> Active
-                </label>
-                <small>Only active rewards can be redeemed</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeRewardModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Save Reward</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Award Points Modal -->
-<div id="awardPointsModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeAwardPointsModal()">&times;</span>
-        <h2>Award Points</h2>
-        <form id="awardPointsForm">
-            <div class="form-group">
-                <label>Select Student *</label>
-                <select id="awardPointsUserId" required>
-                    <option value="">Loading users...</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Points *</label>
-                <input type="number" id="awardPointsAmount" required min="1" 
-                       placeholder="e.g., 10, 50, 100">
-                <small>Number of points to award (minimum: 1)</small>
-            </div>
-            <div class="form-group">
-                <label>Action Type *</label>
-                <input type="text" id="awardPointsActionType" required 
-                       placeholder="e.g., manual_award, event_participation, bonus">
-                <small>Type of action that triggered this award</small>
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="awardPointsDescription" rows="3" 
-                          placeholder="Optional description for this point award"></textarea>
-                <small>Provide details about why these points are being awarded</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeAwardPointsModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Award Points</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Deduct Points Modal -->
-<div id="deductPointsModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeDeductPointsModal()">&times;</span>
-        <h2>Deduct Points</h2>
-        <form id="deductPointsForm">
-            <div class="form-group">
-                <label>Select Student *</label>
-                <select id="deductPointsUserId" required>
-                    <option value="">Loading users...</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Points to Deduct *</label>
-                <input type="number" id="deductPointsAmount" required min="1" 
-                       placeholder="e.g., 10, 20, 50">
-                <small>Number of points to deduct (minimum: 1)</small>
-            </div>
-            <div class="form-group">
-                <label>Action Type *</label>
-                <input type="text" id="deductPointsActionType" required 
-                       placeholder="e.g., rule_violation, penalty, adjustment">
-                <small>Type of action that triggered this deduction</small>
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="deductPointsDescription" rows="3" 
-                          placeholder="Optional description for this point deduction"></textarea>
-                <small>Provide details about why these points are being deducted</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeDeductPointsModal()">Cancel</button>
-                <button type="submit" class="btn-danger">Deduct Points</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- View User Points Modal -->
-<div id="viewUserPointsModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 800px;">
-        <span class="close" onclick="closeViewUserPointsModal()">&times;</span>
-        <h2>User Points Details</h2>
-        <div id="viewUserPointsContent">
-            <div style="text-align: center; padding: 40px;">
-                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #a31f37;"></i>
-                <p style="margin-top: 20px;">Loading...</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div id="issueCertificateModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeIssueCertificateModal()">&times;</span>
-        <h2>Issue Certificate</h2>
-        <form id="issueCertificateForm">
-            <div class="form-group">
-                <label>Select Student *</label>
-                <select id="issueCertificateUserId" required>
-                    <option value="">Loading users...</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Certificate Title *</label>
-                <input type="text" id="issueCertificateTitle" required 
-                       placeholder="e.g., Gold Certificate, VIP Badge, Achievement Award">
-                <small>Display name for this certificate</small>
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="issueCertificateDescription" rows="3" 
-                          placeholder="Optional description for this certificate"></textarea>
-                <small>Provide details about this certificate</small>
-            </div>
-            <div class="form-group">
-                <label>Related Reward (Optional)</label>
-                <select id="issueCertificateRewardId">
-                    <option value="">No reward</option>
-                </select>
-                <small>Link this certificate to a specific reward (optional)</small>
-            </div>
-            <div class="form-group">
-                <label>Issued Date</label>
-                <input type="date" id="issueCertificateIssuedDate">
-                <small>Leave empty to use today's date</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeIssueCertificateModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Issue Certificate</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script src="{{ asset('js/admin/loyalty/index.js') }}"></script>
-
-<style>
-/* Page Header Styling - Match Booking Management */
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
-    padding: 30px;
-    background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.page-header-content {
-    padding: 10px 0;
-}
-
-.page-header-content h1 {
-    font-size: 2.2rem;
-    color: #ffffff;
-    margin: 0 0 8px 0;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.page-header-content p {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 1rem;
-    margin: 0;
-    font-weight: 400;
-}
-
-.btn-header-white {
-    background-color: #ffffff;
-    color: #cb2d3e; 
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 700;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    border: none;
-    cursor: pointer;
-}
-
-.btn-header-white:hover {
-    background-color: #f8f9fa;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    color: #a01a2a;
-}
-
-.loyalty-admin-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.tab-btn {
-    padding: 12px 24px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    font-size: 1rem;
-    transition: all 0.3s;
-}
-
-.tab-btn:hover {
-    background: #f5f5f5;
-}
-
-.tab-btn.active {
-    border-bottom-color: #a31f37;
-    color: #a31f37;
-    font-weight: 600;
-}
-
-.admin-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.admin-section-header h2 {
-    margin: 0;
-}
-
-.rules-list, .rewards-admin-list, .redemptions-list, .certificates-admin-list {
-    display: grid;
-    gap: 20px;
-}
-
-.rule-card, .reward-admin-card, .redemption-card, .certificate-admin-card {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.rule-header, .reward-admin-header, .redemption-header, .certificate-admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.rule-details, .reward-admin-details, .redemption-details, .certificate-admin-details {
-    margin-bottom: 15px;
-}
-
-.rule-actions, .reward-admin-actions, .redemption-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.status-active {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-inactive {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.reports-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.report-card {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.report-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.stat-item {
-    padding: 10px;
-    background: #f8f9fa;
-    border-radius: 4px;
-}
-
-.report-section {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-top: 20px;
-}
-
-/* Modal Styles - Override if needed */
-#ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal, #awardPointsModal.modal, #deductPointsModal.modal, #viewUserPointsModal.modal, #issueCertificateModal.modal {
-    display: none;
-    position: fixed;
-    z-index: 2000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    overflow: auto;
-}
-
-#ruleModal.modal.show, #rewardModal.modal.show, #deleteConfirmModal.modal.show, #awardPointsModal.modal.show, #deductPointsModal.modal.show, #viewUserPointsModal.modal.show, #issueCertificateModal.modal.show {
-    display: block;
-}
-
-#ruleModal .modal-content, #rewardModal .modal-content, #deleteConfirmModal .modal-content, #awardPointsModal .modal-content, #deductPointsModal .modal-content, #viewUserPointsModal .modal-content, #issueCertificateModal .modal-content {
-    background: #ffffff;
-    margin: 5% auto;
-    padding: 30px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 600px;
-    position: relative;
-}
-
-#viewUserPointsModal .modal-content {
-    max-width: 800px;
-}
-
-.text-success {
-    color: #28a745;
-}
-
-.text-danger {
-    color: #dc3545;
-}
-
-.close {
-    position: absolute;
-    right: 20px;
-    top: 20px;
-    font-size: 28px;
-    font-weight: bold;
-    color: #636e72;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: #2d3436;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #2d3436;
-}
-
-.modal-body {
-    margin-bottom: 20px;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #2d3436;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.3s;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: #a31f37;
-}
-
-.form-group small {
-    display: block;
-    margin-top: 5px;
-    color: #666;
-    font-size: 0.85rem;
-}
-
-.form-group input:disabled {
-    background: #f5f5f5;
-    cursor: not-allowed;
-}
-
-.form-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
-}
-
-.btn-danger {
-    background: #dc3545;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s;
-}
-
-.btn-danger:hover {
-    background: #c82333;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
-}
-
-/* Table Container Enhancement */
-.table-container {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e9ecef;
-    position: relative;
-    overflow: visible;
-}
-
-.table-container .data-table {
-    overflow: hidden;
-    border-radius: 12px;
-}
-
-.data-table {
-    margin: 0;
-    width: 100%;
-    border-collapse: collapse;
-    border-spacing: 0;
-}
-
-.data-table thead {
-    background: #f8f9fa;
-}
-
-.data-table th {
-    padding: 15px;
-    text-align: left;
-    font-weight: 600;
-    color: #2d3436;
-}
-
-.data-table td {
-    padding: 15px;
-    text-align: left;
-    border-bottom: 1px solid #f1f2f6;
-}
-
-.data-table tbody tr:hover {
-    background: #f8f9fa;
-}
-
-.data-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.data-table .actions {
-    display: flex;
-    gap: 5px;
-    flex-wrap: nowrap !important;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap !important;
-    min-width: 80px;
-    width: 100px;
-    vertical-align: bottom;
-}
-
-.data-table .actions button {
-    margin: 0 !important;
-    vertical-align: bottom;
-}
-
-.badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-.badge-success {
-    background: #d4edda;
-    color: #155724;
-}
-
-.badge-secondary {
-    background: #e2e3e5;
-    color: #383d41;
-}
-
-.badge-warning {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.badge-danger {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.badge-info {
-    background: #d1ecf1;
-    color: #0c5460;
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 0.875rem;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin: 0;
-    vertical-align: middle;
-    line-height: 1;
-}
-
-.btn-sm.btn-info {
-    background: #17a2b8;
-    color: white;
-}
-
-.btn-sm.btn-info:hover {
-    background: #138496;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
-}
-
-.btn-sm.btn-primary {
-    background: #a31f37;
-    color: white;
-}
-
-.btn-sm.btn-primary:hover {
-    background: #8b1a2e;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(163, 31, 55, 0.3);
-}
-
-.btn-sm.btn-danger {
-    background: #dc3545;
-    color: white;
-}
-
-.btn-sm.btn-danger:hover {
-    background: #c82333;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
-}
-
-.btn-sm.btn-success {
-    background: #28a745;
-    color: white;
-}
-
-.btn-sm.btn-success:hover {
-    background: #218838;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
-}
-
-.btn-square {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    border-radius: 4px;
-}
-
-.btn-sm.btn-square i {
-    font-size: 0.85rem;
-    margin: 0;
-}
-
-/* Filters Section Styling */
-.filters-section {
-    margin-bottom: 30px;
-}
-
-.filters-card {
-    background: #ffffff;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e9ecef;
-}
-
-.filters-form {
-    display: flex;
-    gap: 15px;
-    align-items: flex-end;
-    flex-wrap: wrap;
-}
-
-.filter-input-wrapper,
-.filter-select-wrapper {
-    position: relative;
-    flex: 1;
-    min-width: 200px;
-}
-
-.filter-icon {
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #6c757d;
-    z-index: 1;
-    pointer-events: none;
-}
-
-.filter-input,
-.filter-select {
-    width: 100%;
-    padding: 12px 15px 12px 45px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: all 0.3s;
-}
-
-.filter-input:focus,
-.filter-select:focus {
-    outline: none;
-    border-color: #a31f37;
-    box-shadow: 0 0 0 3px rgba(163, 31, 55, 0.1);
-}
-
-.filter-select {
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    padding-right: 40px;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .filters-form {
-        flex-direction: column;
+﻿document.addEventListener('DOMContentLoaded', function() {
+    if (typeof API === 'undefined') {
+        console.error('API.js not loaded!');
+        alert('Error: API functions not loaded. Please refresh the page.');
+        return;
+    }
+
+    if (!API.requireAuth() || !API.isAdminOrStaff()) {
+        window.location.href = '/';
+        return;
+    }
+
+    initAdminLoyalty();
+});
+
+let currentAdminTab = 'rules';
+let currentEditingRuleId = null;
+let currentEditingRewardId = null;
+
+function initAdminLoyalty() {
+    loadAdminTab('rules');
+    // Don't setup form handler here - it will be set up when modal is first opened
+    // Note: Modals can only be closed via close button (X) or Cancel button, not by clicking outside
+}
+
+// Update header based on current tab
+function updateLoyaltyHeader(title, subtitle, buttonText, buttonAction) {
+    const titleEl = document.getElementById('loyaltyPageTitle');
+    const subtitleEl = document.getElementById('loyaltyPageSubtitle');
+    const buttonEl = document.getElementById('loyaltyHeaderBtn');
+    const buttonTextEl = document.getElementById('loyaltyHeaderBtnText');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (subtitleEl) subtitleEl.textContent = subtitle;
+    
+    if (buttonText && buttonAction) {
+        if (buttonTextEl) buttonTextEl.textContent = buttonText;
+        if (buttonEl) {
+            buttonEl.setAttribute('onclick', buttonAction + '()');
+            buttonEl.style.display = 'block';
+        }
+    } else {
+        if (buttonEl) buttonEl.style.display = 'none';
+    }
+}
+
+// Handle header button click
+function handleHeaderButtonClick() {
+    // This will be handled by the onclick attribute set in updateLoyaltyHeader
+}
+
+let ruleFormHandlerSetup = false;
+let rewardFormHandlerSetup = false;
+
+function setupRuleFormHandler() {
+    // Only setup once
+    if (ruleFormHandlerSetup) return;
+    
+    const ruleForm = document.getElementById('ruleForm');
+    if (!ruleForm) {
+        console.warn('Rule form not found, will retry when modal opens');
+        return;
     }
     
-    .filter-input-wrapper,
-    .filter-select-wrapper {
-        width: 100%;
-    }
+    ruleFormHandlerSetup = true;
     
-    .data-table {
-        font-size: 0.85rem;
-    }
+    ruleForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const data = {
+            action_type: document.getElementById('ruleActionType').value.trim(),
+            name: document.getElementById('ruleName').value.trim(),
+            description: document.getElementById('ruleDescription').value.trim() || null,
+            points: parseInt(document.getElementById('rulePoints').value),
+            is_active: document.getElementById('ruleIsActive').checked,
+        };
+        
+        if (!data.action_type || !data.name || isNaN(data.points) || data.points < 0) {
+            if (typeof showToast !== 'undefined') {
+                showToast('Please fill in all required fields correctly', 'warning');
+            } else {
+                alert('Please fill in all required fields correctly');
+            }
+            return;
+        }
+        
+        // Save the editing state before async operations
+        const isEditing = !!currentEditingRuleId;
+        const editingId = currentEditingRuleId;
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        try {
+            let result;
+            if (isEditing) {
+                // Update existing rule
+                console.log('Updating rule:', editingId, data);
+                result = await API.put(`/loyalty/rules/${editingId}`, data);
+            } else {
+                // Create new rule
+                console.log('Creating rule:', data);
+                result = await API.post('/loyalty/rules', data);
+            }
+            
+            console.log('API Result:', result);
+            
+            if (result.success) {
+                closeRuleModal();
+                loadRulesManagement();
+                if (typeof showToast !== 'undefined') {
+                    showToast(isEditing ? 'Rule updated successfully!' : 'Rule created successfully!', 'success');
+                } else {
+                    alert(isEditing ? 'Rule updated successfully!' : 'Rule created successfully!');
+                }
+            } else {
+                console.error('API Error:', result);
+                if (typeof showToast !== 'undefined') {
+                    showToast(result.error || 'Failed to save rule', 'error');
+                } else {
+                    alert(result.error || 'Failed to save rule');
+                }
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error saving rule:', error);
+            if (typeof showToast !== 'undefined') {
+                showToast('An error occurred while saving the rule: ' + error.message, 'error');
+            } else {
+                alert('An error occurred while saving the rule: ' + error.message);
+            }
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+    
+    // Note: Modal cannot be closed by clicking outside - only via close button (X) or cancel button
+}
 
-    .data-table th,
-    .data-table td {
-        padding: 10px;
+window.showAdminTab = function(tab, clickedElement) {
+    currentAdminTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    if (clickedElement) {
+        clickedElement.classList.add('active');
+    } else if (event && event.target) {
+        event.target.classList.add('active');
     }
+    loadAdminTab(tab);
+};
 
-    .data-table .actions {
-        flex-direction: column;
+function loadAdminTab(tab) {
+    const container = document.getElementById('adminLoyaltyContent');
+    
+    switch(tab) {
+        case 'rules':
+            loadRulesManagement();
+            break;
+        case 'rewards':
+            loadRewardsManagement();
+            break;
+        case 'redemptions':
+            loadRedemptionsManagement();
+            break;
+        case 'points':
+            loadPointsManagement();
+            break;
+        case 'certificates':
+            loadCertificatesManagement();
+            break;
+        case 'reports':
+            loadReports();
+            break;
     }
 }
-</style>
 
-<script>
 // Rules Management
 async function loadRulesManagement() {
     const container = document.getElementById('adminLoyaltyContent');
@@ -1522,7 +844,7 @@ function showDeleteConfirmModal(message, onConfirm) {
     modal.classList.add('show');
 }
 
-function handleConfirmDelete() {
+window.handleConfirmDelete = function() {
     console.log('handleConfirmDelete called');
     if (window._deleteConfirmCallback) {
         const callback = window._deleteConfirmCallback;
@@ -1652,7 +974,7 @@ function resetRewardFormButtonState(button, originalText) {
 let rewardSelectedImageBase64 = null;
 
 // Handle reward image upload and convert to base64
-function handleRewardImageUpload(event) {
+window.handleRewardImageUpload = function(event) {
     const file = event.target.files[0];
     if (!file) {
         return;
@@ -1712,7 +1034,7 @@ function handleRewardImageUpload(event) {
 }
 
 // Remove selected reward image
-function removeRewardImage() {
+window.removeRewardImage = function() {
     rewardSelectedImageBase64 = null;
     document.getElementById('rewardImage').value = '';
     document.getElementById('rewardImagePreview').style.display = 'none';
@@ -2675,559 +1997,22 @@ window.showIssueCertificateModal = async function() {
     }
 };
 
-}
-    font-size: 2.2rem;
-    color: #ffffff;
-    margin: 0 0 8px 0;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.page-header-content p {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 1rem;
-    margin: 0;
-    font-weight: 400;
-}
-
-.btn-header-white {
-    background-color: #ffffff;
-    color: #cb2d3e; 
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 700;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    border: none;
-    cursor: pointer;
-}
-
-.btn-header-white:hover {
-    background-color: #f8f9fa;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    color: #a01a2a;
-}
-
-.loyalty-admin-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.tab-btn {
-    padding: 12px 24px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    font-size: 1rem;
-    transition: all 0.3s;
-}
-
-.tab-btn:hover {
-    background: #f5f5f5;
-}
-
-.tab-btn.active {
-    border-bottom-color: #a31f37;
-    color: #a31f37;
-    font-weight: 600;
-}
-
-.admin-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.admin-section-header h2 {
-    margin: 0;
-}
-
-.rules-list, .rewards-admin-list, .redemptions-list, .certificates-admin-list {
-    display: grid;
-    gap: 20px;
-}
-
-.rule-card, .reward-admin-card, .redemption-card, .certificate-admin-card {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.rule-header, .reward-admin-header, .redemption-header, .certificate-admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.rule-details, .reward-admin-details, .redemption-details, .certificate-admin-details {
-    margin-bottom: 15px;
-}
-
-.rule-actions, .reward-admin-actions, .redemption-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.status-active {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-inactive {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.reports-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.report-card {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.report-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.stat-item {
-    padding: 10px;
-    background: #f8f9fa;
-    border-radius: 4px;
-}
-
-.report-section {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-top: 20px;
-}
-
-/* Modal Styles - Override if needed */
-#ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal, #awardPointsModal.modal, #deductPointsModal.modal, #viewUserPointsModal.modal, #issueCertificateModal.modal {
-    display: none;
-    position: fixed;
-    z-index: 2000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    overflow: auto;
-}
-
-#ruleModal.modal.show, #rewardModal.modal.show, #deleteConfirmModal.modal.show, #awardPointsModal.modal.show, #deductPointsModal.modal.show, #viewUserPointsModal.modal.show, #issueCertificateModal.modal.show {
-    display: block;
-}
-
-#ruleModal .modal-content, #rewardModal .modal-content, #deleteConfirmModal .modal-content, #awardPointsModal .modal-content, #deductPointsModal .modal-content, #viewUserPointsModal .modal-content, #issueCertificateModal .modal-content {
-    background: #ffffff;
-    margin: 5% auto;
-    padding: 30px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 600px;
-    position: relative;
-}
-
-#viewUserPointsModal .modal-content {
-    max-width: 800px;
-}
-
-.text-success {
-    color: #28a745;
-}
-
-.text-danger {
-    color: #dc3545;
-}
-
-.close {
-    position: absolute;
-    right: 20px;
-    top: 20px;
-    font-size: 28px;
-    font-weight: bold;
-    color: #636e72;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: #2d3436;
-}
-
-/* Table Container Enhancement */
-.table-container {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e9ecef;
-    position: relative;
-    overflow: visible;
-}
-
-.table-container .data-table {
-    overflow: hidden;
-    border-radius: 12px;
-}
-
-.data-table {
-    margin: 0;
-    width: 100%;
-    border-collapse: collapse;
-    border-spacing: 0;
-}
-
-.data-table tr {
-    vertical-align: bottom;
-}
-
-.data-table thead {
-    background: #f8f9fa;
-}
-
-.data-table th {
-    font-weight: 600;
-    color: #2d3436;
-    padding: 15px;
-    text-align: left;
-    border-bottom: 1px solid #f1f2f6;
-}
-
-.data-table td {
-    padding: 15px;
-    text-align: left;
-    border-bottom: 1px solid #f1f2f6;
-    color: #2d3436;
-    vertical-align: bottom;
-}
-
-/* Ensure Status and Actions columns align at bottom - same row */
-.data-table tbody tr td:nth-child(5),
-.data-table tbody tr td:nth-child(6) {
-    vertical-align: bottom !important;
-    padding-bottom: 15px !important;
-    white-space: nowrap;
-}
-
-.data-table tbody tr {
-    vertical-align: bottom;
-}
-
-.data-table tbody tr:hover {
-    background-color: #f8f9fa;
-}
-
-.data-table .actions {
-    display: flex !important;
-    gap: 5px;
-    flex-wrap: nowrap !important;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap !important;
-    min-width: 80px;
-    width: 100px;
-    vertical-align: bottom;
-}
-
-.data-table .actions button {
-    margin: 0 !important;
-    vertical-align: bottom;
-}
-
-.data-table .text-center {
-    text-align: center;
-    padding: 40px;
-    color: #636e72;
-}
-
-/* Badge Styles */
-.badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: capitalize;
-    white-space: nowrap;
-    letter-spacing: 0.3px;
-    vertical-align: middle;
-    line-height: 1.5;
-}
-
-.badge-success {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.badge-warning {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.badge-danger {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.badge-info {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.badge-secondary {
-    background: #f3f4f6;
-    color: #4b5563;
-}
-
-/* Button Styles */
-.btn-sm {
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin: 0;
-    vertical-align: middle;
-    line-height: 1;
-}
-
-.btn-sm.btn-info {
-    background: #17a2b8;
-    color: white;
-}
-
-.btn-sm.btn-info:hover {
-    background: #138496;
-}
-
-.btn-sm.btn-primary {
-    background: #3b82f6;
-    color: white;
-}
-
-.btn-sm.btn-primary:hover {
-    background: #2563eb;
-}
-
-.btn-sm.btn-success {
-    background: #10b981;
-    color: white;
-}
-
-.btn-sm.btn-success:hover {
-    background: #059669;
-}
-
-.btn-sm.btn-danger {
-    background: #ef4444;
-    color: white;
-}
-
-.btn-sm.btn-danger:hover {
-    background: #dc2626;
-}
-
-/* Square buttons for Rewards table */
-.btn-sm.btn-square {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    border-radius: 4px;
-}
-
-.btn-sm.btn-square i {
-    font-size: 0.85rem;
-    margin: 0;
-}
-
-/* Filters Section Styling */
-.filters-section {
-    margin-bottom: 30px;
-}
-
-.filters-card {
-    background: #ffffff;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e9ecef;
-}
-
-.filters-form {
-    display: flex;
-    gap: 15px;
-    align-items: flex-end;
-    flex-wrap: wrap;
-}
-
-.filter-input-wrapper,
-.filter-select-wrapper {
-    position: relative;
-    flex: 1;
-    min-width: 200px;
-}
-
-.filter-icon {
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #6c757d;
-    z-index: 1;
-    pointer-events: none;
-}
-
-.filter-input,
-.filter-select {
-    width: 100%;
-    padding: 12px 15px 12px 45px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
-    background: #ffffff;
-    color: #495057;
-}
-
-.filter-input:focus,
-.filter-select:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.filter-input::placeholder {
-    color: #adb5bd;
-}
-
-.filter-select {
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    padding-right: 40px;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .filters-form {
-        flex-direction: column;
+window.closeIssueCertificateModal = function() {
+    const modal = document.getElementById('issueCertificateModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
     }
     
-    .filter-input-wrapper,
-    .filter-select-wrapper {
-        width: 100%;
+    // Reset form
+    const form = document.getElementById('issueCertificateForm');
+    if (form) {
+        form.reset();
     }
-    
-    .data-table {
-        font-size: 0.85rem;
-    }
+};
 
-    .data-table th,
-    .data-table td {
-        padding: 10px;
-    }
-
-    .data-table .actions {
-        flex-direction: column;
-    }
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #333;
-}
-
-.form-group input[type="text"],
-.form-group input[type="number"],
-.form-group textarea,
-.form-group select {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-family: inherit;
-    font-size: 0.95rem;
-    transition: border-color 0.3s;
-    background-color: white;
-}
-
-.form-group input[type="text"]:focus,
-.form-group input[type="number"]:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-    outline: none;
-    border-color: #a31f37;
-    box-shadow: 0 0 0 3px rgba(163, 31, 55, 0.1);
-}
-
-.form-group select:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-}
-
-.form-group input[type="checkbox"] {
-    margin-right: 8px;
-}
-
-.form-group small {
-    display: block;
-    margin-top: 5px;
-    color: #666;
-    font-size: 0.85rem;
-}
-
-.form-group input:disabled {
-    background: #f5f5f5;
-    cursor: not-allowed;
-}
-
-.form-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
-}
-
-@endsection
-
+window.filterRedemptions = function() {
+    const status = document.getElementById('redemptionStatusFilter').value;
+    // Reload with filter
+    loadRedemptionsManagement();
+};

@@ -104,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             // Points Management
             Route::post('/points/award', [LoyaltyController::class, 'awardPoints']);
+            Route::post('/points/deduct', [LoyaltyController::class, 'deductPoints']);
             Route::get('/points/all', [LoyaltyController::class, 'getAllUsersPoints']);
             Route::get('/points/user/{userId}', [LoyaltyController::class, 'getUserPoints']);
             
@@ -149,6 +150,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}', [FeedbackController::class, 'destroy']);
             Route::put('/{id}/respond', [FeedbackController::class, 'respond']);
             Route::put('/{id}/block', [FeedbackController::class, 'block']);
+            Route::put('/{id}/reject', [FeedbackController::class, 'reject']);
         });
     });
 

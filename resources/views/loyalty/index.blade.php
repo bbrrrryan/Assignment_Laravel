@@ -29,171 +29,51 @@
     </div>
 </div>
 
-<script>
-// Wait for DOM and API to be ready
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof API === 'undefined') {
-        console.error('API.js not loaded!');
-        alert('Error: API functions not loaded. Please refresh the page.');
-        return;
-    }
+<script src="{{ asset('js/loyalty/index.js') }}"></script>
 
-    if (!API.requireAuth()) return;
-
-    initLoyalty();
-});
-
-let currentTab = 'points';
-
-function initLoyalty() {
-    loadPoints();
-    loadPointsHistory();
+<style>
+.btn-primary.btn-disabled {
+    background: #6c757d !important;
+    color: white !important;
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
-async function loadPoints() {
-    const result = await API.get('/loyalty/points');
-    
-    if (result.success) {
-        document.getElementById('totalPoints').textContent = result.data.total_points || 0;
-    }
+.btn-primary.btn-disabled:hover {
+    background: #6c757d !important;
+    opacity: 0.7;
 }
 
-async function loadPointsHistory() {
-    showLoading(document.getElementById('loyaltyContent'));
-    
-    const result = await API.get('/loyalty/points/history');
-    
-    if (result.success) {
-        const history = result.data.data?.data || result.data.data || [];
-
-        const container = document.getElementById('loyaltyContent');
-        if (history.length === 0) {
-            container.innerHTML = '<p>No points history</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Action</th>
-                        <th>Points</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${history.map(item => `
-                        <tr>
-                            <td>${formatDate(item.created_at)}</td>
-                            <td>${item.action_type}</td>
-                            <td class="${item.points > 0 ? 'text-success' : 'text-danger'}">${item.points > 0 ? '+' : ''}${item.points}</td>
-                            <td>${item.description || '-'}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-    } else {
-        showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load points history');
-    }
+button:disabled.btn-primary.btn-disabled {
+    background: #6c757d !important;
+    opacity: 0.7;
 }
 
-async function loadRewards() {
-    showLoading(document.getElementById('loyaltyContent'));
-    
-    const result = await API.get('/loyalty/rewards');
-    
-    if (result.success) {
-        const rewards = result.data.data || [];
-
-        const container = document.getElementById('loyaltyContent');
-        if (rewards.length === 0) {
-            container.innerHTML = '<p>No rewards available</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="rewards-grid">
-                ${rewards.map(reward => `
-                    <div class="reward-card">
-                        <h3>${reward.name}</h3>
-                        <p>${reward.description || ''}</p>
-                        <div class="reward-points">
-                            <strong>${reward.points_required} Points</strong>
-                        </div>
-                        <button class="btn-primary" onclick="redeemReward(${reward.id}, ${reward.points_required})" 
-                                ${getTotalPoints() < reward.points_required ? 'disabled' : ''}>
-                            Redeem
-                        </button>
-                </div>
-            `).join('')}
-            </div>
-        `;
-    } else {
-        showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load rewards');
-    }
+.reward-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    text-align: center;
 }
 
-async function loadCertificates() {
-    showLoading(document.getElementById('loyaltyContent'));
-    
-    const result = await API.get('/loyalty/certificates');
-    
-    if (result.success) {
-        const certificates = result.data.data || [];
-
-        const container = document.getElementById('loyaltyContent');
-        if (certificates.length === 0) {
-            container.innerHTML = '<p>No certificates earned</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="certificates-grid">
-                ${certificates.map(cert => `
-                    <div class="certificate-card">
-                        <i class="fas fa-certificate"></i>
-                        <h3>${cert.title}</h3>
-                        <p>${cert.certificate_type}</p>
-                        <span class="cert-date">Issued: ${formatDate(cert.issued_date)}</span>
-                </div>
-            `).join('')}
-            </div>
-        `;
-    } else {
-        showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load certificates');
-    }
+.reward-card h3 {
+    color: #2d3436;
+    margin-bottom: 10px;
+    font-size: 1.3rem;
 }
 
-// Make functions global
-window.showTab = function(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-
-    if (tab === 'points') loadPointsHistory();
-    else if (tab === 'rewards') loadRewards();
-    else if (tab === 'certificates') loadCertificates();
-};
-
-function getTotalPoints() {
-    return parseInt(document.getElementById('totalPoints').textContent) || 0;
+.reward-card p {
+    color: #636e72;
+    margin-bottom: 15px;
+    min-height: 40px;
 }
 
-window.redeemReward = async function(rewardId, pointsRequired) {
-    if (!confirm(`Redeem this reward for ${pointsRequired} points?`)) return;
-
-    const result = await API.post('/loyalty/rewards/redeem', { reward_id: rewardId });
-
-    if (result.success) {
-        alert('Reward redeemed successfully! Awaiting approval.');
-        loadPoints();
-        loadRewards();
-    } else {
-        alert(result.error || 'Error redeeming reward');
-    }
-};
-</script>
+.reward-points {
+    margin: 20px 0;
+    font-size: 1.1rem;
+    color: #a31f37;
+}
+</style>
 @endsection
 

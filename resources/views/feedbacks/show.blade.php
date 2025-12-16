@@ -11,10 +11,15 @@
         </a>
     </div>
 
-    <div id="feedbackDetails" class="details-container">
+    <div id="feedbackDetails" class="details-container" data-feedback-id="{{ $id }}">
         <p>Loading feedback details...</p>
     </div>
 </div>
+
+<script>
+// Pass feedback ID to JavaScript
+window.feedbackId = {{ $id }};
+</script>
 
 <!-- Reply Feedback Modal -->
 <div id="replyModal" class="modal" style="display: none;">
@@ -58,380 +63,15 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof API === 'undefined') {
-        console.error('API.js not loaded!');
-        alert('Error: API functions not loaded. Please refresh the page.');
-        return;
-    }
+<!-- Image View Modal -->
+<div id="imageViewModal" class="image-modal" style="display: none;">
+    <span class="image-modal-close" onclick="closeImageViewModal()">&times;</span>
+    <div class="image-modal-content">
+        <img id="imageViewImg" src="" alt="Feedback Image">
+    </div>
+</div>
 
-    if (!API.requireAuth()) return;
-
-    loadFeedbackDetails();
-    
-    // Handle reply form submission
-    const replyForm = document.getElementById('replyForm');
-    if (replyForm) {
-        replyForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const feedbackId = this.dataset.feedbackId;
-            const response = document.getElementById('replyMessage').value.trim();
-            
-            if (!response) {
-                alert('Please enter a response');
-                return;
-            }
-            
-            if (typeof API === 'undefined') {
-                alert('API not loaded');
-                return;
-            }
-            
-            // Disable submit button
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            
-            try {
-                const result = await API.put(`/feedbacks/${feedbackId}/respond`, { response: response });
-                
-                if (result.success) {
-                    closeReplyModal();
-                    // Reload feedback details to show the response
-                    loadFeedbackDetails();
-                    // Show success message
-                    alert('Response submitted successfully!');
-                } else {
-                    alert(result.error || 'Error submitting response');
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
-                }
-            } catch (error) {
-                console.error('Error submitting reply:', error);
-                alert('An error occurred while submitting the response');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
-            }
-        });
-    }
-    
-    // Close modal when clicking outside
-    const replyModal = document.getElementById('replyModal');
-    if (replyModal) {
-        replyModal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeReplyModal();
-            }
-        });
-    }
-    
-    // Handle block form submission
-    const blockForm = document.getElementById('blockForm');
-    if (blockForm) {
-        blockForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const feedbackId = this.dataset.feedbackId;
-            const reason = document.getElementById('blockReason').value.trim();
-            
-            if (!reason) {
-                alert('Please enter a reason for blocking');
-                return;
-            }
-            
-            if (!confirm('Are you sure you want to block this feedback? This action cannot be easily undone.')) {
-                return;
-            }
-            
-            if (typeof API === 'undefined') {
-                alert('API not loaded');
-                return;
-            }
-            
-            // Disable submit button
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Blocking...';
-            
-            try {
-                const result = await API.put(`/feedbacks/${feedbackId}/block`, { reason: reason });
-                
-                if (result.success) {
-                    closeBlockModal();
-                    // Reload feedback details to show the blocked status
-                    loadFeedbackDetails();
-                    // Show success message
-                    alert('Feedback blocked successfully!');
-                } else {
-                    alert(result.error || 'Error blocking feedback');
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
-                }
-            } catch (error) {
-                console.error('Error blocking feedback:', error);
-                alert('An error occurred while blocking the feedback');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
-            }
-        });
-    }
-    
-    // Close block modal when clicking outside
-    const blockModal = document.getElementById('blockModal');
-    if (blockModal) {
-        blockModal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeBlockModal();
-            }
-        });
-    }
-});
-
-let currentFeedback = null;
-
-async function loadFeedbackDetails() {
-    const feedbackId = {{ $id }};
-    const result = await API.get(`/feedbacks/${feedbackId}`);
-
-    if (result.success) {
-        currentFeedback = result.data.data;
-        window.currentFeedback = currentFeedback;
-        displayFeedbackDetails(currentFeedback);
-    } else {
-        document.getElementById('feedbackDetails').innerHTML = `
-            <div class="error-message">
-                <p>Error loading feedback details: ${result.error || 'Unknown error'}</p>
-                <a href="{{ route('feedbacks.index') }}" class="btn-primary">Back to Feedbacks</a>
-            </div>
-        `;
-    }
-}
-
-function displayFeedbackDetails(feedback) {
-    const container = document.getElementById('feedbackDetails');
-    
-    container.innerHTML = `
-        <div class="details-card">
-            <div class="details-section">
-                <h2>Feedback Information</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Subject:</span>
-                    <span class="detail-value">${feedback.subject || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Type:</span>
-                    <span class="status-badge status-${feedback.type}">${feedback.type || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="status-badge status-${feedback.status}">${feedback.status || 'N/A'}</span>
-                </div>
-                ${feedback.rating ? `
-                <div class="detail-row">
-                    <span class="detail-label">Rating:</span>
-                    <span class="detail-value">${'★'.repeat(feedback.rating)} ${feedback.rating}/5</span>
-                </div>
-                ` : ''}
-                <div class="detail-row">
-                    <span class="detail-label">Submitted:</span>
-                    <span class="detail-value">${formatDateTime(feedback.created_at)}</span>
-                </div>
-            </div>
-
-            <div class="details-section">
-                <h2>Message</h2>
-                <div class="message-content">
-                    ${feedback.message || 'No message'}
-                </div>
-            </div>
-
-            ${feedback.facility ? `
-            <div class="details-section">
-                <h2>Related Facility</h2>
-                <div class="detail-row">
-                    <span class="detail-label">Facility:</span>
-                    <span class="detail-value">${feedback.facility.name || 'N/A'}</span>
-                </div>
-            </div>
-            ` : ''}
-
-            ${feedback.status === 'pending' ? `
-            <div class="details-section">
-                <h2>Status Notice</h2>
-                <div class="pending-notice">
-                    <strong><i class="fas fa-clock"></i> This feedback is pending review</strong>
-                    <p>Waiting for admin to review this feedback.</p>
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.status === 'under_review' ? `
-            <div class="details-section">
-                <h2>Status Notice</h2>
-                <div class="under-review-notice">
-                    <strong><i class="fas fa-eye"></i> This feedback is under review</strong>
-                    <p>Admin is currently reviewing this feedback.</p>
-                    ${feedback.reviewer && feedback.reviewer.name ? `
-                    <p style="margin-top: 8px; font-size: 0.9rem;">
-                        <i class="fas fa-user"></i> Reviewed by: ${feedback.reviewer.name}
-                    </p>
-                    ` : feedback.reviewed_by ? `
-                    <p style="margin-top: 8px; font-size: 0.9rem;">
-                        <i class="fas fa-user"></i> Reviewed by: Admin
-                    </p>
-                    ` : ''}
-                    ${feedback.reviewed_at ? `
-                    <p style="margin-top: 5px; font-size: 0.9rem;">
-                        <i class="fas fa-calendar"></i> Review started: ${formatDateTime(feedback.reviewed_at)}
-                    </p>
-                    ` : ''}
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.status === 'blocked' || feedback.is_blocked ? `
-            <div class="details-section">
-                <h2>Status Notice</h2>
-                <div class="blocked-notice">
-                    <strong><i class="fas fa-ban"></i> This feedback has been blocked</strong>
-                    <p>This feedback has been blocked and is not visible to other users.</p>
-                    ${feedback.block_reason ? `
-                    <p style="margin-top: 8px; font-size: 0.9rem;">
-                        <i class="fas fa-info-circle"></i> <strong>Reason:</strong> ${feedback.block_reason}
-                    </p>
-                    ` : ''}
-                    ${feedback.reviewed_at ? `
-                    <p style="margin-top: 5px; font-size: 0.9rem;">
-                        <i class="fas fa-calendar"></i> Blocked at: ${formatDateTime(feedback.reviewed_at)}
-                    </p>
-                    ` : ''}
-                </div>
-            </div>
-            ` : ''}
-            ${feedback.admin_response ? `
-            <div class="details-section">
-                <h2>Admin Response</h2>
-                <div class="message-content admin-response">
-                    ${feedback.admin_response}
-                </div>
-                ${feedback.reviewed_at ? `
-                <div class="detail-row" style="margin-top: 15px;">
-                    <span class="detail-label">Reviewed At:</span>
-                    <span class="detail-value">${formatDateTime(feedback.reviewed_at)}</span>
-                </div>
-                ` : ''}
-            </div>
-            ` : ''}
-            
-            ${typeof API !== 'undefined' && API.isAdmin() ? `
-            <div class="details-section">
-                <div class="feedback-action-buttons">
-                    ${!feedback.admin_response && !feedback.is_blocked ? `
-                        <button class="btn-action btn-success" onclick="replyToFeedback(${feedback.id})">
-                            <i class="fas fa-reply"></i> Reply to Feedback
-                        </button>
-                    ` : ''}
-                    ${!feedback.is_blocked ? `
-                        <button class="btn-action btn-danger" onclick="blockFeedback(${feedback.id})">
-                            <i class="fas fa-ban"></i> Block Feedback
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-function formatDateTime(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString();
-}
-
-// Admin function to reply to feedback
-window.replyToFeedback = function(id) {
-    // Get feedback data from the page
-    const feedbackId = {{ $id }};
-    
-    // Display feedback info in modal
-    const infoDiv = document.getElementById('replyFeedbackInfo');
-    const feedback = currentFeedback || {};
-    
-    infoDiv.innerHTML = `
-        <div class="reply-feedback-preview">
-            <div class="preview-header">
-                <strong>Subject:</strong> ${feedback.subject || 'N/A'}
-            </div>
-            <div class="preview-type">
-                <span class="status-badge status-${feedback.type}">${feedback.type || 'N/A'}</span>
-            </div>
-            <div class="preview-message">
-                <strong>Original Message:</strong>
-                <p>${feedback.message || 'No message'}</p>
-            </div>
-        </div>
-    `;
-    
-    // Reset form
-    document.getElementById('replyForm').reset();
-    document.getElementById('replyMessage').value = '';
-    
-    // Store feedback ID for form submission
-    document.getElementById('replyForm').dataset.feedbackId = feedbackId;
-    
-    // Show modal
-    document.getElementById('replyModal').style.display = 'block';
-};
-
-window.closeReplyModal = function() {
-    document.getElementById('replyModal').style.display = 'none';
-    document.getElementById('replyForm').reset();
-    delete document.getElementById('replyForm').dataset.feedbackId;
-};
-
-// Admin function to block feedback
-window.blockFeedback = function(id) {
-    // Get feedback data from the page
-    const feedbackId = {{ $id }};
-    const feedback = currentFeedback || {};
-    
-    // Display feedback info in modal
-    const infoDiv = document.getElementById('blockFeedbackInfo');
-    infoDiv.innerHTML = `
-        <div class="reply-feedback-preview">
-            <div class="preview-header">
-                <strong>Subject:</strong> ${feedback.subject || 'N/A'}
-            </div>
-            <div class="preview-type">
-                <span class="status-badge status-${feedback.type}">${feedback.type || 'N/A'}</span>
-            </div>
-            <div class="preview-message">
-                <strong>Original Message:</strong>
-                <p>${feedback.message || 'No message'}</p>
-            </div>
-        </div>
-    `;
-    
-    // Reset form
-    document.getElementById('blockForm').reset();
-    document.getElementById('blockReason').value = '';
-    
-    // Store feedback ID for form submission
-    document.getElementById('blockForm').dataset.feedbackId = feedbackId;
-    
-    // Show modal
-    document.getElementById('blockModal').style.display = 'block';
-};
-
-window.closeBlockModal = function() {
-    document.getElementById('blockModal').style.display = 'none';
-    document.getElementById('blockForm').reset();
-    delete document.getElementById('blockForm').dataset.feedbackId;
-};
-</script>
+<script src="{{ asset('js/feedbacks/show.js') }}"></script>
 
 <style>
 .details-container {
@@ -748,6 +388,82 @@ window.closeBlockModal = function() {
 
 .btn-action:active {
     transform: translateY(0);
+}
+
+/* Image View Modal Styles */
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 3000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.image-modal-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    animation: zoomIn 0.3s ease;
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.image-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 40px;
+    color: #ffffff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 3001;
+    transition: all 0.3s ease;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.image-modal-close:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Feedback Image Wrapper Hover Effect */
+.feedback-image-wrapper:hover .image-overlay {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.feedback-image-wrapper:hover .feedback-image {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 </style>
 @endsection

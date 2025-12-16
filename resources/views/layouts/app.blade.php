@@ -390,22 +390,37 @@
             // type can be: 'success', 'error', 'warning', 'info'
             var container = document.getElementById('toastContainer');
             
+            // Ensure container exists
+            if (!container) {
+                console.error('Toast container not found, using alert as fallback');
+                alert(message); // Fallback to alert
+                return;
+            }
+            
             // Create toast element
             var toast = document.createElement('div');
-            toast.className = 'toast-message toast-' + type;
+            toast.className = 'toast-message toast-' + (type || 'info');
             toast.innerHTML = '<span>' + message + '</span><button onclick="this.parentElement.remove()">&times;</button>';
+            
+            // Set initial styles to ensure visibility
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            toast.style.display = 'flex';
             
             // Add to container
             container.appendChild(toast);
             
+            // Force reflow to trigger animation
+            toast.offsetHeight;
+            
             // Auto remove after 4 seconds with fade out
             setTimeout(function() {
-                if (toast.parentElement) {
+                if (toast && toast.parentElement) {
                     toast.style.transition = 'all 0.3s ease-out';
                     toast.style.opacity = '0';
                     toast.style.transform = 'translateY(-20px)';
                     setTimeout(function() {
-                        if (toast.parentElement) {
+                        if (toast && toast.parentElement) {
                             toast.remove();
                         }
                     }, 300);
