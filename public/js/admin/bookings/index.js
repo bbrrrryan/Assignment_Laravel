@@ -117,9 +117,10 @@ window.toggleBookingDropdown = function(id) {
     }
 };
 
-// Store current booking ID for approve/reject actions
+// Store current booking ID for approve/reject/cancel actions
 let currentApproveBookingId = null;
 let currentRejectBookingId = null;
+let currentCancelBookingId = null;
 
 // Approve booking - show modal
 window.approveBooking = function(id) {
@@ -334,6 +335,135 @@ window.confirmRejectBooking = async function() {
                 confirmBtn.disabled = false;
                 confirmBtn.innerHTML = originalText;
             }
+        }
+    }
+};
+
+// Cancel approved booking - show modal
+window.cancelBooking = function(id) {
+    const dropdown = document.getElementById(`booking-dropdown-${id}`);
+    if (dropdown) dropdown.classList.remove('show');
+    
+    currentCancelBookingId = id;
+    document.getElementById('cancelReason').value = '';
+    document.getElementById('customCancelReason').value = '';
+    document.getElementById('customCancelReason').style.display = 'none';
+    document.getElementById('confirmCancelBtn').disabled = true;
+    document.getElementById('cancelBookingModal').style.display = 'flex';
+};
+
+// Close cancel modal
+function closeCancelModal() {
+    document.getElementById('cancelBookingModal').style.display = 'none';
+    currentCancelBookingId = null;
+    document.getElementById('cancelReason').value = '';
+    document.getElementById('customCancelReason').value = '';
+    document.getElementById('customCancelReason').style.display = 'none';
+    document.getElementById('confirmCancelBtn').disabled = true;
+}
+
+// Handle cancel reason change
+window.handleCancelReasonChange = function() {
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    
+    if (reasonSelect.value === 'other') {
+        customReason.style.display = 'block';
+        customReason.required = true;
+        confirmBtn.disabled = !customReason.value.trim();
+    } else if (reasonSelect.value) {
+        customReason.style.display = 'none';
+        customReason.required = false;
+        confirmBtn.disabled = false;
+    } else {
+        customReason.style.display = 'none';
+        customReason.required = false;
+        confirmBtn.disabled = true;
+    }
+};
+
+// Add event listener for custom cancel reason input
+document.addEventListener('DOMContentLoaded', function() {
+    const customCancelReason = document.getElementById('customCancelReason');
+    if (customCancelReason) {
+        customCancelReason.addEventListener('input', function() {
+            const confirmBtn = document.getElementById('confirmCancelBtn');
+            const reasonSelect = document.getElementById('cancelReason');
+            if (reasonSelect.value === 'other') {
+                confirmBtn.disabled = !this.value.trim();
+            }
+        });
+    }
+});
+
+// Confirm cancel booking
+window.confirmCancelBooking = async function() {
+    if (!currentCancelBookingId) {
+        return;
+    }
+    
+    const reasonSelect = document.getElementById('cancelReason');
+    const customReason = document.getElementById('customCancelReason');
+    let reasonText = '';
+    
+    if (!reasonSelect.value) {
+        if (typeof showToast === 'function') {
+            showToast('Please select a reason for cancellation.', 'warning');
+        } else {
+            alert('Please select a reason for cancellation.');
+        }
+        return;
+    }
+    
+    if (reasonSelect.value === 'other') {
+        if (!customReason.value.trim()) {
+            if (typeof showToast === 'function') {
+                showToast('Please provide a reason for cancellation.', 'warning');
+            } else {
+                alert('Please provide a reason for cancellation.');
+            }
+            return;
+        }
+        reasonText = customReason.value.trim();
+    } else {
+        reasonText = reasonSelect.options[reasonSelect.selectedIndex].text;
+    }
+    
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    const originalText = confirmBtn.innerHTML;
+    
+    try {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+        
+        const result = await API.put(`/bookings/${currentCancelBookingId}/cancel`, { reason: reasonText });
+        closeCancelModal();
+        
+        if (result.success) {
+            if (typeof showToast === 'function') {
+                showToast('Booking cancelled successfully!', 'success');
+            } else {
+                alert('Booking cancelled successfully!');
+            }
+            loadBookings(window.adminCurrentPage);
+        } else {
+            if (typeof showToast === 'function') {
+                showToast(result.error || 'Error cancelling booking', 'error');
+            } else {
+                alert(result.error || 'Error cancelling booking');
+            }
+        }
+    } catch (error) {
+        if (typeof showToast === 'function') {
+            showToast('Error cancelling booking: ' + (error.message || 'An unexpected error occurred'), 'error');
+        } else {
+            alert('Error cancelling booking: ' + (error.message || 'An unexpected error occurred'));
+        }
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
         }
     }
 };
@@ -920,6 +1050,9 @@ function displayBookings(bookingsToShow) {
                                     <div class="dropdown-menu" id="booking-dropdown-${booking.id}">
                                         <button class="dropdown-item" onclick="markComplete(${booking.id})">
                                             <i class="fas fa-check-circle text-success"></i> Mark Complete
+                                        </button>
+                                        <button class="dropdown-item" onclick="cancelBooking(${booking.id})">
+                                            <i class="fas fa-ban text-warning"></i> Cancel Booking
                                         </button>
                                     </div>
                                 </div>
