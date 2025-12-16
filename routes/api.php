@@ -146,6 +146,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin only routes
         Route::middleware('admin')->group(function () {
             Route::get('/', [FeedbackController::class, 'index']);
+            Route::get('/pending', [FeedbackController::class, 'getPendingFeedbacks']);
             Route::put('/{id}', [FeedbackController::class, 'update']);
             Route::delete('/{id}', [FeedbackController::class, 'destroy']);
             Route::put('/{id}/respond', [FeedbackController::class, 'respond']);

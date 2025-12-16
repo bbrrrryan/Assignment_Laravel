@@ -51,7 +51,7 @@ class User extends Authenticatable
         'last_login_at',
         'otp_code',
         'otp_expires_at',
-        'studentid',
+        'personal_id',
     ];
 
     protected $hidden = [
@@ -162,7 +162,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Generate a unique student ID
+     * Generate a unique student personal ID
      * Format: YYWMR##### (e.g., 25WMR00001)
      * YY: 2-digit year (e.g., 25 for 2025)
      * WMR: Fixed prefix
@@ -175,19 +175,47 @@ class User extends Authenticatable
         $year = date('y');
         $prefix = $year . 'WMR';
         
-        $lastStudent = self::whereNotNull('studentid')
-            ->where('studentid', 'like', $prefix . '%')
-            ->orderBy('studentid', 'desc')
+        $lastStudent = self::whereNotNull('personal_id')
+            ->where('personal_id', 'like', $prefix . '%')
+            ->orderBy('personal_id', 'desc')
             ->first();
         
-        if ($lastStudent && $lastStudent->studentid) {
-            $lastNumber = intval(substr($lastStudent->studentid, 5));
+        if ($lastStudent && $lastStudent->personal_id) {
+            $lastNumber = intval(substr($lastStudent->personal_id, 5));
             $nextNumber = $lastNumber + 1;
         } else {
             $nextNumber = 1;
         }
         
         return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Generate a unique staff personal ID
+     * Format: p#### (e.g., p0001, p0002, p0003...)
+     * p: Fixed prefix
+     * ####: 4-digit sequential number starting from 0001
+     * 
+     * @return string
+     */
+    public static function generateStaffId()
+    {
+        $prefix = 'p';
+        
+        $lastStaff = self::whereNotNull('personal_id')
+            ->where('personal_id', 'like', $prefix . '%')
+            ->orderBy('personal_id', 'desc')
+            ->first();
+        
+        if ($lastStaff && $lastStaff->personal_id) {
+            // Extract number from personal_id (e.g., "p0001" -> 1)
+            $lastNumber = intval(substr($lastStaff->personal_id, 1));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+        
+        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
 }

@@ -7,14 +7,24 @@
 <div class="container">
     <div class="page-header">
         <div class="page-header-content">
-            <h1>Announcement Management</h1>
-            <p>Manage all announcements in the system</p>
+            <h1>Announcements & Notifications</h1>
+            <p>Manage all announcements and notifications in the system</p>
         </div>
         <div>
-            <button class="btn-header-white" onclick="showCreateModal()">
+            <button class="btn-header-white" id="createButton" onclick="showCreateModal()">
                 <i class="fas fa-plus"></i> Add New Announcement
             </button>
         </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchTab('announcements', this)">
+            <i class="fas fa-bullhorn"></i> Announcements
+        </button>
+        <button class="admin-tab" onclick="switchTab('notifications', this)">
+            <i class="fas fa-bell"></i> Notifications
+        </button>
     </div>
 
     @if(session('success'))
@@ -92,31 +102,42 @@
         <i class="fas fa-spinner"></i> Loading announcements...
     </div>
 
-    <!-- Announcements Table -->
-    <div class="table-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th class="sortable" data-sort="id">ID <i class="sort-icon"></i></th>
-                    <th class="sortable" data-sort="title">Title <i class="sort-icon"></i></th>
-                    <th class="sortable" data-sort="type">Type <i class="sort-icon"></i></th>
-                    <th class="sortable" data-sort="priority">Priority <i class="sort-icon"></i></th>
-                    <th>Created By</th>
-                    <th class="sortable" data-sort="created_at">Created At <i class="sort-icon"></i></th>
-                    <th class="sortable" data-sort="is_active">Status <i class="sort-icon"></i></th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="announcementsList">
-                <tr>
-                    <td colspan="8" style="text-align: center; padding: 20px;">Loading announcements...</td>
-                </tr>
-            </tbody>
-        </table>
+    <!-- Announcements Section -->
+    <div id="announcementsSection" class="tab-content active">
+        <!-- Announcements Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="id">ID <i class="sort-icon"></i></th>
+                        <th class="sortable" data-sort="title">Title <i class="sort-icon"></i></th>
+                        <th class="sortable" data-sort="type">Type <i class="sort-icon"></i></th>
+                        <th class="sortable" data-sort="priority">Priority <i class="sort-icon"></i></th>
+                        <th>Created By</th>
+                        <th class="sortable" data-sort="created_at">Created At <i class="sort-icon"></i></th>
+                        <th class="sortable" data-sort="is_active">Status <i class="sort-icon"></i></th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="announcementsList">
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 20px;">Loading announcements...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination-wrapper" id="paginationWrapper"></div>
     </div>
-    
-    <!-- Pagination -->
-    <div class="pagination-wrapper" id="paginationWrapper"></div>
+
+    <!-- Notifications Section -->
+    <div id="notificationsSection" class="tab-content" style="display: none;">
+        <!-- Notifications Table -->
+        <div id="notificationsList" class="table-container">
+            <p style="text-align: center; padding: 40px;">Loading notifications...</p>
+        </div>
+    </div>
 </div>
 
 <!-- Create Announcement Modal -->
@@ -158,6 +179,83 @@
                 <button type="submit" class="btn-primary">Create & Publish</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Create/Edit Notification Modal -->
+<div id="notificationModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="notificationModalTitle">Create Notification</h2>
+            <button class="modal-close" onclick="closeNotificationModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="notificationForm">
+                <input type="hidden" id="notificationId">
+                
+                <div class="form-group">
+                    <label for="notificationTitle">Title <span class="required">*</span></label>
+                    <input type="text" id="notificationTitle" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="notificationMessage">Message <span class="required">*</span></label>
+                    <textarea id="notificationMessage" class="form-control" rows="5" required></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="notificationType">Type <span class="required">*</span></label>
+                        <select id="notificationType" class="form-control" required>
+                            <option value="info">Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="success">Success</option>
+                            <option value="error">Error</option>
+                            <option value="reminder">Reminder</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="notificationPriority">Priority</label>
+                        <select id="notificationPriority" class="form-control">
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="notificationTargetAudience">Target Audience <span class="required">*</span></label>
+                    <select id="notificationTargetAudience" class="form-control" required onchange="toggleNotificationTargetUsers()">
+                        <option value="all">All Users</option>
+                        <option value="students">Students Only</option>
+                        <option value="staff">Staff Only</option>
+                        <option value="admins">Admins Only</option>
+                        <option value="specific">Specific Users</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="notificationTargetUsersGroup" style="display: none;">
+                    <label for="notificationTargetUserIds">Select Users</label>
+                    <input type="text" id="notificationTargetUserIds" class="form-control" placeholder="Enter user IDs separated by commas">
+                    <small class="form-text">Example: 1,2,3</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notificationIsActive" checked>
+                        Active
+                    </label>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeNotificationModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="notificationSubmitBtn">Create Notification</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -222,7 +320,55 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (statusFilter) {
         statusFilter.addEventListener('change', function() {
-            loadAnnouncements(null, null, 1);
+            if (currentTab === 'announcements') {
+                loadAnnouncements(null, null, 1);
+            }
+        });
+    }
+    
+    // Update search and filters to work with both tabs
+    if (searchInput) {
+        const debouncedSearchBoth = debounce(() => {
+            if (currentTab === 'announcements') {
+                loadAnnouncements(null, null, 1);
+            } else {
+                loadNotifications(1);
+            }
+        }, 300);
+        
+        // Add listener that works for both tabs
+        const originalInput = searchInput.oninput;
+        searchInput.addEventListener('input', function() {
+            if (searchClearBtn) {
+                if (this.value.trim()) {
+                    searchClearBtn.style.display = 'flex';
+                } else {
+                    searchClearBtn.style.display = 'none';
+                }
+            }
+            debouncedSearchBoth();
+        });
+    }
+    
+    if (typeFilter) {
+        const originalTypeChange = typeFilter.onchange;
+        typeFilter.addEventListener('change', function() {
+            if (currentTab === 'announcements') {
+                loadAnnouncements(null, null, 1);
+            } else {
+                loadNotifications(1);
+            }
+        });
+    }
+    
+    if (priorityFilter) {
+        const originalPriorityChange = priorityFilter.onchange;
+        priorityFilter.addEventListener('change', function() {
+            if (currentTab === 'announcements') {
+                loadAnnouncements(null, null, 1);
+            } else {
+                loadNotifications(1);
+            }
         });
     }
     
@@ -240,6 +386,7 @@ let currentSortBy = 'created_at';
 let currentSortOrder = 'desc';
 let currentPage = 1;
 let searchTimeout;
+let currentTab = 'announcements';
 
 // Debounce function
 function debounce(func, wait) {
@@ -468,6 +615,324 @@ window.showCreateModal = function() {
 
 window.closeModal = function() {
     document.getElementById('announcementModal').style.display = 'none';
+};
+
+// Notification management functions
+let notificationCurrentPage = 1;
+
+window.loadNotifications = async function(page = 1) {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
+    
+    container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading notifications...</p>';
+    notificationCurrentPage = page;
+    
+    try {
+        const searchInput = document.getElementById('announcementSearchInput');
+        const typeFilter = document.getElementById('typeFilter');
+        const priorityFilter = document.getElementById('priorityFilter');
+        
+        const params = new URLSearchParams();
+        params.append('per_page', 15);
+        params.append('page', page);
+        
+        if (searchInput && searchInput.value.trim()) {
+            params.append('search', searchInput.value.trim());
+        }
+        if (typeFilter && typeFilter.value) {
+            params.append('type', typeFilter.value);
+        }
+        if (priorityFilter && priorityFilter.value) {
+            params.append('priority', priorityFilter.value);
+        }
+        
+        const result = await API.get(`/notifications?${params.toString()}`);
+        
+        if (result && result.success !== false && result.data) {
+            const paginator = result.data.data || result.data;
+            const notifications = Array.isArray(paginator.data) ? paginator.data : [];
+            const pagination = paginator;
+            
+            if (!notifications || notifications.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 40px;">No notifications found.</p>';
+                return;
+            }
+            
+            displayNotifications(notifications, pagination);
+        } else {
+            container.innerHTML = '<p style="text-align: center; padding: 40px; color: #dc3545;">Error loading notifications.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #dc3545;">Error loading notifications: ' + error.message + '</p>';
+    }
+}
+
+function displayNotifications(notifications, pagination) {
+    const container = document.getElementById('notificationsList');
+    
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    notifications.forEach(notification => {
+        const typeBadge = getNotificationTypeBadge(notification.type);
+        const priorityBadge = getNotificationPriorityBadge(notification.priority);
+        const statusBadge = notification.is_active 
+            ? '<span class="badge badge-success">Active</span>' 
+            : '<span class="badge badge-secondary">Inactive</span>';
+        const createdAt = formatNotificationDateTime(notification.created_at);
+        const creatorName = notification.creator ? notification.creator.name : 'System';
+        
+        html += `
+            <tr>
+                <td>#${notification.id}</td>
+                <td>${escapeHtml(notification.title)}</td>
+                <td>${typeBadge}</td>
+                <td>${priorityBadge}</td>
+                <td>${escapeHtml(creatorName)}</td>
+                <td>${createdAt}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <button class="btn-action btn-view" onclick="viewNotification(${notification.id})" title="View">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
+    `;
+    
+    // Add pagination
+    if (pagination && pagination.last_page > 1) {
+        html += `<div class="pagination">`;
+        if (pagination.current_page > 1) {
+            html += `<button class="btn-pagination" onclick="loadNotifications(${pagination.current_page - 1})">Previous</button>`;
+        }
+        html += `<span class="pagination-info">Page ${pagination.current_page} of ${pagination.last_page}</span>`;
+        if (pagination.current_page < pagination.last_page) {
+            html += `<button class="btn-pagination" onclick="loadNotifications(${pagination.current_page + 1})">Next</button>`;
+        }
+        html += `</div>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+function getNotificationTypeBadge(type) {
+    const badges = {
+        'info': '<span class="badge badge-info">Info</span>',
+        'warning': '<span class="badge badge-warning">Warning</span>',
+        'success': '<span class="badge badge-success">Success</span>',
+        'error': '<span class="badge badge-error">Error</span>',
+        'reminder': '<span class="badge badge-reminder">Reminder</span>'
+    };
+    return badges[type] || '<span class="badge">' + type + '</span>';
+}
+
+function getNotificationPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge badge-priority-low">Low</span>',
+        'medium': '<span class="badge badge-info">Medium</span>',
+        'high': '<span class="badge badge-warning">High</span>',
+        'urgent': '<span class="badge badge-error">Urgent</span>'
+    };
+    return badges[priority] || '<span class="badge">' + (priority || 'Medium') + '</span>';
+}
+
+function formatNotificationDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+window.showCreateNotificationModal = function() {
+    document.getElementById('notificationModalTitle').textContent = 'Create Notification';
+    document.getElementById('notificationForm').reset();
+    document.getElementById('notificationId').value = '';
+    document.getElementById('notificationSubmitBtn').textContent = 'Create Notification';
+    document.getElementById('notificationTargetUsersGroup').style.display = 'none';
+    document.getElementById('notificationModal').style.display = 'flex';
+};
+
+window.closeNotificationModal = function() {
+    document.getElementById('notificationModal').style.display = 'none';
+};
+
+window.toggleNotificationTargetUsers = function() {
+    const targetAudience = document.getElementById('notificationTargetAudience').value;
+    const targetUsersGroup = document.getElementById('notificationTargetUsersGroup');
+    if (targetAudience === 'specific') {
+        targetUsersGroup.style.display = 'block';
+    } else {
+        targetUsersGroup.style.display = 'none';
+    }
+};
+
+async function viewNotification(id) {
+    window.location.href = `/notifications/${id}`;
+}
+
+async function editNotification(id) {
+    try {
+        const result = await API.get(`/notifications/${id}`);
+        if (result && result.success !== false && result.data) {
+            const notification = result.data;
+            
+            document.getElementById('notificationModalTitle').textContent = 'Edit Notification';
+            document.getElementById('notificationId').value = notification.id;
+            document.getElementById('notificationTitle').value = notification.title || '';
+            document.getElementById('notificationMessage').value = notification.message || '';
+            document.getElementById('notificationType').value = notification.type || 'info';
+            document.getElementById('notificationPriority').value = notification.priority || 'medium';
+            document.getElementById('notificationTargetAudience').value = notification.target_audience || 'all';
+            document.getElementById('notificationIsActive').checked = notification.is_active !== false;
+            document.getElementById('notificationSubmitBtn').textContent = 'Update Notification';
+            
+            if (notification.target_user_ids && Array.isArray(notification.target_user_ids)) {
+                document.getElementById('notificationTargetUserIds').value = notification.target_user_ids.join(',');
+            }
+            
+            toggleNotificationTargetUsers();
+            document.getElementById('notificationModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading notification:', error);
+        alert('Error loading notification: ' + error.message);
+    }
+}
+
+async function deleteNotification(id) {
+    if (!confirm('Are you sure you want to delete this notification?')) {
+        return;
+    }
+    
+    try {
+        const result = await API.delete(`/notifications/${id}`);
+        if (result && result.success !== false) {
+            alert('Notification deleted successfully!');
+            loadNotifications(notificationCurrentPage);
+        } else {
+            alert('Error deleting notification: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting notification:', error);
+        alert('Error deleting notification: ' + error.message);
+    }
+}
+
+// Notification form submission
+if (document.getElementById('notificationForm')) {
+    document.getElementById('notificationForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            title: document.getElementById('notificationTitle').value,
+            message: document.getElementById('notificationMessage').value,
+            type: document.getElementById('notificationType').value,
+            priority: document.getElementById('notificationPriority').value,
+            target_audience: document.getElementById('notificationTargetAudience').value,
+            is_active: document.getElementById('notificationIsActive').checked
+        };
+        
+        const targetUserIds = document.getElementById('notificationTargetUserIds').value;
+        if (formData.target_audience === 'specific' && targetUserIds) {
+            formData.target_user_ids = targetUserIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        }
+        
+        const notificationId = document.getElementById('notificationId').value;
+        const submitBtn = document.getElementById('notificationSubmitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+        
+        try {
+            let result;
+            if (notificationId) {
+                result = await API.put(`/notifications/${notificationId}`, formData);
+            } else {
+                result = await API.post('/notifications', formData);
+            }
+            
+            if (result && result.success !== false) {
+                alert('Notification saved successfully!');
+                closeNotificationModal();
+                loadNotifications(notificationCurrentPage);
+            } else {
+                alert('Error saving notification: ' + (result.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error saving notification:', error);
+            alert('Error saving notification: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = notificationId ? 'Update Notification' : 'Create Notification';
+        }
+    });
+}
+
+// Tab switching function
+window.switchTab = function(tab, element) {
+    currentTab = tab;
+    
+    // Update tab buttons
+    document.querySelectorAll('.admin-tab').forEach(btn => btn.classList.remove('active'));
+    if (element) {
+        element.classList.add('active');
+    } else {
+        // Find tab button by text content
+        document.querySelectorAll('.admin-tab').forEach(btn => {
+            if (btn.textContent.includes(tab === 'announcements' ? 'Announcements' : 'Notifications')) {
+                btn.classList.add('active');
+            }
+        });
+    }
+    
+    // Update tab content
+    document.getElementById('announcementsSection').style.display = tab === 'announcements' ? 'block' : 'none';
+    document.getElementById('notificationsSection').style.display = tab === 'notifications' ? 'block' : 'none';
+    
+    // Update create button - hide for notifications tab
+    const createButton = document.getElementById('createButton');
+    if (tab === 'announcements') {
+        createButton.innerHTML = '<i class="fas fa-plus"></i> Add New Announcement';
+        createButton.setAttribute('onclick', 'showCreateModal()');
+        createButton.style.display = 'inline-flex';
+        loadAnnouncements(null, null, 1);
+    } else {
+        // Hide create button for notifications tab
+        createButton.style.display = 'none';
+        loadNotifications(1);
+    }
+    
+    // Update filters visibility - hide status filter for notifications
+    const statusFilterWrapper = document.getElementById('statusFilter')?.closest('.filter-select-wrapper');
+    if (statusFilterWrapper) {
+        statusFilterWrapper.style.display = tab === 'notifications' ? 'none' : 'block';
+    }
 };
 
 // Bind form submit event
@@ -1098,6 +1563,234 @@ a.btn-header-white {
     .page-header-content h1 {
         font-size: 1.8rem;
     }
+}
+
+/* Admin Tabs */
+.admin-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.admin-tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-tab:hover {
+    color: #cb2d3e;
+    background-color: #f8f9fa;
+}
+
+.admin-tab.active {
+    color: #cb2d3e;
+    border-bottom-color: #cb2d3e;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Notification Badges */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.badge-warning {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.badge-success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.badge-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.badge-secondary {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+/* Action Buttons */
+.btn-action {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 0 2px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-view {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.btn-view:hover {
+    background-color: #138496;
+}
+
+.btn-edit {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-edit:hover {
+    background-color: #218838;
+}
+
+.btn-delete {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-delete:hover {
+    background-color: #c82333;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+}
+
+.btn-pagination {
+    padding: 8px 16px;
+    border: 1px solid #dee2e6;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-pagination:hover {
+    background-color: #f8f9fa;
+    border-color: #cb2d3e;
+    color: #cb2d3e;
+}
+
+.pagination-info {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Modal Styles for Notifications */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #2d3436;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: #6c757d;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #2d3436;
+}
+
+.modal-body {
+    padding: 30px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.required {
+    color: #dc3545;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px 30px;
+    border-top: 1px solid #e9ecef;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: #cb2d3e;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #a01a2a;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.form-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.85rem;
+    color: #6c757d;
 }
 </style>
 @endsection

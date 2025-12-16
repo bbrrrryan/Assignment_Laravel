@@ -12,6 +12,66 @@ use Illuminate\Support\Facades\Log;
 class UserCRUDManagementController extends AdminBaseController
 {
     /**
+     * Show the form for creating a new staff user.
+     * Only admin is allowed to access this.
+     */
+    public function create()
+    {
+        $currentUser = auth()->user();
+
+        if (!$currentUser || !$currentUser->isAdmin()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Only admin can create staff user');
+        }
+
+        return view('admin.users.create');
+    }
+
+    /**
+     * Store a newly created staff user in storage.
+     * Role is fixed as 'staff' and cannot be changed here.
+     */
+    public function store(Request $request)
+    {
+        $currentUser = auth()->user();
+
+        if (!$currentUser || !$currentUser->isAdmin()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Only admin can create staff user');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6|confirmed',
+            'phone_number' => 'nullable|string|max:255',
+            'address' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $createData = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'staff', // fixed role for this create flow
+            'status' => 'active',
+            'phone_number' => $request->phone_number ?: null,
+            'address' => $request->address ?: null,
+            'personal_id' => User::generateStaffId(),
+        ];
+
+        User::create($createData);
+
+        return redirect()->route('admin.users.index')
+            ->with('success', 'Staff user created successfully');
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
@@ -79,7 +139,6 @@ class UserCRUDManagementController extends AdminBaseController
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|nullable|string|min:6|confirmed',
-            'role' => 'sometimes|required|in:admin,student,staff',
             'phone_number' => 'nullable|string|max:255',
             'address' => 'nullable|string',
             'status' => 'nullable|in:active,inactive',
@@ -92,19 +151,6 @@ class UserCRUDManagementController extends AdminBaseController
         }
 
         $updateData = $request->only(['name', 'email', 'phone_number', 'address']);
-        
-        // Only admin can change role
-        if ($request->has('role')) {
-            if ($currentUser->isAdmin()) {
-                // Admin can change role
-                $updateData['role'] = $request->role;
-            } else {
-                // Staff cannot change role
-                return redirect()->back()
-                    ->withErrors(['role' => 'Only admin can change user role'])
-                    ->withInput();
-            }
-        }
         
         // Only admin can change status to inactive
         if ($request->has('status')) {
@@ -333,7 +379,9 @@ class UserCRUDManagementController extends AdminBaseController
                 ];
                 
                 if ($userData['role'] === 'student') {
-                    $createData['studentid'] = User::generateStudentId();
+                    $createData['personal_id'] = User::generateStudentId();
+                } elseif ($userData['role'] === 'staff') {
+                    $createData['personal_id'] = User::generateStaffId();
                 }
                 
                 User::create($createData);

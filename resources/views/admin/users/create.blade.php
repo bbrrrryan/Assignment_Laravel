@@ -1,14 +1,14 @@
-{{-- Author: Liew Zi Li (user edit) --}}
+{{-- Author: Liew Zi Li (create staff user) --}}
 @extends('layouts.app')
 
-@section('title', 'Edit User - TARUMT FMS')
+@section('title', 'Add Staff - TARUMT FMS')
 
 @section('content')
 <div class="container">
     <div class="page-header">
         <div class="page-header-content">
-            <h1>Edit User</h1>
-            <p>Update user information</p>
+            <h1>Add Staff User</h1>
+            <p>Create a new staff account for the system</p>
         </div>
         <div>
             <a href="{{ route('admin.users.index') }}" class="btn-header-white">
@@ -29,59 +29,46 @@
     @endif
 
     <div class="form-card">
-        <form method="POST" action="{{ route('admin.users.update', $user->id) }}">
+        <form method="POST" action="{{ route('admin.users.store') }}">
             @csrf
-            @method('PUT')
             
             <div class="form-section">
                 <h3><i class="fas fa-user"></i> Basic Information</h3>
                 
                 <div class="form-group">
                     <label for="name">Full Name <span class="required">*</span></label>
-                    <input type="text" id="name" name="name" value="{{ old('name', $user->name) }}" required class="form-input">
+                    <input type="text" id="name" name="name" value="{{ old('name') }}" required class="form-input" placeholder="Enter staff full name">
                 </div>
 
                 <div class="form-group">
                     <label for="email">Email Address <span class="required">*</span></label>
-                    <input type="email" id="email" name="email" value="{{ old('email', $user->email) }}" required class="form-input">
+                    <input type="email" id="email" name="email" value="{{ old('email') }}" required class="form-input" placeholder="Enter staff email">
                 </div>
 
-                @if(($user->role === 'student' || $user->role === 'staff') && $user->personal_id)
                 <div class="form-group">
-                    <label for="personal_id">{{ $user->role === 'student' ? 'Student ID' : 'Staff ID' }}</label>
-                    <input type="text" id="personal_id" name="personal_id" value="{{ old('personal_id', $user->personal_id) }}" readonly class="form-input" style="background-color: #f5f5f5; cursor: not-allowed;">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle"></i> {{ $user->role === 'student' ? 'Student' : 'Staff' }} ID cannot be edited.
-                    </small>
-                </div>
-                @endif
-
-                <div class="form-group">
-                    <label for="role">Role <span class="required">*</span></label>
-                    {{-- Role is now read-only for all users (including admin) --}}
+                    <label for="role">Role</label>
                     <div class="role-display">
                         <span class="badge badge-info">
-                            {{ ucfirst($user->role) }}
+                            Staff
                         </span>
                     </div>
                     <small class="text-muted">
-                        <i class="fas fa-info-circle"></i> User role cannot be changed here. Current role: <strong>{{ ucfirst($user->role) }}</strong>
+                        <i class="fas fa-info-circle"></i> This form is only for creating <strong>Staff</strong> users. Role is fixed and cannot be changed here.
                     </small>
                 </div>
             </div>
 
             <div class="form-section">
-                <h3><i class="fas fa-lock"></i> Password (Optional)</h3>
+                <h3><i class="fas fa-lock"></i> Password</h3>
                 
                 <div class="form-group">
-                    <label for="password">New Password</label>
-                    <input type="password" id="password" name="password" class="form-input">
-                    <small>Leave blank to keep current password. Minimum 6 characters if changing.</small>
+                    <label for="password">Password <span class="required">*</span></label>
+                    <input type="password" id="password" name="password" required class="form-input" placeholder="Enter password (min 6 characters)">
                 </div>
 
                 <div class="form-group">
-                    <label for="password_confirmation">Confirm New Password</label>
-                    <input type="password" id="password_confirmation" name="password_confirmation" class="form-input">
+                    <label for="password_confirmation">Confirm Password <span class="required">*</span></label>
+                    <input type="password" id="password_confirmation" name="password_confirmation" required class="form-input" placeholder="Re-type password">
                 </div>
             </div>
 
@@ -91,35 +78,12 @@
                 <div class="form-group">
                     <label for="phone_number">Phone Number</label>
                     <input type="text" id="phone_number" name="phone_number" 
-                           value="{{ old('phone_number', $user->phone_number) }}" class="form-input">
+                           value="{{ old('phone_number') }}" class="form-input" placeholder="Optional phone number">
                 </div>
 
                 <div class="form-group">
                     <label for="address">Address</label>
-                    <textarea id="address" name="address" rows="3" class="form-input">{{ old('address', $user->address) }}</textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="status">Status <span class="required">*</span></label>
-                    @if(auth()->user()->isAdmin())
-                        {{-- Admin can change status to active or inactive --}}
-                        <select id="status" name="status" required class="form-select">
-                            <option value="active" {{ old('status', $user->status) === 'active' ? 'selected' : '' }}>Active - User can login</option>
-                            <option value="inactive" {{ old('status', $user->status) === 'inactive' ? 'selected' : '' }}>Inactive - User cannot login</option>
-                        </select>
-                        <small>Set to "Inactive" to prevent user from logging in. This is safer than deleting the user.</small>
-                    @else
-                        {{-- Staff can only view status, cannot change to inactive --}}
-                        <div class="status-display">
-                            <span class="badge badge-{{ $user->status === 'active' ? 'success' : 'secondary' }}">
-                                {{ ucfirst($user->status) }}
-                            </span>
-                            <input type="hidden" name="status" value="{{ $user->status }}">
-                        </div>
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle"></i> Only administrators can change user status. Current status: <strong>{{ ucfirst($user->status) }}</strong>
-                        </small>
-                    @endif
+                    <textarea id="address" name="address" rows="3" class="form-input" placeholder="Optional address">{{ old('address') }}</textarea>
                 </div>
             </div>
 
@@ -128,15 +92,15 @@
                     <i class="fas fa-times"></i> Cancel
                 </a>
                 <button type="submit" class="btn-primary">
-                    <i class="fas fa-save"></i> Update User
+                    <i class="fas fa-user-plus"></i> Create Staff User
                 </button>
             </div>
         </form>
     </div>
 </div>
 
+{{-- Reuse styles from edit page to keep consistent look --}}
 <style>
-/* Page Header Styling */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -188,7 +152,6 @@
     color: #a01a2a;
 }
 
-/* Form Card Styling */
 .form-card {
     background: #ffffff;
     padding: 30px;
@@ -259,19 +222,6 @@
     box-shadow: 0 0 0 3px rgba(203, 45, 62, 0.1);
 }
 
-.form-input::placeholder {
-    color: #adb5bd;
-}
-
-.form-select {
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    padding-right: 40px;
-}
-
 .form-group small {
     display: block;
     margin-top: 6px;
@@ -280,11 +230,6 @@
     line-height: 1.4;
 }
 
-.form-group small.text-muted {
-    color: #6c757d;
-}
-
-.status-display,
 .role-display {
     padding: 12px 15px;
     background: #f8f9fa;
@@ -306,16 +251,6 @@
 .badge-info {
     background-color: #e7f3ff;
     color: #0066cc;
-}
-
-.badge-success {
-    background-color: #d4edda;
-    color: #155724;
-}
-
-.badge-secondary {
-    background-color: #e2e3e5;
-    color: #383d41;
 }
 
 .form-actions {
@@ -367,7 +302,6 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Alert Styling */
 .alert {
     padding: 15px 20px;
     border-radius: 8px;
@@ -396,7 +330,6 @@
     margin-bottom: 5px;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .page-header {
         flex-direction: column;
@@ -420,3 +353,5 @@
 }
 </style>
 @endsection
+
+

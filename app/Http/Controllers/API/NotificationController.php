@@ -22,6 +22,13 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         $notifications = Notification::with('creator')
+            ->when($request->search, function($q) use ($request) {
+                $search = $request->search;
+                $q->where(function($query) use ($search) {
+                    $query->where('title', 'like', "%{$search}%")
+                          ->orWhere('message', 'like', "%{$search}%");
+                });
+            })
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->priority, fn($q) => $q->where('priority', $request->priority))
             ->when($request->is_active !== null, fn($q) => $q->where('is_active', $request->is_active))

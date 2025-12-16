@@ -47,7 +47,9 @@ class UserFactory
         ];
         
         if ($roleName === 'student') {
-            $userData['studentid'] = User::generateStudentId();
+            $userData['personal_id'] = User::generateStudentId();
+        } elseif ($roleName === 'staff') {
+            $userData['personal_id'] = User::generateStaffId();
         }
         
         return User::create($userData);

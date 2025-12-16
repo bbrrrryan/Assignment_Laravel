@@ -35,11 +35,12 @@ Route::middleware('auth')->group(function () {
     Route::prefix('admin')->middleware('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
         
-        // User Management (Read and Update only, no Create/Delete)
+        // User Management
         // Put specific routes BEFORE resource routes to avoid route conflicts
         Route::get('users/export-csv', [UserCRUDManagementController::class, 'exportCsv'])->name('users.export-csv');
         Route::post('users/upload-csv', [UserCRUDManagementController::class, 'uploadCsv'])->name('users.upload-csv');
-        Route::resource('users', UserCRUDManagementController::class)->except(['create', 'store', 'destroy']);
+        // Allow create/store so admin can add staff, but still no delete
+        Route::resource('users', UserCRUDManagementController::class)->except(['destroy']);
         
         // Facility Management
         Route::resource('facilities', FacilityController::class);
@@ -56,6 +57,11 @@ Route::middleware('auth')->group(function () {
         
         // Loyalty Management
         Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
+        
+        // Notification Management (redirected to announcements page with tabs)
+        Route::get('/notifications', function() {
+            return redirect()->route('announcements.index');
+        })->name('notifications.index');
     });
 
     // Profile Routes (All authenticated users)
@@ -88,8 +94,8 @@ Route::middleware('auth')->group(function () {
         $user = auth()->user();
         $role = strtolower($user->role ?? '');
         
-        // Admin and Staff go to admin dashboard
-        if ($role === 'admin' || $role === 'staff') {
+        // Only admin goes to admin dashboard
+        if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
         }
         

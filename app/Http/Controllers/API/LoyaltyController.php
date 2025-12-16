@@ -8,6 +8,7 @@ use App\Models\LoyaltyRule;
 use App\Models\Reward;
 use App\Models\Certificate;
 use App\Models\User;
+use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -113,12 +114,12 @@ class LoyaltyController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        $point = LoyaltyPoint::create([
-            'user_id' => $request->user_id,
-            'points' => $request->points,
-            'action_type' => $request->action_type,
-            'description' => $request->description ?? "Points awarded for: {$request->action_type}",
-        ]);
+        $point = LoyaltyFactory::makeLoyaltyPoint(
+            $request->user_id,
+            $request->points,
+            $request->action_type,
+            $request->description
+        );
 
         return response()->json([
             'message' => 'Points awarded successfully',
@@ -138,12 +139,12 @@ class LoyaltyController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        $point = LoyaltyPoint::create([
-            'user_id' => $request->user_id,
-            'points' => -abs($request->points), // Always make it negative
-            'action_type' => $request->action_type,
-            'description' => $request->description ?? "Points deducted for: {$request->action_type}",
-        ]);
+        $point = LoyaltyFactory::makeLoyaltyPoint(
+            $request->user_id,
+            -abs($request->points),
+            $request->action_type,
+            $request->description
+        );
 
         return response()->json([
             'message' => 'Points deducted successfully',
@@ -166,7 +167,7 @@ class LoyaltyController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('studentid', 'like', "%{$search}%");
+                  ->orWhere('personal_id', 'like', "%{$search}%");
             });
         }
 
@@ -175,7 +176,7 @@ class LoyaltyController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'studentid' => $user->studentid ?? null,
+                'personal_id' => $user->personal_id ?? null,
                 'total_points' => $user->loyaltyPoints()->sum('points'),
                 'points_count' => $user->loyaltyPoints()->count(),
             ];
@@ -223,7 +224,14 @@ class LoyaltyController extends Controller
             'conditions' => 'nullable|array',
         ]);
 
-        $rule = LoyaltyRule::create($validated);
+        $rule = LoyaltyFactory::makeLoyaltyRule(
+            $validated['action_type'],
+            $validated['name'],
+            $validated['points'],
+            $validated['description'] ?? null,
+            $validated['is_active'] ?? true,
+            $validated['conditions'] ?? null
+        );
         return response()->json(['message' => 'Rule created successfully', 'data' => $rule], 201);
     }
 
@@ -294,7 +302,15 @@ class LoyaltyController extends Controller
             }
         }
 
-        $reward = Reward::create($validated);
+        $reward = LoyaltyFactory::makeReward(
+            $validated['name'],
+            $validated['points_required'],
+            $validated['reward_type'],
+            $validated['description'] ?? null,
+            $validated['image_url'] ?? null,
+            $validated['stock_quantity'] ?? null,
+            $validated['is_active'] ?? true
+        );
         return response()->json(['message' => 'Reward created successfully', 'data' => $reward], 201);
     }
 
@@ -443,19 +459,15 @@ class LoyaltyController extends Controller
 
         $user = User::findOrFail($request->user_id);
 
-        // Generate certificate number
-        $certificateNumber = 'CERT-' . strtoupper(uniqid());
-
-        $certificate = Certificate::create([
-            'user_id' => $request->user_id,
-            'reward_id' => $request->reward_id,
-            'certificate_number' => $certificateNumber,
-            'title' => $request->title,
-            'description' => $request->description,
-            'issued_date' => $request->issued_date ?? now(),
-            'issued_by' => (string)auth()->id(),
-            'status' => 'approved', // Certificate is approved when issued
-        ]);
+        $certificate = LoyaltyFactory::makeCertificate(
+            $request->user_id,
+            $request->title,
+            $request->reward_id,
+            $request->description,
+            $request->issued_date ?? null,
+            auth()->id(),
+            'approved' // Certificate is approved when issued
+        );
 
         return response()->json([
             'message' => 'Certificate issued successfully',
