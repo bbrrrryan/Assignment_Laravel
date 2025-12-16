@@ -10,10 +10,18 @@ class FacilityController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
+        
+        $perPage = $request->input('per_page', 15);
+        $perPage = min(max($perPage, 1), 100); // Limit between 1 and 100
+        
         $facilities = Facility::where('is_deleted', false)
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->paginate(15);
+            // Only students are restricted to sports and library facilities
+            // Staff can see all facilities
+            ->when($user && $user->isStudent(), fn($q) => $q->whereIn('type', ['sports', 'library']))
+            ->paginate($perPage);
         
         // Get booking date from request if provided
         $bookingDate = $request->get('booking_date');
@@ -70,6 +78,7 @@ class FacilityController extends Controller
         $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
         
         // Check if user is student and facility type is not allowed
+        // Staff can view all facilities
         $user = $request->user();
         if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
             return response()->json([
@@ -113,6 +122,17 @@ class FacilityController extends Controller
     public function availability(string $id, Request $request)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
+        
+        // Check if user is student and facility type is not allowed
+        // Staff can check availability for all facilities
+        $user = $request->user();
+        if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => 'You are not allowed to check availability for this facility. Students can only book sports or library facilities.',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 403);
+        }
         
         $request->validate([
             'date' => 'required|date',

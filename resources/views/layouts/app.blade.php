@@ -695,8 +695,32 @@
                 const isStaff = API.isStaff();
                 const isStudent = API.isStudent();
                 
-                if (isStudent) {
-                    // For students, get unread announcements and notifications count
+                if (isAdmin) {
+                    // For admin only: get pending bookings count
+                    const result = await API.get('/bookings/pending?limit=0');
+                    let count = 0;
+                    if (result && result.success && result.data) {
+                        // Check if result.data has items array (pending bookings) or count property
+                        if (result.data.items && Array.isArray(result.data.items)) {
+                            count = result.data.items.length;
+                        } else if (result.data.count !== undefined) {
+                            count = result.data.count;
+                        } else if (result.data.bookings && Array.isArray(result.data.bookings)) {
+                            count = result.data.bookings.length;
+                        }
+                    }
+                    
+                    const badge = document.getElementById('notificationNavBadge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count > 99 ? '99+' : count;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                } else {
+                    // For students and staff: get unread announcements and notifications count
                     const result = await API.get('/notifications/user/unread-items?limit=0&only_unread=true');
                     if (result.success && result.data && result.data.counts) {
                         const totalCount = result.data.counts.total || 0;
@@ -708,28 +732,6 @@
                             } else {
                                 badge.style.display = 'none';
                             }
-                        }
-                    }
-                } else if (isAdmin || isStaff) {
-                    // For admin/staff: get pending bookings count
-                    const result = await API.get('/bookings/pending?limit=0');
-                    let count = 0;
-                    if (result && result.success !== false && result.data) {
-                        // Check if result.data has items array (pending bookings) or count property
-                        if (result.data.items && Array.isArray(result.data.items)) {
-                            count = result.data.items.length;
-                        } else if (result.data.count !== undefined) {
-                            count = result.data.count;
-                        }
-                    }
-                    
-                    const badge = document.getElementById('notificationNavBadge');
-                    if (badge) {
-                        if (count > 0) {
-                            badge.textContent = count > 99 ? '99+' : count;
-                            badge.style.display = 'flex';
-                        } else {
-                            badge.style.display = 'none';
                         }
                     }
                 }
@@ -800,7 +802,7 @@
                 
                 // Student/Staff: show Announcements & Notifications
                 // Admin: show only pending bookings
-                if (isStudent) {
+                if (isStudent || isStaff) {
                     // For students: show unread announcements and notifications
                     if (titleElement) {
                         titleElement.textContent = 'Announcements & Notifications';
@@ -866,17 +868,17 @@
                             </div>
                         `;
                     }).join('');
-                } else if (isAdmin || isStaff) {
-                    // For admin/staff: ONLY show pending bookings (no announcements)
+                } else if (isAdmin) {
+                    // For admin only: ONLY show pending bookings (no announcements)
                     if (titleElement) {
                         titleElement.textContent = 'Notifications';
                     }
                     if (viewAllLink) {
-                        // Admin/Staff should go to admin bookings page
+                        // Admin should go to admin bookings page
                         viewAllLink.href = '/admin/bookings';
                     }
                     
-                    // Admin/Staff bell only displays user booking requests
+                    // Admin bell only displays user booking requests
                     const result = await API.get('/bookings/pending?limit=10');
                     console.log('Pending bookings API result:', result);
                     

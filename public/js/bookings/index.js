@@ -75,6 +75,13 @@ window.showCreateModal = function() {
     if (facilitySelect) {
         // Use onclick attribute for more reliable binding
         facilitySelect.onchange = function() {
+            // Clear selected time slots when facility changes
+            selectedTimeSlots = [];
+            // Clear all selected slots visually
+            document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+                s.classList.remove('selected');
+            });
+            
             if (this.value) {
                 loadTimetable(this.value);
             } else {
@@ -623,7 +630,7 @@ async function loadBookings(page = 1) {
 
 // Load facilities for filter dropdown
 async function loadFacilitiesForFilter() {
-    const result = await API.get('/facilities');
+    const result = await API.get('/facilities?per_page=100'); // Load more facilities for filter
     
     if (result.success) {
         const facilitiesList = result.data.data?.data || result.data.data || [];
@@ -638,40 +645,125 @@ async function loadFacilitiesForFilter() {
     }
 }
 
-async function loadFacilities(bookingDate = null) {
-    let url = '/facilities';
+// Facility pagination state
+let facilityCurrentPage = 1;
+let facilityHasMore = true;
+let facilityLoading = false;
+let allFacilities = [];
+
+async function loadFacilities(bookingDate = null, page = 1, append = false) {
+    if (facilityLoading) return; // Prevent multiple simultaneous requests
+    
+    facilityLoading = true;
+    let url = `/facilities?per_page=50&page=${page}`;
+    // Note: API.get() automatically adds '/api' prefix, so '/facilities' becomes '/api/facilities'
     if (bookingDate) {
-        url += `?booking_date=${bookingDate}`;
+        url += `&booking_date=${bookingDate}`;
     }
     
     const result = await API.get(url);
     
     if (result.success) {
-        facilities = result.data.data?.data || result.data.data || [];
+        const paginationData = result.data.data;
+        const newFacilities = paginationData?.data || paginationData || [];
+        
+        if (append) {
+            // Append to existing facilities
+            allFacilities = [...allFacilities, ...newFacilities];
+        } else {
+            // Replace facilities
+            allFacilities = newFacilities;
+            facilityCurrentPage = 1;
+        }
+        
+        facilities = allFacilities;
+        
+        // Check if there are more pages
+        facilityHasMore = paginationData?.next_page_url ? true : false;
+        facilityCurrentPage = page;
+        
         const select = document.getElementById('bookingFacility');
         
-        if (facilities.length === 0) {
+        if (allFacilities.length === 0) {
             select.innerHTML = '<option value="">No facilities available. Please create a facility first.</option>';
             select.disabled = true;
-            alert('No facilities available. Please create a facility first.');
+            if (!append) {
+                alert('No facilities available. Please create a facility first.');
+            }
         } else {
             select.disabled = false;
             const currentValue = select.value; // Preserve current selection if any
-            select.innerHTML = '<option value="">Select Facility</option>' +
-                facilities.map(f => {
-                    // Only disable if facility status is not available
-                    // Don't disable based on capacity because capacity is checked by time segments
-                    const isDisabled = f.status !== 'available';
-                    const disabledAttr = isDisabled ? 'disabled' : '';
-                    const selectedAttr = (currentValue == f.id) ? 'selected' : '';
-                    return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}</option>`;
-                }).join('');
+            
+            // Build options HTML
+            let optionsHTML = '<option value="">Select Facility</option>';
+            optionsHTML += allFacilities.map(f => {
+                // Only disable if facility status is not available
+                // Don't disable based on capacity because capacity is checked by time segments
+                const isDisabled = f.status !== 'available';
+                const disabledAttr = isDisabled ? 'disabled' : '';
+                const selectedAttr = (currentValue == f.id) ? 'selected' : '';
+                return `<option value="${f.id}" ${disabledAttr} ${selectedAttr}>${f.name} (${f.code}) - ${f.status}</option>`;
+            }).join('');
+            
+            // Add "Load More" option if there are more pages
+            if (facilityHasMore) {
+                optionsHTML += `<option value="__load_more__" disabled style="font-style: italic; color: #666;">--- Scroll to load more ---</option>`;
+            }
+            
+            select.innerHTML = optionsHTML;
+            
+            // Restore selection
+            if (currentValue) {
+                select.value = currentValue;
+            }
+            
+            // Add scroll event listener for loading more (works in most modern browsers)
+            if (facilityHasMore && !select.dataset.scrollListenerAdded) {
+                select.dataset.scrollListenerAdded = 'true';
+                // Use both scroll and mousewheel events for better compatibility
+                select.addEventListener('scroll', handleFacilitySelectScroll);
+                select.addEventListener('wheel', handleFacilitySelectScroll);
+                // Also listen for when dropdown is opened
+                select.addEventListener('focus', function() {
+                    // Check if we need to load more when dropdown opens
+                    setTimeout(() => {
+                        if (facilityHasMore && !facilityLoading) {
+                            const scrollTop = select.scrollTop;
+                            const scrollHeight = select.scrollHeight;
+                            const clientHeight = select.clientHeight;
+                            if (scrollHeight - scrollTop - clientHeight < 100) {
+                                const bookingDate = document.getElementById('bookingDate')?.value || null;
+                                loadFacilities(bookingDate, facilityCurrentPage + 1, true);
+                            }
+                        }
+                    }, 100);
+                });
+            }
         }
     } else {
         const select = document.getElementById('bookingFacility');
-        select.innerHTML = '<option value="">Error loading facilities</option>';
-        select.disabled = true;
+        if (!append) {
+            select.innerHTML = '<option value="">Error loading facilities</option>';
+            select.disabled = true;
+        }
         console.error('Error loading facilities:', result);
+    }
+    
+    facilityLoading = false;
+}
+
+// Handle scroll event on select dropdown
+function handleFacilitySelectScroll(e) {
+    const select = e.target;
+    // Check if scrolled near bottom (within 50px)
+    const scrollTop = select.scrollTop;
+    const scrollHeight = select.scrollHeight;
+    const clientHeight = select.clientHeight;
+    
+    if (scrollHeight - scrollTop - clientHeight < 50 && facilityHasMore && !facilityLoading) {
+        // Load next page
+        const bookingDate = document.getElementById('bookingDate')?.value || null;
+        loadFacilities(bookingDate, facilityCurrentPage + 1, true);
     }
 }
 
@@ -826,6 +918,13 @@ async function loadTimetable(facilityId) {
         return;
     }
     
+    // Clear selected time slots when switching facilities
+    selectedTimeSlots = [];
+    // Clear all selected slots visually
+    document.querySelectorAll('.timetable-slot.selected').forEach(s => {
+        s.classList.remove('selected');
+    });
+    
     container.innerHTML = '<div class="timetable-loading"><i class="fas fa-spinner fa-spin me-2"></i>Loading timetable...</div>';
     
     try {
@@ -836,6 +935,7 @@ async function loadTimetable(facilityId) {
         
         // Load facility info to get capacity, available_time, available_day, and max_booking_hours
         let facilityCapacity = null;
+        let facilityType = null; // Facility type (classroom, auditorium, laboratory, etc.)
         let facilityStartTime = '08:00'; // Default start time
         let facilityEndTime = '20:00';   // Default end time
         let maxBookingHours = 1; // Default to 1 hour
@@ -846,6 +946,7 @@ async function loadTimetable(facilityId) {
             if (facilityResult.success && facilityResult.data) {
                 const facility = facilityResult.data.data || facilityResult.data;
                 facilityCapacity = facility.capacity;
+                facilityType = facility.type; // Get facility type
                 maxBookingHours = facility.max_booking_hours || 1; // Get max booking hours
                 
                 // Get available_time from facility
@@ -1072,7 +1173,7 @@ async function loadTimetable(facilityId) {
         }
         
         // Render timetable with user bookings info and available days
-        renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours, userBookingsByDate, facilityAvailableDays, enableMultiAttendees);
+                renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours, userBookingsByDate, facilityAvailableDays, enableMultiAttendees, facilityType);
     } catch (error) {
         console.error('Error loading timetable:', error);
         container.innerHTML = '<div class="timetable-no-slots">Error loading timetable. Please try again.</div>';
@@ -1080,7 +1181,7 @@ async function loadTimetable(facilityId) {
 }
 
 // Render timetable
-function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours = 1, userBookingsByDate = {}, facilityAvailableDays = null, enableMultiAttendees = false) {
+function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHours = 1, userBookingsByDate = {}, facilityAvailableDays = null, enableMultiAttendees = false, facilityType = null) {
     const container = document.getElementById('timetableContainer');
     if (!container) {
         console.error('Timetable container not found');
@@ -1138,6 +1239,10 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             const slotStart = new Date(`${day.date} ${slot.start}:00`);
             const slotEnd = new Date(`${day.date} ${slot.end}:00`);
             
+            // Check if facility type requires full capacity occupation
+            const isFullCapacityType = facilityType && ['classroom', 'auditorium', 'laboratory'].includes(facilityType);
+            const requiresFullCapacity = enableMultiAttendees || isFullCapacityType;
+            
             dayBookedSlots.forEach(booking => {
                 try {
                     const bookingStart = new Date(booking.start_time);
@@ -1150,8 +1255,8 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
                     // Check if booking overlaps with this slot
                     if (slotStart < bookingEnd && slotEnd > bookingStart) {
                         hasOverlappingBookings = true;
-                        // If enable_multi_attendees, each booking occupies full capacity
-                        if (enableMultiAttendees) {
+                        // If enable_multi_attendees OR facility type is classroom/auditorium/laboratory, each booking occupies full capacity
+                        if (requiresFullCapacity) {
                             totalAttendees = facilityCapacity; // Full capacity occupied
                         } else {
                             totalAttendees += booking.expected_attendees || 1;
@@ -1165,8 +1270,8 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             // Check if slot is available based on capacity
             // If no capacity info, fall back to conflict check
             let isAvailable = true;
-            if (enableMultiAttendees) {
-                // If multi-attendees is enabled, any booking makes the slot unavailable
+            if (requiresFullCapacity) {
+                // If multi-attendees is enabled OR facility type requires full capacity, any booking makes the slot unavailable
                 isAvailable = !hasOverlappingBookings;
             } else if (facilityCapacity !== null) {
                 // Based on capacity: available if total attendees < capacity
@@ -1452,10 +1557,10 @@ function renderTimetable(days, slots, facilityId, facilityCapacity, maxBookingHo
             }
             
             // Display attendees count (X/Capacity)
-            // If enable_multi_attendees and has bookings, show as full capacity
+            // If enable_multi_attendees OR facility type is classroom/auditorium/laboratory and has bookings, show as full capacity
             let displayAttendees = totalAttendees;
-            if (enableMultiAttendees && hasOverlappingBookings) {
-                displayAttendees = facilityCapacity; // Show as full capacity when multi-attendees is enabled
+            if (requiresFullCapacity && hasOverlappingBookings) {
+                displayAttendees = facilityCapacity; // Show as full capacity when multi-attendees is enabled or facility type requires it
             }
             const attendeesInfo = facilityCapacity !== null 
                 ? `${displayAttendees}/${facilityCapacity}` 
@@ -2264,10 +2369,18 @@ function bindBookingForm() {
         // Build time_slots array
         const timeSlots = [];
         dateSlots.forEach(slot => {
+            // Ensure time format is correct (HH:mm or HH:mm:ss)
+            const startTime = slot.start.includes(':') && slot.start.split(':').length === 3 
+                ? slot.start 
+                : `${slot.start}:00`;
+            const endTime = slot.end.includes(':') && slot.end.split(':').length === 3 
+                ? slot.end 
+                : `${slot.end}:00`;
+            
             timeSlots.push({
                 date: bookingDate,
-                start_time: `${bookingDate} ${slot.start}:00`,
-                end_time: `${bookingDate} ${slot.end}:00`
+                start_time: `${bookingDate} ${startTime}`,
+                end_time: `${bookingDate} ${endTime}`
             });
         });
         
@@ -2280,8 +2393,11 @@ function bindBookingForm() {
             time_slots: timeSlots
         };
         
+       
+        
         try {
             const result = await API.post('/bookings', data);
+          
             if (result.success) {
                 successCount = timeSlots.length;
             } else {
@@ -2291,7 +2407,9 @@ function bindBookingForm() {
                 if (result.data?.errors) {
                     const validationErrors = Object.values(result.data.errors).flat().join(', ');
                     errorMsg = validationErrors || errorMsg;
+                   
                 }
+              
                 errors.push(errorMsg);
             }
         } catch (error) {

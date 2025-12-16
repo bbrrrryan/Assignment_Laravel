@@ -17,34 +17,18 @@ const API = {
     isAdmin() {
         const user = this.getUser();
         if (!user) {
-            console.log('🔍 isAdmin: No user found');
             return false;
-        }
-        
-        console.log('🔍 isAdmin: Checking user data...');
-        console.log('  - User ID:', user.id);
-        console.log('  - User Email:', user.email);
-        console.log('  - role_id:', user.role_id, typeof user.role_id);
-        console.log('  - role:', user.role);
-        console.log('  - role type:', typeof user.role);
-        
-        if (user.role && typeof user.role === 'object' && user.role !== null) {
-            console.log('  - role.name:', user.role.name);
-            console.log('  - role.id:', user.role.id);
         }
         
         // Check role_id first (most reliable)
         if (user.role_id === 1) {
-            console.log('✅ isAdmin: Detected admin by role_id === 1');
             return true;
         }
         
         // Check if role is an object and has name property
         if (user.role && typeof user.role === 'object' && user.role !== null) {
             const roleName = user.role.name;
-            console.log('  - Checking role name:', roleName);
             if (roleName === 'admin' || roleName === 'administrator') {
-                console.log('✅ isAdmin: Detected admin by role name:', roleName);
                 return true;
             }
         }
@@ -52,15 +36,11 @@ const API = {
         // Check if role is a string (backward compatibility)
         if (typeof user.role === 'string') {
             const roleName = user.role.toLowerCase();
-            console.log('  - Checking role string:', roleName);
             if (roleName === 'admin' || roleName === 'administrator') {
-                console.log('✅ isAdmin: Detected admin by role string:', roleName);
                 return true;
             }
         }
         
-        console.log('❌ isAdmin: User is NOT admin');
-        console.log('  - To become admin, set role_id = 1 in database');
         return false;
     },
     

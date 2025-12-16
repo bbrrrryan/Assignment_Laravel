@@ -1,6 +1,6 @@
 <?php
 /**
- * Author: Liew Zi Li
+ * Author: Low Kim Hong
  * Module: Booking Management Module
  * Design Pattern: Simple Factory Pattern
  */

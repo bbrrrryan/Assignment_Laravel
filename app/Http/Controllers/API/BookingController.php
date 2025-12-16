@@ -75,6 +75,8 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         try {
+        
+            
             // Get facility first to check enable_multi_attendees setting
             $facilityId = $request->input('facility_id');
             if (!$facilityId) {
@@ -125,12 +127,20 @@ class BookingController extends Controller
             
             if ($useTimeSlots) {
                 // New format: validate time_slots array
-                $request->validate([
-                    'time_slots' => 'required|array|min:1',
-                    'time_slots.*.date' => 'required|date',
-                    'time_slots.*.start_time' => 'required|string',
-                    'time_slots.*.end_time' => 'required|string',
-                ]);
+                try {
+                    $request->validate([
+                        'time_slots' => 'required|array|min:1',
+                        'time_slots.*.date' => 'required|date_format:Y-m-d',
+                        'time_slots.*.start_time' => 'required|string',
+                        'time_slots.*.end_time' => 'required|string',
+                    ]);
+                } catch (\Illuminate\Validation\ValidationException $e) {
+                    Log::error('Time slots validation failed', [
+                        'errors' => $e->errors(),
+                        'time_slots' => $timeSlots,
+                    ]);
+                    throw $e;
+                }
                 
                 // Parse and validate each slot
                 $parsedSlots = [];
@@ -197,10 +207,19 @@ class BookingController extends Controller
                     }
                 }
                 
+                // Get validation rules based on facility settings
+                $expectedAttendeesRule = 'nullable|integer|min:1';
+                if ($facility->enable_multi_attendees) {
+                    $expectedAttendeesRule = 'required|integer|min:1';
+                    if ($facility->max_attendees) {
+                        $expectedAttendeesRule .= '|max:' . $facility->max_attendees;
+                    }
+                }
+                
                 $validated = $request->validate([
                     'facility_id' => 'required|exists:facilities,id',
                     'purpose' => 'required|string|max:500',
-                    'expected_attendees' => 'nullable|integer|min:1',
+                    'expected_attendees' => $expectedAttendeesRule,
                     'attendees_passports' => 'nullable|array',
                     'attendees_passports.*' => 'nullable|string|max:255',
                 ]);
@@ -315,7 +334,11 @@ class BookingController extends Controller
         
         // Validate capacity
         if ($error = $this->validationService->validateCapacity($expectedAttendees, $facility)) {
-            return response()->json(['message' => $error], 400);
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => $error,
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 400);
         }
 
         // Check capacity for each slot
@@ -338,13 +361,23 @@ class BookingController extends Controller
             }
         }
 
-        // Only students can create bookings
+        // Only students and staff can create bookings (not admin)
         $user = auth()->user();
         
-        if (!$user->isStudent()) {
+        if ($user->isAdmin()) {
             return response()->json([
                 'status' => 'F', // IFA Standard: F (Fail)
-                'message' => 'Only students can create bookings',
+                'message' => 'Admins cannot create bookings through this endpoint. Please use the admin panel.',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 403);
+        }
+        
+        // Only students are restricted to sports or library facilities
+        // Staff can book all facility types
+        if ($user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => 'Students can only book sports or library facilities.',
                 'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 403);
         }
@@ -428,10 +461,14 @@ class BookingController extends Controller
         }
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking created successfully',
             'data' => $booking->load(['user', 'facility', 'attendees', 'slots']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
+           
+            
             return response()->json([
                 'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Validation failed',
@@ -740,6 +777,19 @@ class BookingController extends Controller
             }
         }
 
+        // Check if user is student and facility type is not allowed
+        // Staff can check availability for all facility types
+        $user = auth()->user();
+        if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'is_available' => false,
+                'message' => 'Students can only check availability for sports or library facilities.',
+                'reason' => 'facility_type_restricted',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 403);
+        }
+        
         // Check if facility is available
         if ($facility->status !== 'available') {
             return response()->json([
@@ -806,25 +856,29 @@ class BookingController extends Controller
             })
             ->get();
 
+        // Check if facility type requires full capacity occupation
+        $isFullCapacityType = in_array($facility->type, ['classroom', 'auditorium', 'laboratory']);
+        
         // Calculate total expected attendees for overlapping bookings
-        // If facility has enable_multi_attendees, each booking occupies the full capacity
-        $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility) {
-            // If this facility has enable_multi_attendees, each booking occupies full capacity
-            if ($facility->enable_multi_attendees) {
+        // If facility has enable_multi_attendees OR is classroom/auditorium/laboratory, each booking occupies the full capacity
+        $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility, $isFullCapacityType) {
+            // If this facility has enable_multi_attendees OR is full capacity type, each booking occupies full capacity
+            if ($facility->enable_multi_attendees || $isFullCapacityType) {
                 return $facility->capacity;
             }
             // Otherwise, use expected_attendees
             return $booking->expected_attendees ?? 1;
         });
 
-        // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
-        $newBookingAttendees = $facility->enable_multi_attendees 
+        // For the new booking, if facility has enable_multi_attendees OR is full capacity type, it occupies full capacity
+        $newBookingAttendees = ($facility->enable_multi_attendees || $isFullCapacityType)
             ? $facility->capacity 
             : $expectedAttendees;
 
         // Check if adding this booking would exceed capacity
-        // If multi_attendees is enabled, only one booking per time slot is allowed
-        if ($facility->enable_multi_attendees) {
+        // If multi_attendees is enabled OR is full capacity type, only one booking per time slot is allowed
+        $requiresFullCapacity = $facility->enable_multi_attendees || $isFullCapacityType;
+        if ($requiresFullCapacity) {
             $isAvailable = $overlappingBookings->count() === 0;
             $totalAfterBooking = $isAvailable ? $facility->capacity : $facility->capacity;
         } else {

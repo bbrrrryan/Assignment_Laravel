@@ -37,7 +37,11 @@ class AdminBookingController extends AdminBaseController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
         
-        return response()->json(['data' => $bookings]);
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $bookings,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
     }
 
 
@@ -50,7 +54,9 @@ class AdminBookingController extends AdminBaseController
 
         if ($booking->status !== 'pending') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only pending bookings can be approved',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -70,7 +76,9 @@ class AdminBookingController extends AdminBaseController
         
         if (!$capacityCheck['available']) {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Cannot approve: ' . $capacityCheck['message'],
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 409);
         }
 
@@ -93,8 +101,10 @@ class AdminBookingController extends AdminBaseController
         $this->notificationService->sendBookingNotification($booking, 'approved', 'Your booking has been approved!');
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking approved successfully',
             'data' => $booking->load(['user', 'facility', 'approver', 'attendees']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -111,7 +121,9 @@ class AdminBookingController extends AdminBaseController
 
         if ($booking->status !== 'pending') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only pending bookings can be rejected',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -137,8 +149,10 @@ class AdminBookingController extends AdminBaseController
         $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your booking has been rejected. Reason: ' . $request->reason);
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking rejected successfully',
             'data' => $booking->load(['user', 'facility', 'attendees']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -155,7 +169,9 @@ class AdminBookingController extends AdminBaseController
 
         if ($booking->status !== 'approved') {
             return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
                 'message' => 'Only approved bookings can be cancelled by admin',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
         }
 
@@ -182,8 +198,10 @@ class AdminBookingController extends AdminBaseController
         $this->notificationService->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled by admin. Reason: ' . $request->reason);
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Booking cancelled successfully',
             'data' => $booking->load(['user', 'facility', 'attendees']),
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -198,13 +216,17 @@ class AdminBookingController extends AdminBaseController
             // Check if booking can be marked as completed
             if ($booking->status === 'completed') {
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'message' => 'Booking is already marked as completed',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 400);
             }
 
             if ($booking->status === 'cancelled') {
                 return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
                     'message' => 'Cannot mark a cancelled booking as completed',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
                 ], 400);
             }
 
@@ -231,13 +253,17 @@ class AdminBookingController extends AdminBaseController
             $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been marked as completed!');
 
             return response()->json([
+                'status' => 'S', // IFA Standard
                 'message' => 'Booking marked as completed successfully',
                 'data' => $booking->load(['user', 'facility', 'attendees']),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ]);
         } catch (\Exception $e) {
             \Log::error('Mark complete error: ' . $e->getMessage());
             return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
                 'message' => 'Failed to mark booking as completed: ' . $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 500);
         }
     }
@@ -271,11 +297,13 @@ class AdminBookingController extends AdminBaseController
         $count = Booking::where('status', 'pending')->count();
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'message' => 'Pending bookings retrieved successfully',
             'data' => [
                 'bookings' => $bookings,
                 'count' => $count,
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 }

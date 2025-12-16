@@ -21,6 +21,20 @@ if (typeof window.adminTotalBookings === 'undefined') {
     window.adminTotalBookings = 0;
 }
 
+// Admin facility pagination state (for filter dropdown)
+if (typeof window.adminFacilityCurrentPage === 'undefined') {
+    window.adminFacilityCurrentPage = 1;
+}
+if (typeof window.adminFacilityHasMore === 'undefined') {
+    window.adminFacilityHasMore = true;
+}
+if (typeof window.adminFacilityLoading === 'undefined') {
+    window.adminFacilityLoading = false;
+}
+if (typeof window.adminAllFacilities === 'undefined') {
+    window.adminAllFacilities = [];
+}
+
 // Sorting functions - reload with sort applied
 window.sortByDate = function() {
     if (window.adminSortOrderData === 'date-asc') {
@@ -952,19 +966,107 @@ async function loadBookings(page = 1) {
 }
 
 // Load facilities for filter
-async function loadFacilitiesForFilter() {
-    const result = await API.get('/facilities');
+async function loadFacilitiesForFilter(page = 1, append = false) {
+    if (window.adminFacilityLoading) return; // Prevent multiple simultaneous requests
+    
+    window.adminFacilityLoading = true;
+    let url = `/facilities?per_page=50&page=${page}`;
+    // Note: API.get() automatically adds '/api' prefix, so '/facilities' becomes '/api/facilities'
+    
+    const result = await API.get(url);
     
     if (result.success) {
-        const facilitiesList = result.data.data?.data || result.data.data || [];
+        const paginationData = result.data.data;
+        const newFacilities = paginationData?.data || paginationData || [];
+        
+        if (append) {
+            // Append to existing facilities
+            window.adminAllFacilities = [...window.adminAllFacilities, ...newFacilities];
+        } else {
+            // Replace facilities
+            window.adminAllFacilities = newFacilities;
+            window.adminFacilityCurrentPage = 1;
+        }
+        
+        // Check if there are more pages
+        window.adminFacilityHasMore = paginationData?.next_page_url ? true : false;
+        window.adminFacilityCurrentPage = page;
+        
         const filterSelect = document.getElementById('facilityFilter');
         
-        if (filterSelect && facilitiesList.length > 0) {
-            filterSelect.innerHTML = '<option value="">All Facilities</option>' +
-                facilitiesList.map(f => 
-                    `<option value="${f.id}">${f.name}</option>`
-                ).join('');
+        if (filterSelect) {
+            if (window.adminAllFacilities.length === 0) {
+                filterSelect.innerHTML = '<option value="">No facilities available</option>';
+                filterSelect.disabled = true;
+            } else {
+                filterSelect.disabled = false;
+                const currentValue = filterSelect.value; // Preserve current selection if any
+                
+                // Build options HTML
+                let optionsHTML = '<option value="">All Facilities</option>';
+                optionsHTML += window.adminAllFacilities.map(f => {
+                    const selectedAttr = (currentValue == f.id) ? 'selected' : '';
+                    return `<option value="${f.id}" ${selectedAttr}>${f.name}</option>`;
+                }).join('');
+                
+                // Add "Load More" option if there are more pages
+                if (window.adminFacilityHasMore) {
+                    optionsHTML += `<option value="__load_more__" disabled style="font-style: italic; color: #666;">--- Scroll to load more ---</option>`;
+                }
+                
+                filterSelect.innerHTML = optionsHTML;
+                
+                // Restore selection
+                if (currentValue) {
+                    filterSelect.value = currentValue;
+                }
+                
+                // Add scroll event listener for loading more (works in most modern browsers)
+                if (window.adminFacilityHasMore && !filterSelect.dataset.scrollListenerAdded) {
+                    filterSelect.dataset.scrollListenerAdded = 'true';
+                    // Use both scroll and mousewheel events for better compatibility
+                    filterSelect.addEventListener('scroll', handleAdminFacilitySelectScroll);
+                    filterSelect.addEventListener('wheel', handleAdminFacilitySelectScroll);
+                    // Also listen for when dropdown is opened
+                    filterSelect.addEventListener('focus', function() {
+                        // Check if we need to load more when dropdown opens
+                        setTimeout(() => {
+                            if (window.adminFacilityHasMore && !window.adminFacilityLoading) {
+                                const scrollTop = filterSelect.scrollTop;
+                                const scrollHeight = filterSelect.scrollHeight;
+                                const clientHeight = filterSelect.clientHeight;
+                                if (scrollHeight - scrollTop - clientHeight < 100) {
+                                    loadFacilitiesForFilter(window.adminFacilityCurrentPage + 1, true);
+                                }
+                            }
+                        }, 100);
+                    });
+                }
+            }
         }
+    } else {
+        const filterSelect = document.getElementById('facilityFilter');
+        if (filterSelect && !append) {
+            filterSelect.innerHTML = '<option value="">Error loading facilities</option>';
+            filterSelect.disabled = true;
+        }
+        console.error('Error loading facilities:', result);
+    }
+    
+    window.adminFacilityLoading = false;
+}
+
+// Handle scroll event on admin facility filter select dropdown
+function handleAdminFacilitySelectScroll(e) {
+    const select = e.target;
+    // Check if scrolled near bottom (within 50px)
+    const scrollTop = select.scrollTop;
+    const scrollHeight = select.scrollHeight;
+    const clientHeight = select.clientHeight;
+    
+    if (scrollHeight - scrollTop - clientHeight < 50 && window.adminFacilityHasMore && !window.adminFacilityLoading) {
+        // Load next page
+        loadFacilitiesForFilter(window.adminFacilityCurrentPage + 1, true);
     }
 }
 

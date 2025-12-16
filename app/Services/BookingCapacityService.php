@@ -60,8 +60,8 @@ class BookingCapacityService
             // Calculate total attendees in this segment
             $totalAttendees = $this->calculateTotalAttendees($overlappingBookings, $facility);
             
-            // For the new booking, if facility has enable_multi_attendees, it occupies full capacity
-            $newBookingAttendees = $facility->enable_multi_attendees 
+            // For the new booking, if facility has enable_multi_attendees OR is classroom/auditorium/laboratory, it occupies full capacity
+            $newBookingAttendees = ($facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type))
                 ? $facility->capacity 
                 : $expectedAttendees;
             
@@ -135,8 +135,8 @@ class BookingCapacityService
     private function calculateTotalAttendees($overlappingBookings, Facility $facility): int
     {
         return $overlappingBookings->sum(function($booking) use ($facility) {
-            // If this facility has enable_multi_attendees, each booking occupies full capacity
-            if ($facility->enable_multi_attendees) {
+            // If this facility has enable_multi_attendees OR is classroom/auditorium/laboratory, each booking occupies full capacity
+            if ($facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type)) {
                 return $facility->capacity;
             }
             // Otherwise, use expected_attendees
@@ -156,13 +156,19 @@ class BookingCapacityService
     ): array {
         $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
         
-        if ($facility->enable_multi_attendees) {
-            // If multi_attendees is enabled, check if there's already a booking in this segment
+        // Check if facility type requires full capacity occupation
+        $requiresFullCapacity = $facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type);
+        
+        if ($requiresFullCapacity) {
+            // If multi_attendees is enabled OR facility type is classroom/auditorium/laboratory, 
+            // check if there's already a booking in this segment
             if ($overlappingBookings->count() > 0) {
+                $facilityTypeMsg = $this->isFullCapacityFacilityType($facility->type) 
+                    ? "This facility type ({$facility->type}) requires the entire capacity to be occupied per booking."
+                    : "When multi-attendees is enabled, each booking occupies the entire facility capacity.";
                 return [
                     'available' => false,
-                    'message' => "This time slot ({$segmentTimeStr}) is already booked. " .
-                                "When multi-attendees is enabled, each booking occupies the entire facility capacity."
+                    'message' => "This time slot ({$segmentTimeStr}) is already booked. " . $facilityTypeMsg
                 ];
             }
         } else {
@@ -181,6 +187,15 @@ class BookingCapacityService
         }
         
         return ['available' => true];
+    }
+
+    /**
+     * Check if facility type requires full capacity occupation
+     * Classroom, auditorium, and laboratory types always occupy full capacity
+     */
+    private function isFullCapacityFacilityType(string $type): bool
+    {
+        return in_array($type, ['classroom', 'auditorium', 'laboratory']);
     }
 
     /**

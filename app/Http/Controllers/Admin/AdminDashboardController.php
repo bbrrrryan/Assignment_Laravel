@@ -219,6 +219,7 @@ class AdminDashboardController extends AdminBaseController
             ->sum('expected_attendees');
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'data' => [
                 'status_stats' => $statusStats,
                 'bookings_by_date' => $bookingsByDate,
@@ -230,6 +231,7 @@ class AdminDashboardController extends AdminBaseController
                     'end_date' => $endDate,
                 ],
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
@@ -357,6 +359,7 @@ class AdminDashboardController extends AdminBaseController
             });
 
         return response()->json([
+            'status' => 'S', // IFA Standard
             'data' => [
                 'facility_utilization' => $facilityUtilization,
                 'popular_facilities' => $popularFacilities,
@@ -368,6 +371,7 @@ class AdminDashboardController extends AdminBaseController
                     'end_date' => $endDate,
                 ],
             ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 }
