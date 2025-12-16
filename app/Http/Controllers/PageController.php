@@ -113,6 +113,12 @@ class PageController extends Controller
         return view('notifications.show', compact('id'));
     }
 
+    // Admin Notifications
+    public function adminNotifications()
+    {
+        return view('admin.notifications.index');
+    }
+
     // Announcements
     public function showAnnouncement($id)
     {

@@ -16,6 +16,14 @@
 let currentAdminTab = 'rules';
 let currentEditingRuleId = null;
 let currentEditingRewardId = null;
+let currentSearchData = {
+    rules: [],
+    rewards: [],
+    redemptions: [],
+    points: [],
+    certificates: [],
+};
+let searchTimeout = null;
 
 function initAdminLoyalty() {
     loadAdminTab('rules');
@@ -191,6 +199,7 @@ async function loadRulesManagement() {
         
         if (result.success) {
             const rules = result.data.data || [];
+            currentSearchData.rules = rules;
             displayRulesManagement(rules);
         } else {
             showError(container, result.error || 'Failed to load rules');
@@ -205,10 +214,28 @@ async function loadRulesManagement() {
 function displayRulesManagement(rules) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Store data for search
+    currentSearchData.rules = rules;
+    
     // Update header
     updateLoyaltyHeader('Point Earning Rules', 'Manage and configure point earning rules', 'Create Rule', 'showCreateRuleModal');
     
     container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="rulesSearchInput" class="filter-input" placeholder="Search by name, action type, or description..." oninput="searchRules(this.value)">
+                        <button type="button" class="filter-clear-btn" id="rulesSearchClear" style="display: none;" onclick="clearRulesSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="table-container">
             <table class="data-table">
                 <thead>
@@ -258,6 +285,7 @@ async function loadRewardsManagement() {
     
     if (result.success) {
         const rewards = result.data.data || [];
+        currentSearchData.rewards = rewards;
         displayRewardsManagement(rewards);
     } else {
         showError(document.getElementById('adminLoyaltyContent'), result.error || 'Failed to load rewards');
@@ -267,10 +295,28 @@ async function loadRewardsManagement() {
 function displayRewardsManagement(rewards) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Store data for search
+    currentSearchData.rewards = rewards;
+    
     // Update header
     updateLoyaltyHeader('Rewards Management', 'Manage available rewards for redemption', 'Create Reward', 'showCreateRewardModal');
     
     container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="rewardsSearchInput" class="filter-input" placeholder="Search by name, type, or description..." oninput="searchRewards(this.value)">
+                        <button type="button" class="filter-clear-btn" id="rewardsSearchClear" style="display: none;" onclick="clearRewardsSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="table-container">
             <table class="data-table">
                 <thead>
@@ -325,6 +371,8 @@ async function loadRedemptionsManagement() {
     
     if (result.success) {
         const redemptions = result.data.data?.data || result.data.data || [];
+        // Always store fresh data from server
+        currentSearchData.redemptions = redemptions;
         displayRedemptionsManagement(redemptions);
     } else {
         showError(document.getElementById('adminLoyaltyContent'), result.error || 'Failed to load redemptions');
@@ -334,14 +382,28 @@ async function loadRedemptionsManagement() {
 function displayRedemptionsManagement(redemptions) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Check if this is initial load (container has no filters section yet)
+    const hasFilters = container.querySelector('.filters-section');
+    
     // Update header
     updateLoyaltyHeader('Redemption Approvals', 'Review and approve reward redemptions', '', '');
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
-    container.innerHTML = `
+    // If filters section doesn't exist, create it
+    if (!hasFilters) {
+        container.innerHTML = `
         <div class="filters-section" style="margin-bottom: 20px;">
             <div class="filters-card">
                 <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="redemptionsSearchInput" class="filter-input" placeholder="Search by reward name, user name, or email..." oninput="searchRedemptions(this.value)">
+                        <button type="button" class="filter-clear-btn" id="redemptionsSearchClear" style="display: none;" onclick="clearRedemptionsSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                     <div class="filter-select-wrapper">
                         <div class="filter-icon">
                             <i class="fas fa-filter"></i>
@@ -357,54 +419,16 @@ function displayRedemptionsManagement(redemptions) {
             </div>
         </div>
         <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Reward</th>
-                        <th>User</th>
-                        <th>Email</th>
-                        <th>Points Used</th>
-                        <th>Redeemed At</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${redemptions.length === 0 ? `
-                        <tr>
-                            <td colspan="7" class="text-center">No redemptions found</td>
-                        </tr>
-                    ` : redemptions.map(redemption => `
-                        <tr>
-                            <td>
-                                <strong>${redemption.reward_name}</strong>
-                                ${redemption.reward_description ? `<br><small style="color: #6b7280;">${redemption.reward_description}</small>` : ''}
-                            </td>
-                            <td>${redemption.user_name}</td>
-                            <td>${redemption.user_email}</td>
-                            <td><strong>${redemption.points_used}</strong></td>
-                            <td>${formatDateTime(redemption.redeemed_at || redemption.created_at)}</td>
-                            <td>
-                                <span class="badge ${redemption.status === 'approved' ? 'badge-success' : (redemption.status === 'pending' ? 'badge-warning' : 'badge-danger')}">
-                                    ${redemption.status.charAt(0).toUpperCase() + redemption.status.slice(1)}
-                                </span>
-                            </td>
-                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; width: 100px; min-width: 100px; text-align: center;">
-                                ${redemption.status === 'pending' ? `
-                                    <button class="btn-sm btn-success btn-square" onclick="approveRedemption(${redemption.id})" title="Approve" style="margin-right: 5px;">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    <button class="btn-sm btn-danger btn-square" onclick="rejectRedemption(${redemption.id})" title="Reject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                ` : '-'}
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            ${generateRedemptionsTableHTML(redemptions)}
         </div>
     `;
+    } else {
+        // Filters already exist, just update the table
+        const tableContainer = container.querySelector('.table-container');
+        if (tableContainer) {
+            tableContainer.innerHTML = generateRedemptionsTableHTML(redemptions).replace('<div class="table-container">', '').replace('</div>', '').trim();
+        }
+    }
 }
 
 // Points Management
@@ -415,6 +439,7 @@ async function loadPointsManagement() {
     
     if (result.success) {
         const users = result.data.data || [];
+        currentSearchData.points = users;
         displayPointsManagement(users);
     } else {
         showError(document.getElementById('adminLoyaltyContent'), result.error || 'Failed to load points data');
@@ -424,11 +449,29 @@ async function loadPointsManagement() {
 function displayPointsManagement(users) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Store data for search
+    currentSearchData.points = users;
+    
     // Update header
     updateLoyaltyHeader('Student Points Tracking', 'View and manage student loyalty points', '', '');
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
     container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="pointsSearchInput" class="filter-input" placeholder="Search by student name or email..." oninput="searchPoints(this.value)">
+                        <button type="button" class="filter-clear-btn" id="pointsSearchClear" style="display: none;" onclick="clearPointsSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="table-container">
             <table class="data-table">
                 <thead>
@@ -478,6 +521,7 @@ async function loadCertificatesManagement() {
     
     if (result.success) {
         const certificates = result.data.data || [];
+        currentSearchData.certificates = certificates;
         displayCertificatesManagement(certificates);
     } else {
         showError(document.getElementById('adminLoyaltyContent'), result.error || 'Failed to load certificates');
@@ -487,10 +531,28 @@ async function loadCertificatesManagement() {
 function displayCertificatesManagement(certificates) {
     const container = document.getElementById('adminLoyaltyContent');
     
+    // Store data for search
+    currentSearchData.certificates = certificates;
+    
     // Update header
     updateLoyaltyHeader('Certificates Management', 'Issue and manage student certificates', 'Issue Certificate', 'showIssueCertificateModal');
     
     container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="certificatesSearchInput" class="filter-input" placeholder="Search by title, student name, email, or certificate number..." oninput="searchCertificates(this.value)">
+                        <button type="button" class="filter-clear-btn" id="certificatesSearchClear" style="display: none;" onclick="clearCertificatesSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="table-container">
             <table class="data-table">
                 <thead>
@@ -2012,7 +2074,439 @@ window.closeIssueCertificateModal = function() {
 };
 
 window.filterRedemptions = function() {
-    const status = document.getElementById('redemptionStatusFilter').value;
-    // Reload with filter
-    loadRedemptionsManagement();
+    const status = document.getElementById('redemptionStatusFilter')?.value || '';
+    const searchTerm = document.getElementById('redemptionsSearchInput')?.value?.trim().toLowerCase() || '';
+    
+    // Always start from original data stored in currentSearchData
+    if (!currentSearchData.redemptions || currentSearchData.redemptions.length === 0) {
+        // If no original data, reload from server
+        loadRedemptionsManagement();
+        return;
+    }
+    
+    let filtered = [...(currentSearchData.redemptions || [])];
+    
+    // Apply status filter
+    if (status) {
+        filtered = filtered.filter(r => r.status === status);
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+        filtered = filtered.filter(r => 
+            (r.reward_name && r.reward_name.toLowerCase().includes(searchTerm)) ||
+            (r.user_name && r.user_name.toLowerCase().includes(searchTerm)) ||
+            (r.user_email && r.user_email.toLowerCase().includes(searchTerm))
+        );
+    }
+    
+    // Only update the table HTML, preserve filters
+    const container = document.getElementById('adminLoyaltyContent');
+    const tableContainer = container.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.innerHTML = generateRedemptionsTableHTML(filtered).trim();
+    } else {
+        // If table container doesn't exist, re-render everything
+        displayRedemptionsManagement(filtered);
+    }
 };
+
+// Search functions
+function debounceSearch(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(searchTimeout);
+            func(...args);
+        };
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(later, wait);
+    };
+}
+
+window.searchRules = debounceSearch(function(searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const searchClearBtn = document.getElementById('rulesSearchClear');
+    
+    if (searchClearBtn) {
+        searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
+    }
+    
+    const filtered = currentSearchData.rules.filter(rule =>
+        (rule.name && rule.name.toLowerCase().includes(searchLower)) ||
+        (rule.action_type && rule.action_type.toLowerCase().includes(searchLower)) ||
+        (rule.description && rule.description.toLowerCase().includes(searchLower))
+    );
+    
+    // Re-render the table with filtered data
+    const container = document.getElementById('adminLoyaltyContent');
+    const searchSection = container.querySelector('.filters-section');
+    const tableHTML = generateRulesTableHTML(filtered);
+    const tableContainer = container.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.outerHTML = tableHTML;
+    }
+}, 300);
+
+window.clearRulesSearch = function() {
+    const searchInput = document.getElementById('rulesSearchInput');
+    const searchClearBtn = document.getElementById('rulesSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        searchRules('');
+    }
+};
+
+function generateRulesTableHTML(rules) {
+    return `
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Action Type</th>
+                        <th>Points</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th style="width: 100px; min-width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rules.length === 0 ? `
+                        <tr>
+                            <td colspan="6" class="text-center">No rules found. Create your first rule!</td>
+                        </tr>
+                    ` : rules.map(rule => `
+                        <tr>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><strong>${rule.name}</strong></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${rule.action_type}</code></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px;"><strong>${rule.points}</strong></td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; max-width: 300px; word-wrap: break-word; line-height: 1.4;">${rule.description || 'N/A'}</td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap;">
+                                <span class="badge ${rule.is_active ? 'badge-success' : 'badge-secondary'}" style="display: inline-block; vertical-align: bottom;">
+                                    ${rule.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; width: 100px; min-width: 100px; text-align: center;">
+                                <button class="btn-sm btn-primary" onclick="editRule(${rule.id})" title="Edit" style="white-space: nowrap !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; margin: 0; vertical-align: bottom;">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+window.searchRewards = debounceSearch(function(searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const searchClearBtn = document.getElementById('rewardsSearchClear');
+    
+    if (searchClearBtn) {
+        searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
+    }
+    
+    const filtered = currentSearchData.rewards.filter(reward =>
+        (reward.name && reward.name.toLowerCase().includes(searchLower)) ||
+        (reward.reward_type && reward.reward_type.toLowerCase().includes(searchLower)) ||
+        (reward.description && reward.description.toLowerCase().includes(searchLower))
+    );
+    
+    const container = document.getElementById('adminLoyaltyContent');
+    const tableHTML = generateRewardsTableHTML(filtered);
+    const tableContainer = container.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.outerHTML = tableHTML;
+    }
+}, 300);
+
+window.clearRewardsSearch = function() {
+    const searchInput = document.getElementById('rewardsSearchInput');
+    const searchClearBtn = document.getElementById('rewardsSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        searchRewards('');
+    }
+};
+
+function generateRewardsTableHTML(rewards) {
+    return `
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Points Required</th>
+                        <th>Stock</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rewards.length === 0 ? `
+                        <tr>
+                            <td colspan="7" class="text-center">No rewards found. Create your first reward!</td>
+                        </tr>
+                    ` : rewards.map(reward => `
+                        <tr>
+                            <td><strong>${reward.name}</strong></td>
+                            <td><span class="badge badge-info">${reward.reward_type}</span></td>
+                            <td><strong>${reward.points_required}</strong></td>
+                            <td>${reward.stock_quantity !== null ? reward.stock_quantity : '<span style="color: #10b981;">Unlimited</span>'}</td>
+                            <td>${reward.description || 'N/A'}</td>
+                            <td>
+                                <span class="badge ${reward.is_active ? 'badge-success' : 'badge-secondary'}">
+                                    ${reward.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                            <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; text-align: center;">
+                                <button class="btn-sm btn-primary btn-square" onclick="editReward(${reward.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-sm btn-danger btn-square" onclick="deleteReward(${reward.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+window.searchRedemptions = debounceSearch(function(searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const searchClearBtn = document.getElementById('redemptionsSearchClear');
+    
+    if (searchClearBtn) {
+        searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
+    }
+    
+    // Use the same filtering logic as filterRedemptions
+    window.filterRedemptions();
+}, 300);
+
+window.clearRedemptionsSearch = function() {
+    const searchInput = document.getElementById('redemptionsSearchInput');
+    const searchClearBtn = document.getElementById('redemptionsSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        searchRedemptions('');
+    }
+};
+
+function generateRedemptionsTableHTML(redemptions) {
+    return `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Reward</th>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Points Used</th>
+                    <th>Redeemed At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${redemptions.length === 0 ? `
+                    <tr>
+                        <td colspan="7" class="text-center">No redemptions found</td>
+                    </tr>
+                ` : redemptions.map(redemption => `
+                    <tr>
+                        <td>
+                            <strong>${redemption.reward_name}</strong>
+                            ${redemption.reward_description ? `<br><small style="color: #6b7280;">${redemption.reward_description}</small>` : ''}
+                        </td>
+                        <td>${redemption.user_name}</td>
+                        <td>${redemption.user_email}</td>
+                        <td><strong>${redemption.points_used}</strong></td>
+                        <td>${formatDateTime(redemption.redeemed_at || redemption.created_at)}</td>
+                        <td>
+                            <span class="badge ${redemption.status === 'approved' ? 'badge-success' : (redemption.status === 'pending' ? 'badge-warning' : 'badge-danger')}">
+                                ${redemption.status.charAt(0).toUpperCase() + redemption.status.slice(1)}
+                            </span>
+                        </td>
+                        <td style="vertical-align: bottom; padding-bottom: 15px; white-space: nowrap; width: 100px; min-width: 100px; text-align: center;">
+                            ${redemption.status === 'pending' ? `
+                                <button class="btn-sm btn-success btn-square" onclick="approveRedemption(${redemption.id})" title="Approve" style="margin-right: 5px;">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn-sm btn-danger btn-square" onclick="rejectRedemption(${redemption.id})" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            ` : '-'}
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+window.searchPoints = debounceSearch(function(searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const searchClearBtn = document.getElementById('pointsSearchClear');
+    
+    if (searchClearBtn) {
+        searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
+    }
+    
+    const filtered = currentSearchData.points.filter(user =>
+        (user.name && user.name.toLowerCase().includes(searchLower)) ||
+        (user.email && user.email.toLowerCase().includes(searchLower))
+    );
+    
+    const container = document.getElementById('adminLoyaltyContent');
+    const tableHTML = generatePointsTableHTML(filtered);
+    const tableContainer = container.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.outerHTML = tableHTML;
+    }
+}, 300);
+
+window.clearPointsSearch = function() {
+    const searchInput = document.getElementById('pointsSearchInput');
+    const searchClearBtn = document.getElementById('pointsSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        searchPoints('');
+    }
+};
+
+function generatePointsTableHTML(users) {
+    return `
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Email</th>
+                        <th>Total Points</th>
+                        <th>Transactions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${users.length === 0 ? `
+                        <tr>
+                            <td colspan="5" class="text-center">No users found</td>
+                        </tr>
+                    ` : users.map(user => `
+                        <tr>
+                            <td>${user.name}</td>
+                            <td>${user.email}</td>
+                            <td><strong>${user.total_points || 0}</strong></td>
+                            <td>${user.points_count || 0}</td>
+                            <td class="actions">
+                                <button class="btn-sm btn-info btn-square" onclick="viewUserPoints(${user.id})" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn-sm btn-primary btn-square" onclick="awardPointsToUser(${user.id})" title="Award Points">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn-sm btn-danger btn-square" onclick="deductPointsFromUser(${user.id})" title="Deduct Points">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+window.searchCertificates = debounceSearch(function(searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const searchClearBtn = document.getElementById('certificatesSearchClear');
+    
+    if (searchClearBtn) {
+        searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
+    }
+    
+    const filtered = currentSearchData.certificates.filter(cert =>
+        (cert.title && cert.title.toLowerCase().includes(searchLower)) ||
+        (cert.user && cert.user.name && cert.user.name.toLowerCase().includes(searchLower)) ||
+        (cert.user && cert.user.email && cert.user.email.toLowerCase().includes(searchLower)) ||
+        (cert.certificate_number && cert.certificate_number.toLowerCase().includes(searchLower))
+    );
+    
+    const container = document.getElementById('adminLoyaltyContent');
+    const tableHTML = generateCertificatesTableHTML(filtered);
+    const tableContainer = container.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.outerHTML = tableHTML;
+    }
+}, 300);
+
+window.clearCertificatesSearch = function() {
+    const searchInput = document.getElementById('certificatesSearchInput');
+    const searchClearBtn = document.getElementById('certificatesSearchClear');
+    if (searchInput) {
+        searchInput.value = '';
+        if (searchClearBtn) {
+            searchClearBtn.style.display = 'none';
+        }
+        searchCertificates('');
+    }
+};
+
+function generateCertificatesTableHTML(certificates) {
+    return `
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Student</th>
+                        <th>Email</th>
+                        <th>Certificate Number</th>
+                        <th>Issued Date</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${certificates.length === 0 ? `
+                        <tr>
+                            <td colspan="7" class="text-center">No certificates issued</td>
+                        </tr>
+                    ` : certificates.map(cert => `
+                        <tr>
+                            <td><strong>${cert.title}</strong></td>
+                            <td>${cert.user?.name || 'N/A'}</td>
+                            <td>${cert.user?.email || 'N/A'}</td>
+                            <td><code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${cert.certificate_number}</code></td>
+                            <td>${formatDateTime(cert.issued_date)}</td>
+                            <td>${cert.description || 'N/A'}</td>
+                            <td>
+                                <span class="badge ${cert.status === 'active' ? 'badge-success' : (cert.status === 'expired' ? 'badge-danger' : 'badge-secondary')}">
+                                    ${cert.status.charAt(0).toUpperCase() + cert.status.slice(1)}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}

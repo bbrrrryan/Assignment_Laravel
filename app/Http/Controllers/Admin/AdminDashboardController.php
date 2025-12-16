@@ -52,6 +52,84 @@ class AdminDashboardController extends AdminBaseController
     }
 
     /**
+     * Get pending bookings and feedbacks for admin dropdown
+     */
+    public function getPendingItems(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        // Get pending bookings
+        $bookings = Booking::with(['user', 'facility'])
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($booking) {
+                return [
+                    'id' => $booking->id,
+                    'kind' => 'booking',
+                    'title' => "Booking Request - {$booking->facility->name}",
+                    'message' => "{$booking->user->name}: {$booking->booking_date->format('Y-m-d')} {$booking->start_time->format('H:i')} - {$booking->end_time->format('H:i')}",
+                    'facility_name' => $booking->facility->name ?? 'Unknown',
+                    'user_name' => $booking->user->name ?? 'Unknown',
+                    'booking_date' => $booking->booking_date->format('Y-m-d'),
+                    'start_time' => $booking->start_time->format('H:i'),
+                    'end_time' => $booking->end_time->format('H:i'),
+                    'created_at' => $booking->created_at->toIso8601String(),
+                ];
+            });
+
+        // Get pending feedbacks
+        $feedbacks = Feedback::with(['user', 'facility'])
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($feedback) {
+                $facilityText = $feedback->facility && $feedback->facility->name !== 'N/A' 
+                    ? " - {$feedback->facility->name}" 
+                    : '';
+                return [
+                    'id' => $feedback->id,
+                    'kind' => 'feedback',
+                    'title' => "Feedback - {$feedback->subject}",
+                    'message' => ($feedback->user->name ?? 'Unknown') . " ({$feedback->type})" . $facilityText,
+                    'subject' => $feedback->subject,
+                    'type' => $feedback->type,
+                    'user_name' => $feedback->user->name ?? 'Unknown',
+                    'facility_name' => $feedback->facility->name ?? 'N/A',
+                    'created_at' => $feedback->created_at->toIso8601String(),
+                ];
+            });
+
+        // Combine and sort by created_at (most recent first)
+        $combined = $bookings->concat($feedbacks);
+        $sorted = $combined->sort(function ($a, $b) {
+            $timestampA = strtotime($a['created_at']);
+            $timestampB = strtotime($b['created_at']);
+            return $timestampB <=> $timestampA;
+        })->values();
+
+        // Get counts
+        $bookingCount = Booking::where('status', 'pending')->count();
+        $feedbackCount = Feedback::where('status', 'pending')->count();
+
+        return response()->json([
+            'status' => 'S',
+            'message' => 'Pending items retrieved successfully',
+            'data' => [
+                'items' => $sorted->toArray(),
+                'counts' => [
+                    'bookings' => $bookingCount,
+                    'feedbacks' => $feedbackCount,
+                    'total' => $bookingCount + $feedbackCount,
+                ],
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * Get booking reports (API endpoint)
      */
     public function getBookingReports(Request $request)

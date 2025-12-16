@@ -56,6 +56,11 @@ Route::middleware('auth')->group(function () {
         
         // Loyalty Management
         Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
+        
+        // Notification Management (redirected to announcements page with tabs)
+        Route::get('/notifications', function() {
+            return redirect()->route('announcements.index');
+        })->name('notifications.index');
     });
 
     // Profile Routes (All authenticated users)

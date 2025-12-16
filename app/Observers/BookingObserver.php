@@ -11,37 +11,35 @@ class BookingObserver
 {
     /**
      * Handle the Booking "updated" event.
-     * 当预订状态更新时，检查是否需要奖励积分
+     * Check if points should be awarded when booking status is updated
      */
     public function updated(Booking $booking)
     {
-        // 检查状态是否从其他状态变为 'completed'
+        // Get the status before and after update
         $originalStatus = $booking->getOriginal('status');
         $newStatus = $booking->status;
 
-        // 只有当状态变为 'completed' 时才处理
-        if ($originalStatus !== 'completed' && $newStatus === 'completed') {
+        // Only award points when status changes from 'approved' to 'completed'
+        // Only reward manual completion from approved status
+        if ($originalStatus === 'approved' && $newStatus === 'completed') {
             $this->awardPointsForCompletedBooking($booking);
         }
     }
 
     /**
-     * 为完成的预订奖励积分
+     * Award points for completed booking
      */
     protected function awardPointsForCompletedBooking(Booking $booking)
     {
         try {
-            // 查找与设施预订相关的所有忠诚度规则
-            // 目前支持：
-            // - facility_booking_complete：完成预订
-            // - facility_booking_first：第一次完成预订
-            // - facility_booking_long_duration：长时长预订
+            // Dynamically find all loyalty rules related to facility bookings
+            // Use prefix matching to automatically identify all booking-related rules without code changes
+            // Supported naming patterns: facility_booking_* or booking_*
             $rules = LoyaltyRule::where('is_active', true)
-                ->whereIn('action_type', [
-                    'facility_booking_complete',
-                    'facility_booking_first',
-                    'facility_booking_long_duration',
-                ])
+                ->where(function($query) {
+                    $query->where('action_type', 'like', 'facility_booking%')
+                          ->orWhere('action_type', 'like', 'booking_%');
+                })
                 ->get();
 
             if ($rules->isEmpty()) {
@@ -50,7 +48,7 @@ class BookingObserver
             }
 
             foreach ($rules as $rule) {
-                // 检查是否已经给过该规则对应的积分（防重复奖励）
+                // Check if points have already been awarded for this rule (prevent duplicate rewards)
                 $existingPoint = LoyaltyPoint::where('user_id', $booking->user_id)
                     ->where('action_type', $rule->action_type)
                     ->where('related_id', $booking->id)
@@ -62,13 +60,13 @@ class BookingObserver
                     continue;
                 }
 
-                // 检查规则条件（如果有的话）
+                // Check rule conditions (if any)
                 if (!$this->checkRuleConditions($rule, $booking)) {
                     Log::info("Booking #{$booking->id} does not meet rule conditions for {$rule->action_type}");
                     continue;
                 }
 
-                // 创建积分记录
+                // Create points record
                 LoyaltyPoint::create([
                     'user_id' => $booking->user_id,
                     'points' => $rule->points,
@@ -83,33 +81,71 @@ class BookingObserver
             }
 
         } catch (\Exception $e) {
-            // 记录错误但不中断预订状态更新
+            // Log error but do not interrupt booking status update
             Log::error("Failed to award points for booking #{$booking->id}: " . $e->getMessage());
         }
     }
 
     /**
-     * 检查规则条件是否满足
-     * 可以根据 conditions 字段中的条件进行验证
+     * Check if rule conditions are met
+     * Can validate based on conditions in the conditions field
      */
     protected function checkRuleConditions(LoyaltyRule $rule, Booking $booking): bool
     {
-        // 如果没有设置条件，默认通过
+        // If no conditions are set, default to pass
         if (empty($rule->conditions)) {
             $conditions = [];
         } else {
             $conditions = $rule->conditions;
         }
 
-        // 示例：检查设施类型
+        // Load facility information
+        $facility = $booking->facility;
+        if (!$facility) {
+            Log::warning("Booking #{$booking->id} has no facility associated");
+            return false;
+        }
+
+        // Smart matching: If rule name contains specific facility identifier, automatically match facility name or code
+        // Example: facility_booking_gym should only match facilities with name/code containing "gym"
+        if (!$this->matchFacilityFromRuleName($rule, $facility)) {
+            return false;
+        }
+
+        // Check explicitly specified facility names in conditions
+        if (isset($conditions['facility_names']) && is_array($conditions['facility_names'])) {
+            $facilityName = strtolower($facility->name ?? '');
+            $facilityCode = strtolower($facility->code ?? '');
+            $matches = false;
+            foreach ($conditions['facility_names'] as $namePattern) {
+                if (stripos($facilityName, strtolower($namePattern)) !== false || 
+                    stripos($facilityCode, strtolower($namePattern)) !== false) {
+                    $matches = true;
+                    break;
+                }
+            }
+            if (!$matches) {
+                return false;
+            }
+        }
+
+        // Check explicitly specified facility codes in conditions
+        if (isset($conditions['facility_codes']) && is_array($conditions['facility_codes'])) {
+            $facilityCode = strtolower($facility->code ?? '');
+            if (!in_array($facilityCode, array_map('strtolower', $conditions['facility_codes']))) {
+                return false;
+            }
+        }
+
+        // Check facility type
         if (isset($conditions['facility_types']) && is_array($conditions['facility_types'])) {
-            $facilityType = $booking->facility->type ?? null;
+            $facilityType = $facility->type ?? null;
             if (!in_array($facilityType, $conditions['facility_types'])) {
                 return false;
             }
         }
 
-        // 示例：检查用户角色
+        // Example: Check user role
         if (isset($conditions['user_roles']) && is_array($conditions['user_roles'])) {
             $userRole = $booking->user->role ?? null;
             if (!in_array($userRole, $conditions['user_roles'])) {
@@ -117,17 +153,17 @@ class BookingObserver
             }
         }
 
-        // 示例：检查预订时长
+        // Example: Check booking duration
         if (isset($conditions['min_duration_hours'])) {
             if ($booking->duration_hours < $conditions['min_duration_hours']) {
                 return false;
             }
         }
 
-        // 根据 action_type 添加一些内置的规则行为
+        // Add some built-in rule behaviors based on action_type
         switch ($rule->action_type) {
             case 'facility_booking_first':
-                // 只有用户第一次完成预订时才奖励
+                // Only award when user completes booking for the first time
                 $previousCompletedCount = Booking::where('user_id', $booking->user_id)
                     ->where('status', 'completed')
                     ->where('id', '!=', $booking->id)
@@ -139,7 +175,7 @@ class BookingObserver
                 break;
 
             case 'facility_booking_long_duration':
-                // 如果没有在 conditions 中设置最小时长，默认按 2 小时计算
+                // If min_duration_hours is not set in conditions, default to 2 hours
                 $minDuration = $conditions['min_duration_hours'] ?? 2;
                 if ($booking->duration_hours < $minDuration) {
                     return false;
@@ -147,13 +183,62 @@ class BookingObserver
                 break;
 
             default:
-                // 其他 action_type 暂不增加特殊条件
+                // Other action_types do not have special conditions yet
                 break;
         }
 
-        // 可以在这里继续添加更多条件检查...
+        // Can continue adding more condition checks here...
 
         return true;
+    }
+
+    /**
+     * Extract facility identifier from rule name and match facility
+     * If rule name contains specific facility identifier (e.g., gym, swimming_pool), only match corresponding facilities
+     * 
+     * @param LoyaltyRule $rule
+     * @param Facility $facility
+     * @return bool Returns false if rule name contains facility identifier but doesn't match
+     */
+    protected function matchFacilityFromRuleName(LoyaltyRule $rule, $facility): bool
+    {
+        $actionType = $rule->action_type;
+        
+        // Remove common prefixes
+        $cleanActionType = preg_replace('/^(facility_booking_|booking_)/', '', $actionType);
+        
+        // Generic rules (e.g., facility_booking_complete, facility_booking_first) should apply to all facilities
+        $genericRules = ['complete', 'first', 'long_duration'];
+        if (in_array($cleanActionType, $genericRules)) {
+            return true;
+        }
+
+        // If rule name contains underscores, try to extract facility identifier
+        // Example: facility_booking_gym → gym
+        //          booking_swimming_pool → swimming_pool
+        $facilityIdentifier = $cleanActionType;
+        
+        // Convert underscores to spaces for matching
+        // Example: swimming_pool → swimming pool
+        $facilityName = strtolower($facility->name ?? '');
+        $facilityCode = strtolower($facility->code ?? '');
+        $searchPatterns = [
+            strtolower($facilityIdentifier),
+            str_replace('_', ' ', strtolower($facilityIdentifier)),
+            str_replace('_', '', strtolower($facilityIdentifier)),
+        ];
+
+        // Check if facility name or code contains the identifier
+        foreach ($searchPatterns as $pattern) {
+            if (stripos($facilityName, $pattern) !== false || 
+                stripos($facilityCode, $pattern) !== false) {
+                return true;
+            }
+        }
+
+        // If rule name is not a generic rule and doesn't match facility, do not apply this rule
+        Log::info("Rule {$actionType} does not match facility '{$facility->name}' (code: {$facility->code})");
+        return false;
     }
 }
 

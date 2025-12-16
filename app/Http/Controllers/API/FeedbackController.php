@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Feedback;
 use App\Models\LoyaltyPoint;
 use App\Models\LoyaltyRule;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class FeedbackController extends Controller
 {
@@ -17,6 +20,40 @@ class FeedbackController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
         return response()->json(['data' => $feedbacks]);
+    }
+
+    /**
+     * Get pending feedbacks for admin dropdown
+     */
+    public function getPendingFeedbacks(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        $feedbacks = Feedback::with(['user', 'facility'])
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($feedback) {
+                return [
+                    'id' => $feedback->id,
+                    'subject' => $feedback->subject,
+                    'type' => $feedback->type,
+                    'user_name' => $feedback->user->name ?? 'Unknown',
+                    'facility_name' => $feedback->facility->name ?? 'N/A',
+                    'created_at' => $feedback->created_at,
+                ];
+            });
+
+        $count = Feedback::where('status', 'pending')->count();
+
+        return response()->json([
+            'message' => 'Pending feedbacks retrieved successfully',
+            'data' => [
+                'feedbacks' => $feedbacks,
+                'count' => $count,
+            ],
+        ]);
     }
 
     public function store(Request $request)
@@ -50,6 +87,11 @@ class FeedbackController extends Controller
         }
 
         $feedback = Feedback::create($validated + ['user_id' => auth()->id()]);
+        
+        // Don't send "Feedback Submitted" confirmation to students
+        // Only notify admins about new feedback
+        $this->notifyAdminsAboutFeedback($feedback);
+        
         return response()->json(['data' => $feedback], 201);
     }
 
@@ -106,6 +148,8 @@ class FeedbackController extends Controller
     public function respond(Request $request, string $id)
     {
         $feedback = Feedback::findOrFail($id);
+        $originalStatus = $feedback->status;
+        
         $feedback->update([
             'admin_response' => $request->response,
             'reviewed_by' => auth()->id(),
@@ -113,14 +157,18 @@ class FeedbackController extends Controller
             'status' => 'resolved',
         ]);
 
-        // 忠诚度积分：反馈被解决时触发 feedback_resolved 规则
+        // Reload to get updated relationships
+        $feedback->refresh();
+        $feedback->load(['user', 'facility', 'reviewer']);
+
+        // Loyalty points: Trigger feedback_resolved rule when feedback is resolved
         try {
             $rule = LoyaltyRule::where('action_type', 'feedback_resolved')
                 ->where('is_active', true)
                 ->first();
 
             if ($rule) {
-                // 防止重复奖励：同一条反馈、同一 action_type 只奖励一次
+                // Prevent duplicate rewards: Only award once per feedback for the same action_type
                 $existingPoint = LoyaltyPoint::where('user_id', $feedback->user_id)
                     ->where('action_type', 'feedback_resolved')
                     ->where('related_id', $feedback->id)
@@ -139,7 +187,13 @@ class FeedbackController extends Controller
                 }
             }
         } catch (\Exception $e) {
-            // 出现错误时不影响反馈本身的更新
+            // Errors should not affect the feedback update itself
+            Log::error("Error awarding loyalty points for feedback resolution: " . $e->getMessage());
+        }
+
+        // Send notification to user when feedback is resolved
+        if ($originalStatus !== 'resolved') {
+            $this->notifyUserAboutFeedbackResolution($feedback);
         }
 
         return response()->json(['data' => $feedback]);
@@ -165,5 +219,207 @@ class FeedbackController extends Controller
             'reviewed_at' => now(),
         ]);
         return response()->json(['data' => $feedback]);
+    }
+
+    /**
+     * Send confirmation notification to student who submitted the feedback
+     */
+    protected function notifyStudentAboutFeedbackSubmission(Feedback $feedback): void
+    {
+        try {
+            // Load related data
+            $feedback->load(['user', 'facility']);
+            
+            // Build notification title and message in English
+            $facilityName = $feedback->facility->name ?? 'N/A';
+            $typeLabels = [
+                'complaint' => 'Complaint',
+                'suggestion' => 'Suggestion',
+                'compliment' => 'Compliment',
+                'general' => 'General Feedback',
+            ];
+            $typeLabel = $typeLabels[$feedback->type] ?? ucfirst($feedback->type);
+            
+            $title = "Feedback Submitted Successfully";
+            $message = "Your {$typeLabel} has been submitted successfully:\n\n";
+            $message .= "Subject: {$feedback->subject}\n";
+            if ($feedback->facility) {
+                $message .= "Facility: {$facilityName}\n";
+            }
+            $message .= "Rating: {$feedback->rating}/5\n";
+            $message .= "Feedback ID: #{$feedback->id}\n\n";
+            $message .= "Our team will review your feedback and respond soon.";
+            
+            // Create notification for the student
+            $notification = Notification::create([
+                'title' => $title,
+                'message' => $message,
+                'type' => 'success',
+                'priority' => 'medium',
+                'created_by' => $feedback->user_id,
+                'target_audience' => 'specific',
+                'target_user_ids' => [$feedback->user_id],
+                'is_active' => true,
+                'scheduled_at' => now(),
+            ]);
+            
+            // Sync notification to the student
+            $notification->users()->sync([
+                $feedback->user_id => [
+                    'is_read' => false,
+                    'is_acknowledged' => false,
+                ]
+            ]);
+            
+            Log::info("Feedback submission notification sent to student", [
+                'notification_id' => $notification->id,
+                'feedback_id' => $feedback->id,
+                'user_id' => $feedback->user_id
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to send feedback submission notification to student: " . $e->getMessage(), [
+                'feedback_id' => $feedback->id ?? null
+            ]);
+        }
+    }
+
+    /**
+     * Send notification to user when their feedback is resolved
+     */
+    protected function notifyUserAboutFeedbackResolution(Feedback $feedback): void
+    {
+        try {
+            // Load related data
+            $feedback->load(['user', 'facility', 'reviewer']);
+            
+            if (!$feedback->user) {
+                Log::warning("Cannot send resolution notification: feedback has no user", [
+                    'feedback_id' => $feedback->id
+                ]);
+                return;
+            }
+            
+            // Build notification title and message in English
+            $reviewerName = $feedback->reviewer->name ?? 'Administrator';
+            $adminResponse = $feedback->admin_response ?? 'Your feedback has been reviewed and resolved.';
+            
+            $title = "Feedback Resolved - {$feedback->subject}";
+            $message = "Your feedback has been resolved by {$reviewerName}.\n\n";
+            $message .= "Subject: {$feedback->subject}\n";
+            $message .= "Feedback ID: #{$feedback->id}\n\n";
+            $message .= "Admin Response:\n{$adminResponse}\n\n";
+            $message .= "You can view the full details in your feedback history.";
+            
+            // Create notification for the user
+            $notification = Notification::create([
+                'title' => $title,
+                'message' => $message,
+                'type' => 'success',
+                'priority' => 'medium',
+                'created_by' => $feedback->reviewed_by ?? auth()->id(),
+                'target_audience' => 'specific',
+                'target_user_ids' => [$feedback->user_id],
+                'is_active' => true,
+                'scheduled_at' => now(),
+            ]);
+            
+            // Sync notification to the user
+            $notification->users()->sync([
+                $feedback->user_id => [
+                    'is_read' => false,
+                    'is_acknowledged' => false,
+                ]
+            ]);
+            
+            Log::info("Feedback resolution notification sent to user", [
+                'notification_id' => $notification->id,
+                'feedback_id' => $feedback->id,
+                'user_id' => $feedback->user_id,
+                'reviewer_id' => $feedback->reviewed_by
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to send feedback resolution notification to user: " . $e->getMessage(), [
+                'feedback_id' => $feedback->id ?? null,
+                'exception' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    /**
+     * Send notification to all admin users about new feedback submission
+     */
+    protected function notifyAdminsAboutFeedback(Feedback $feedback): void
+    {
+        try {
+            // Load related data
+            $feedback->load(['user', 'facility']);
+            
+            // Build notification title and message in English
+            $userName = $feedback->user->name ?? 'A user';
+            $facilityName = $feedback->facility->name ?? 'N/A';
+            $typeLabels = [
+                'complaint' => 'Complaint',
+                'suggestion' => 'Suggestion',
+                'compliment' => 'Compliment',
+                'general' => 'General Feedback',
+            ];
+            $typeLabel = $typeLabels[$feedback->type] ?? ucfirst($feedback->type);
+            
+            $title = "New Feedback Submitted - {$typeLabel}";
+            $message = "{$userName} has submitted a new feedback:\n\n";
+            $message .= "Subject: {$feedback->subject}\n";
+            $message .= "Type: {$typeLabel}\n";
+            if ($feedback->facility) {
+                $message .= "Facility: {$facilityName}\n";
+            }
+            $message .= "Rating: {$feedback->rating}/5\n";
+            $message .= "Feedback ID: #{$feedback->id}";
+            
+            // Get all active admin user IDs
+            $adminUserIds = User::where('status', 'active')
+                ->where('role', 'admin')
+                ->pluck('id')
+                ->toArray();
+            
+            if (empty($adminUserIds)) {
+                Log::warning('No active admin users found to notify about feedback #' . $feedback->id);
+                return;
+            }
+            
+            // Create notification
+            $notification = Notification::create([
+                'title' => $title,
+                'message' => $message,
+                'type' => 'info',
+                'priority' => 'medium',
+                'created_by' => $feedback->user_id,
+                'target_audience' => 'specific',
+                'target_user_ids' => $adminUserIds,
+                'is_active' => true,
+                'scheduled_at' => now(),
+            ]);
+            
+            // Sync notification to all admin users
+            $syncData = [];
+            foreach ($adminUserIds as $adminId) {
+                $syncData[$adminId] = [
+                    'is_read' => false,
+                    'is_acknowledged' => false,
+                ];
+            }
+            $notification->users()->sync($syncData);
+            
+            Log::info("Feedback notification sent to " . count($adminUserIds) . " admin(s)", [
+                'notification_id' => $notification->id,
+                'feedback_id' => $feedback->id
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to send feedback notification to admins: " . $e->getMessage(), [
+                'feedback_id' => $feedback->id ?? null
+            ]);
+        }
     }
 }

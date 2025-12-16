@@ -428,6 +428,10 @@
             }, 4000);
         }
         
+<<<<<<< HEAD
+        // Make showToast available globally
+        window.showToast = showToast;
+=======
         // Custom confirm dialog that returns a Promise
         function showConfirm(message, title) {
             return new Promise(function(resolve) {
@@ -536,6 +540,7 @@
                 };
             });
         }
+>>>>>>> origin/bryan
     </script>
     
     <style>
@@ -704,21 +709,11 @@
                         }
                     }
                 } else if (isAdmin || isStaff) {
-                    // For admin/staff: get pending bookings count
-                    const result = await API.get('/bookings/pending?limit=0');
+                    // For admin/staff: get unread notifications count (same as students)
+                    const result = await API.get('/notifications/user/unread-count');
                     let count = 0;
-                    if (result && result.success !== false) {
-                        // API returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
-                        // Or directly: { success: true, data: { bookings: [], count: ... } }
-                        if (result.data && result.data.data && result.data.data.count !== undefined) {
-                            count = result.data.data.count;
-                        } else if (result.data && result.data.count !== undefined) {
-                            count = result.data.count;
-                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
-                            count = result.data.bookings.length;
-                        } else if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
-                            count = result.data.data.bookings.length;
-                        }
+                    if (result && result.success !== false && result.data && result.data.count !== undefined) {
+                        count = result.data.count;
                     }
                     
                     const badge = document.getElementById('notificationNavBadge');
@@ -865,61 +860,74 @@
                         `;
                     }).join('');
                 } else if (isAdmin || isStaff) {
-                    // For admin/staff: ONLY show pending bookings (no announcements)
+                    // For admin/staff: show Announcements & Notifications (same as students)
                     if (titleElement) {
-                        titleElement.textContent = 'Pending Bookings';
+                        titleElement.textContent = 'Notifications';
                     }
                     if (viewAllLink) {
-                        // Admin/Staff should go to admin bookings page
-                        viewAllLink.href = '/admin/bookings';
+                        viewAllLink.href = '/admin/announcements';
                     }
                     
-                    // Admin/Staff bell only displays user booking requests
-                    const result = await API.get('/bookings/pending?limit=10');
-                    console.log('Pending bookings API result:', result);
+                    // Get unread announcements and notifications
+                    const result = await API.get('/notifications/user/unread-items?limit=10&only_unread=true');
+                    console.log('Unread items API result (full):', JSON.stringify(result, null, 2));
                     
-                    // Handle response - check both result.success and direct data access
-                    // API.get returns: { success: true, data: { message: "...", data: { bookings: [], count: ... } } }
-                    let bookings = [];
-                    if (result && result.success !== false) {
-                        if (result.data && result.data.data && result.data.data.bookings && Array.isArray(result.data.data.bookings)) {
-                            bookings = result.data.data.bookings;
-                        } else if (result.data && result.data.bookings && Array.isArray(result.data.bookings)) {
-                            bookings = result.data.bookings;
-                        } else if (result.data && Array.isArray(result.data)) {
-                            bookings = result.data;
-                        } else if (Array.isArray(result.bookings)) {
-                            bookings = result.bookings;
+                    // Extract items from response
+                    let items = [];
+                    if (result && result.success) {
+                        // Direct access to result.data.items
+                        if (result.data && Array.isArray(result.data.items)) {
+                            items = result.data.items;
+                        } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
+                            items = result.data.data.items;
                         }
+                        
+                        console.log('Items extracted:', items.length, 'items');
+                    } else {
+                        console.error('API call failed:', result);
                     }
                     
-                    console.log('Bookings extracted:', bookings.length);
-                    
-                    if (!bookings || bookings.length === 0) {
-                        listContainer.innerHTML = '<div class="notification-empty">No pending bookings</div>';
+                    if (!items || items.length === 0) {
+                        listContainer.innerHTML = '<div class="notification-empty">No new notifications</div>';
                         return;
                     }
                     
-                    listContainer.innerHTML = bookings.map(booking => `
-                        <div class="notification-item unread" onclick="window.handleBookingClick(${booking.id})">
-                            <div class="notification-item-title">
-                                <i class="fas fa-calendar-check"></i> ${booking.facility_name}
+                    // Display items
+                    listContainer.innerHTML = items.map(item => {
+                        // Check if this is a booking notification
+                        const isBookingNotification = item.title && (
+                            item.title.includes('Booking') || 
+                            item.title.includes('New Booking Request') ||
+                            item.title.includes('Booking Request')
+                        );
+                        
+                        const icon = item.type === 'announcement' ? 'bullhorn' : (isBookingNotification ? 'calendar-check' : 'bell');
+                        const typeLabel = item.type === 'announcement' ? 'Announcement' : 'Notification';
+                        
+                        // For booking notifications, link to booking page if booking ID is in message
+                        let url = item.type === 'announcement' ? `/announcements/${item.id}` : `/notifications/${item.id}`;
+                        if (isBookingNotification && item.content) {
+                            const bookingIdMatch = item.content.match(/Booking ID:\s*#?(\d+)/i);
+                            if (bookingIdMatch && bookingIdMatch[1]) {
+                                url = `/bookings/${bookingIdMatch[1]}`;
+                            }
+                        }
+                        
+                        const isRead = item.is_read === true || item.is_read === 1;
+                        const itemClass = isRead ? 'notification-item' : 'notification-item unread';
+                        
+                        return `
+                            <div class="${itemClass}" onclick="window.handleItemClick('${item.type}', ${item.id}, '${url}', ${isRead})">
+                                <div class="notification-item-title">
+                                    <i class="fas fa-${icon}"></i> ${item.title || typeLabel}
+                                </div>
+                                <div class="notification-item-message">
+                                    ${item.content ? (item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content) : 'No content'}
+                                </div>
+                                <div class="notification-item-time">${window.formatTimeAgo(item.created_at || item.pivot_created_at)}</div>
                             </div>
-                            <div class="notification-item-message">
-                                Booking ${booking.id} from ${booking.user_name}<br>
-                                ${booking.booking_date} ${booking.start_time} - ${booking.end_time}
-                            </div>
-                            <div class="notification-item-time">${window.formatTimeAgo(booking.created_at)}</div>
-                            <div class="notification-item-actions" onclick="event.stopPropagation()">
-                                <button class="btn-approve" onclick="window.approveBooking(${booking.id}, event)" title="Approve">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                                <button class="btn-reject" onclick="window.rejectBooking(${booking.id}, event)" title="Reject">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 }
             } catch (error) {
                 console.error('Error loading notification dropdown content:', error);
@@ -1043,7 +1051,7 @@
                         <li><a href="{{ route('home') }}">Home</a></li>
                         <li><a href="{{ route('facilities.index') }}">Facilities</a></li>
                         <li><a href="{{ route('bookings.index') }}">Bookings</a></li>
-                        <li><a href="{{ route('notifications.index') }}">Announcements</a></li>
+                        <li><a href="{{ route('notifications.index') }}">Notifications</a></li>
                         <li><a href="{{ route('loyalty.index') }}">Loyalty</a></li>
                         <li><a href="{{ route('feedbacks.index') }}">Feedback</a></li>
                     @endif
