@@ -73,7 +73,7 @@ class AuthController extends Controller
         $role = strtolower($user->role ?? '');
         
         // Only admin can access admin dashboard
-        if ($role === 'admin' || $role === 'administrator') {
+        if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
         } else {
             // Staff, students, and other roles go to user site (home)
