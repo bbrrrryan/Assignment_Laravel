@@ -43,6 +43,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('users', UserCRUDManagementController::class)->except(['destroy']);
         
         // Facility Management
+        Route::get('facilities/{id}/usage-report/csv', [\App\Http\Controllers\API\FacilityController::class, 'exportUtilizationCsv'])
+            ->name('facilities.export-usage-csv');
         Route::resource('facilities', FacilityController::class);
         
         // Booking Management

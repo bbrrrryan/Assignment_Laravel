@@ -143,7 +143,13 @@ class FacilityController extends AdminBaseController
     public function show(string $id)
     {
         $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
-        return view('admin.facilities.show', compact('facility'));
+
+        // Check if facility has any bookings in the current month (for CSV export button)
+        $hasBookingsThisMonth = $facility->bookings()
+            ->whereBetween('booking_date', [now()->startOfMonth(), now()->endOfMonth()])
+            ->exists();
+
+        return view('admin.facilities.show', compact('facility', 'hasBookingsThisMonth'));
     }
 
     /**

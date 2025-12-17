@@ -175,6 +175,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{id}', [FacilityController::class, 'update']);
             Route::delete('/{id}', [FacilityController::class, 'destroy']);
             Route::get('/{id}/utilization', [FacilityController::class, 'utilization']);
+            Route::get('/{id}/utilization/export-csv', [FacilityController::class, 'exportUtilizationCsv']);
         });
     });
 

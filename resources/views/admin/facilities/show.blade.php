@@ -10,6 +10,11 @@
             <p>View facility information and statistics</p>
         </div>
         <div>
+            @if(!empty($hasBookingsThisMonth) && $hasBookingsThisMonth)
+                <a href="{{ route('admin.facilities.export-usage-csv', $facility->id) }}" class="btn-header-white" style="margin-right: 10px;">
+                    <i class="fas fa-file-csv"></i> Export Usage Report (CSV)
+                </a>
+            @endif
             <a href="{{ route('admin.facilities.edit', $facility->id) }}" class="btn-header-white">
                 <i class="fas fa-edit"></i> Edit Facility
             </a>
