@@ -189,6 +189,37 @@
         </div>
     </div>
 
+    <!-- Facility Reports & Analytics -->
+    <div class="module-section">
+        <h2 class="module-title">
+            <i class="fas fa-chart-pie"></i> Facility Reports & Analytics
+        </h2>
+        <div class="reports-container" style="padding: 20px; background: white; border-radius: 8px;">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-tags"></i> Facilities by Type</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="facilityTypeChart" style="max-height: 320px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-traffic-light"></i> Facilities by Status</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="facilityStatusChart" style="max-height: 320px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Feedback Management Module Stats -->
     <div class="module-section">
         <h2 class="module-title">
@@ -266,11 +297,14 @@
         <!-- Recent Bookings -->
         <div class="dashboard-section">
             <div class="section-header">
-                <h2>Recent Bookings</h2>
-                <a href="{{ route('bookings.index') }}" class="btn-primary">View All</a>
+                <div class="section-header-title">
+                    <i class="fas fa-history"></i>
+                    <h2>Recent Bookings</h2>
+                </div>
+                <a href="{{ route('bookings.index') }}" class="btn-primary btn-primary-outline">View All</a>
             </div>
             <div class="table-container">
-                <table>
+                <table class="data-table data-table-compact">
                     <thead>
                         <tr>
                             <th>User</th>
@@ -286,14 +320,14 @@
                                 <td>{{ $booking->facility->name ?? '-' }}</td>
                                 <td>{{ $booking->booking_date->format('M d, Y') }}</td>
                                 <td>
-                                    <span class="badge badge-{{ $booking->status === 'approved' ? 'success' : ($booking->status === 'pending' ? 'warning' : 'secondary') }}">
+                                    <span class="status-badge status-{{ $booking->status }}">
                                         {{ ucfirst($booking->status) }}
                                     </span>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center">No bookings found</td>
+                                <td colspan="4" class="text-center text-muted">No bookings found</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -304,11 +338,14 @@
         <!-- Recent Feedbacks -->
         <div class="dashboard-section">
             <div class="section-header">
-                <h2>Recent Feedbacks</h2>
-                <a href="{{ route('feedbacks.index') }}" class="btn-primary">View All</a>
+                <div class="section-header-title">
+                    <i class="fas fa-comment-alt"></i>
+                    <h2>Recent Feedbacks</h2>
+                </div>
+                <a href="{{ route('feedbacks.index') }}" class="btn-primary btn-primary-outline">View All</a>
             </div>
             <div class="table-container">
-                <table>
+                <table class="data-table data-table-compact">
                     <thead>
                         <tr>
                             <th>User</th>
@@ -325,15 +362,17 @@
                                 <td>{{ Str::limit($feedback->subject ?? 'No subject', 30) }}</td>
                                 <td>
                                     @if($feedback->rating)
-                                        @for($i = 1; $i <= 5; $i++)
-                                            @if($i <= $feedback->rating)
-                                                <i class="fas fa-star" style="color: #ffc107;"></i>
-                                            @else
-                                                <i class="far fa-star" style="color: #ddd;"></i>
-                                            @endif
-                                        @endfor
+                                        <span class="rating-stars">
+                                            @for($i = 1; $i <= 5; $i++)
+                                                @if($i <= $feedback->rating)
+                                                    <i class="fas fa-star"></i>
+                                                @else
+                                                    <i class="far fa-star"></i>
+                                                @endif
+                                            @endfor
+                                        </span>
                                     @else
-                                        -
+                                        <span class="text-muted">-</span>
                                     @endif
                                 </td>
                                 <td>
@@ -347,7 +386,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center">No feedbacks found</td>
+                                <td colspan="5" class="text-center text-muted">No feedbacks found</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -530,6 +569,8 @@ function displayBookingReports(data) {
 let statusChart = null;
 let dateChart = null;
 let facilityChart = null;
+let facilityTypeChart = null;
+let facilityStatusChart = null;
 
 // Render Status Distribution Pie Chart
 function renderStatusChart(statusStats) {
@@ -699,6 +740,113 @@ function renderFacilityChart(bookingsByFacility) {
     });
 }
 
+// Load facility reports
+async function loadFacilityReports() {
+    try {
+        const result = await API.get('/facilities/reports/summary');
+        if (result.success && result.data && result.data.data) {
+            const data = result.data.data;
+            renderFacilityTypeChart(data.by_type || []);
+            renderFacilityStatusChart(data.by_status || []);
+        }
+    } catch (error) {
+        // Silent fail; facility charts are optional
+        console.error('Error loading facility reports:', error);
+    }
+}
+
+// Render Facilities by Type Bar Chart
+function renderFacilityTypeChart(items) {
+    const ctx = document.getElementById('facilityTypeChart');
+    if (!ctx) return;
+
+    if (facilityTypeChart) {
+        facilityTypeChart.destroy();
+    }
+
+    const labels = items.map(i => (i.type || 'Unknown').charAt(0).toUpperCase() + (i.type || 'Unknown').slice(1));
+    const values = items.map(i => i.total || 0);
+
+    facilityTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Facilities',
+                data: values,
+                backgroundColor: 'rgba(163, 31, 55, 0.7)',
+                borderColor: '#a31f37',
+                borderWidth: 2,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false,
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Render Facilities by Status Doughnut Chart
+function renderFacilityStatusChart(items) {
+    const ctx = document.getElementById('facilityStatusChart');
+    if (!ctx) return;
+
+    if (facilityStatusChart) {
+        facilityStatusChart.destroy();
+    }
+
+    const statusLabelMap = {
+        available: 'Available',
+        maintenance: 'Maintenance',
+        unavailable: 'Unavailable',
+        reserved: 'Reserved',
+    };
+
+    const labels = items.map(i => statusLabelMap[i.status] || (i.status || 'Unknown'));
+    const values = items.map(i => i.total || 0);
+
+    facilityStatusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: [
+                    '#d4edda',
+                    '#fff3cd',
+                    '#f8d7da',
+                    '#e2e3e5',
+                ],
+                borderColor: '#ffffff',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+}
+
 // Helper function to show error
 function showError(message) {
     if (typeof showToast !== 'undefined') {
@@ -717,6 +865,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Wait a bit for the page to fully render
     setTimeout(function() {
         loadBookingReports();
+        loadFacilityReports();
     }, 500);
     
     // Load reports when Generate button is clicked

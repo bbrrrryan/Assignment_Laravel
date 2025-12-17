@@ -383,6 +383,23 @@ footer {
     margin-bottom: 20px;
 }
 
+.section-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-header-title i {
+    color: #a31f37;
+    font-size: 1.2rem;
+}
+
+.section-header-title h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #2d3436;
+}
+
 /* 9. 页面容器和表格 */
 .page-container {
     padding: 40px 10%;
@@ -418,6 +435,16 @@ footer {
 .filters input {
     flex: 1;
     min-width: 200px;
+}
+
+.data-table-compact th,
+.data-table-compact td {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+}
+
+.data-table-compact tbody tr:hover {
+    background-color: #f8f9fa;
 }
 
 .data-table {
@@ -516,6 +543,25 @@ footer {
 
 .btn-danger:hover {
     background: #c82333;
+}
+
+.btn-primary-outline {
+    background: transparent;
+    color: #a31f37;
+    border: 1px solid #a31f37;
+    width: auto;
+    padding: 8px 20px;
+}
+
+.btn-primary-outline:hover {
+    background: #a31f37;
+    color: #ffffff;
+}
+
+.rating-stars i {
+    color: #ffc107;
+    margin-right: 2px;
+    font-size: 0.95rem;
 }
 
 .btn-success {

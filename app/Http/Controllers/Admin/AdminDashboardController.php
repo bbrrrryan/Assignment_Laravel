@@ -374,4 +374,45 @@ class AdminDashboardController extends AdminBaseController
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
+
+    /**
+     * Get facility reports (API endpoint)
+     * - Breakdown by facility type
+     * - Breakdown by facility status
+     */
+    public function getFacilityReports(Request $request)
+    {
+        // Facilities by type
+        $byType = Facility::selectRaw('type, COUNT(*) as total')
+            ->groupBy('type')
+            ->orderBy('type')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'type' => $row->type,
+                    'total' => (int) $row->total,
+                ];
+            });
+
+        // Facilities by status
+        $byStatus = Facility::selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->orderBy('status')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'status' => $row->status,
+                    'total' => (int) $row->total,
+                ];
+            });
+
+        return response()->json([
+            'status' => 'S',
+            'data' => [
+                'by_type' => $byType,
+                'by_status' => $byStatus,
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+        ]);
+    }
 }

@@ -174,6 +174,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/', [FacilityController::class, 'store']);
             Route::put('/{id}', [FacilityController::class, 'update']);
             Route::delete('/{id}', [FacilityController::class, 'destroy']);
+            Route::get('/reports/summary', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getFacilityReports']);
             Route::get('/{id}/utilization', [FacilityController::class, 'utilization']);
             Route::get('/{id}/utilization/export-csv', [FacilityController::class, 'exportUtilizationCsv']);
         });
