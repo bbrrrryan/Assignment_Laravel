@@ -106,7 +106,6 @@ class UserController extends Controller
         $user = User::create($userData);
 
         // Log activity
-        /** @var User $currentUser */
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'create_user',
@@ -173,7 +172,6 @@ class UserController extends Controller
         $user->update($updateData);
 
         // Log activity
-        /** @var User $currentUser */
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'update_user',
@@ -196,7 +194,6 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         
         // Log activity before deletion
-        /** @var User $currentUser */
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'delete_user',
@@ -351,7 +348,6 @@ class UserController extends Controller
             DB::commit();
 
             // Log activity
-            /** @var User $currentUser */
             $currentUser = auth()->user();
             $currentUser->activityLogs()->create([
                 'action' => 'bulk_upload_users',
@@ -386,7 +382,6 @@ class UserController extends Controller
      */
     public function updateProfile(Request $request)
     {
-        /** @var User $user */
         $user = auth()->user();
 
         $validator = Validator::make($request->all(), [
@@ -433,7 +428,6 @@ class UserController extends Controller
      */
     public function myActivityLogs(Request $request)
     {
-        /** @var User $user */
         $user = auth()->user();
         
         // Get total count

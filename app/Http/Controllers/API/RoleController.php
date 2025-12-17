@@ -12,9 +12,9 @@ class RoleController extends Controller
     {
         $roles = Role::all();
         return response()->json([
-            'status' => 'S', 
+            'status' => 'S', // IFA Standard
             'data' => $roles,
-            'timestamp' => now()->format('Y-m-d H:i:s'), 
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
 
