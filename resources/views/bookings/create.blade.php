@@ -95,6 +95,6 @@
 
 <link rel="stylesheet" href="{{ asset('css/bookings/index.css') }}">
 <link rel="stylesheet" href="{{ asset('css/bookings/create.css') }}">
-<script src="{{ asset('js/bookings/index.js') }}"></script>
+<script src="{{ asset('js/bookings/create.js') }}"></script>
 @endsection
 
