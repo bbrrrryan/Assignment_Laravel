@@ -385,7 +385,13 @@ function loadFacilityDetails(id) {
                         addBookingBtn.style.display = 'none';
                     } else {
                         addBookingBtn.style.display = 'inline-flex';
-                        addBookingBtn.href = `/bookings/create?facility_id=${id}`;
+                        // Store facility_id in sessionStorage and navigate to create booking page
+                        addBookingBtn.onclick = function(e) {
+                            e.preventDefault();
+                            // Store facility_id in sessionStorage for API-based approach
+                            sessionStorage.setItem('selectedFacilityId', id);
+                            window.location.href = '/bookings/create';
+                        };
                     }
                 }
             } else {
