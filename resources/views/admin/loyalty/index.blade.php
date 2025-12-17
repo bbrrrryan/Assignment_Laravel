@@ -117,8 +117,6 @@
                 <select id="rewardType" required>
                     <option value="">Select a type</option>
                     <option value="certificate">Certificate</option>
-                    <option value="badge">Badge</option>
-                    <option value="privilege">Privilege</option>
                     <option value="physical">Physical Item</option>
                 </select>
                 <small>Type of reward being offered</small>
@@ -287,6 +285,8 @@
     </div>
 </div>
 
+<!-- Chart.js for Loyalty Reports -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/admin/loyalty/index.js') }}"></script>
 
 <script>
@@ -646,11 +646,28 @@ function displayCertificatesManagement(certificates) {
 
 // Reports
 async function loadReports() {
-    showLoading(document.getElementById('adminLoyaltyContent'));
-    
-    const participationResult = await API.get('/loyalty/reports/participation');
-    const distributionResult = await API.get('/loyalty/reports/points-distribution');
-    const rewardsStatsResult = await API.get('/loyalty/reports/rewards-stats');
+    const container = document.getElementById('adminLoyaltyContent');
+    showLoading(container);
+
+    if (typeof reportStartDate === 'undefined' || typeof reportEndDate === 'undefined') {
+        window.reportStartDate = null;
+        window.reportEndDate = null;
+    }
+
+    // 默认当前月份
+    if (!reportStartDate || !reportEndDate) {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        reportStartDate = firstDay.toISOString().slice(0, 10);
+        reportEndDate = lastDay.toISOString().slice(0, 10);
+    }
+
+    const query = `?start_date=${encodeURIComponent(reportStartDate)}&end_date=${encodeURIComponent(reportEndDate)}`;
+
+    const participationResult = await API.get(`/loyalty/reports/participation${query}`);
+    const distributionResult = await API.get(`/loyalty/reports/points-distribution${query}`);
+    const rewardsStatsResult = await API.get(`/loyalty/reports/rewards-stats${query}`);
     
     if (participationResult.success && distributionResult.success && rewardsStatsResult.success) {
         displayReports({
@@ -659,7 +676,7 @@ async function loadReports() {
             rewardsStats: rewardsStatsResult.data.data,
         });
     } else {
-        showError(document.getElementById('adminLoyaltyContent'), 'Failed to load reports');
+        showError(container, 'Failed to load reports');
     }
 }
 
@@ -673,6 +690,31 @@ function displayReports(data) {
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
     container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper">
+                        <label style="font-weight:600; display:block; margin-bottom:6px;">Start Date</label>
+                        <input type="date" id="reportStartDate" class="filter-input" value="${reportStartDate || ''}">
+                    </div>
+                    <div class="filter-input-wrapper">
+                        <label style="font-weight:600; display:block; margin-bottom:6px;">End Date</label>
+                        <input type="date" id="reportEndDate" class="filter-input" value="${reportEndDate || ''}">
+                    </div>
+                    <div class="filter-input-wrapper reports-actions-wrapper">
+                        <div class="reports-actions">
+                            <button type="button" class="btn-primary reports-action-btn" onclick="applyReportsFilter()">
+                                Apply
+                            </button>
+                            <button type="button" class="btn-secondary reports-action-btn" onclick="exportReportsPdf()">
+                                Export PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="reports-grid">
             <div class="report-card">
                 <h3>Participation Overview</h3>
@@ -706,6 +748,16 @@ function displayReports(data) {
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="report-section">
+            <h3>Points by Action Type</h3>
+            <canvas id="loyaltyPointsByActionChart" style="max-height: 260px;"></canvas>
+        </div>
+
+        <div class="report-section">
+            <h3>Redemptions by Reward</h3>
+            <canvas id="loyaltyRedemptionsChart" style="max-height: 260px;"></canvas>
         </div>
         
         ${participation.top_earners && participation.top_earners.length > 0 ? `
@@ -756,6 +808,108 @@ function displayReports(data) {
         </div>
         ` : ''}
     `;
+
+    // Render charts after DOM updated
+    if (typeof Chart !== 'undefined') {
+        setTimeout(() => {
+            renderLoyaltyPointsByActionChart(participation.points_by_action || []);
+            renderLoyaltyRedemptionsChart(rewardsStats.popular_rewards || []);
+        }, 50);
+    }
+}
+
+// Loyalty charts instances
+let loyaltyPointsByActionChart = null;
+let loyaltyRedemptionsChart = null;
+
+function renderLoyaltyPointsByActionChart(pointsByAction) {
+    const ctx = document.getElementById('loyaltyPointsByActionChart');
+    if (!ctx) return;
+
+    const labels = (pointsByAction || []).map(item => {
+        const raw = item.action_type || 'other';
+        return raw
+            .toString()
+            .split('_')
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
+    });
+
+    const values = (pointsByAction || []).map(item => item.total_points || 0);
+
+    if (loyaltyPointsByActionChart) {
+        loyaltyPointsByActionChart.destroy();
+    }
+
+    loyaltyPointsByActionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Total Points',
+                data: values,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    title: { display: true, text: 'Points' }
+                },
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 0 }
+                }
+            }
+        }
+    });
+}
+
+function renderLoyaltyRedemptionsChart(popularRewards) {
+    const ctx = document.getElementById('loyaltyRedemptionsChart');
+    if (!ctx) return;
+
+    const labels = (popularRewards || []).map(item => item.name || 'Reward');
+    const values = (popularRewards || []).map(item => item.redemption_count || 0);
+
+    if (loyaltyRedemptionsChart) {
+        loyaltyRedemptionsChart.destroy();
+    }
+
+    loyaltyRedemptionsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Redemptions',
+                data: values,
+                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    title: { display: true, text: 'Redemptions' }
+                }
+            }
+        }
+    });
 }
 
 // Helper functions
@@ -2534,6 +2688,34 @@ window.showIssueCertificateModal = async function() {
     position: relative;
     flex: 1;
     min-width: 200px;
+}
+
+.reports-actions-wrapper {
+    flex: 0 0 260px;
+    margin-left: auto;
+}
+
+.reports-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.reports-actions .reports-action-btn {
+    flex: 1 1 0;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reports-actions .btn-square {
+    width: 100px;
+    height: 100px;
+    min-width: 100px;
+}
+
+.reports-actions .btn-square i {
+    font-size: 1rem;
 }
 
 .filter-icon {

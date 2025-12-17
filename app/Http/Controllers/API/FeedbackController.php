@@ -95,7 +95,6 @@ class FeedbackController extends Controller
     {
         $validated = $request->validate([
             'facility_id' => 'nullable|exists:facilities,id',
-            'booking_id' => 'nullable|exists:bookings,id',
             'type' => 'required|in:complaint,suggestion,compliment,general',
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
@@ -132,7 +131,6 @@ class FeedbackController extends Controller
             $validated['message'],
             $validated['rating'],
             $validated['facility_id'] ?? null,
-            $validated['booking_id'] ?? null,
             $validated['image'] ?? null,
             'pending' // Default status
         );

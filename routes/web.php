@@ -6,6 +6,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserCRUDManagementController;
 use App\Http\Controllers\Admin\FacilityController;
+use App\Http\Controllers\API\LoyaltyController as APILoyaltyController;
+use App\Http\Controllers\CertificateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,6 +59,8 @@ Route::middleware('auth')->group(function () {
         
         // Loyalty Management
         Route::get('/loyalty', [PageController::class, 'adminLoyalty'])->name('loyalty.index');
+        Route::get('/loyalty/reports/export-pdf', [APILoyaltyController::class, 'exportReportsPdf'])
+            ->name('loyalty.reports.export-pdf');
         
         // Notification Management (redirected to announcements page with tabs)
         Route::get('/notifications', function() {
@@ -88,6 +92,10 @@ Route::middleware('auth')->group(function () {
     // Feedback Routes
     Route::get('/feedbacks', [PageController::class, 'feedbacks'])->name('feedbacks.index');
     Route::get('/feedbacks/{id}', [PageController::class, 'showFeedback'])->name('feedbacks.show');
+
+    // Certificate download (user & admin)
+    Route::get('/certificates/{id}/download', [CertificateController::class, 'download'])
+        ->name('certificates.download');
     
     // Smart dashboard route - redirects based on user role
     Route::get('/dashboard', function () {

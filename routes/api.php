@@ -103,6 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/points', [LoyaltyController::class, 'getPoints']);
         Route::get('/points/history', [LoyaltyController::class, 'pointsHistory']);
         Route::get('/rewards', [LoyaltyController::class, 'getRewards']);
+        Route::get('/rewards/my', [LoyaltyController::class, 'myRewards']);
         Route::post('/rewards/redeem', [LoyaltyController::class, 'redeemReward']);
         Route::get('/certificates', [LoyaltyController::class, 'getCertificates']);
         
