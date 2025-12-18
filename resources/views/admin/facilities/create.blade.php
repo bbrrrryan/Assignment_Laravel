@@ -83,6 +83,58 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="equipment">Equipment</label>
+                    <small style="display: block; margin-bottom: 10px;">List equipment available in this facility (one per line or comma-separated)</small>
+                    <div id="equipmentContainer">
+                        @php
+                            $oldEquipment = old('equipment', '');
+                            $equipmentArray = [];
+                            if ($oldEquipment) {
+                                if (is_string($oldEquipment)) {
+                                    // Try to decode JSON first
+                                    $decoded = json_decode($oldEquipment, true);
+                                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                        $equipmentArray = $decoded;
+                                    } else {
+                                        // If not JSON, split by comma or newline
+                                        $equipmentArray = array_filter(array_map('trim', preg_split('/[,\n\r]+/', $oldEquipment)));
+                                    }
+                                } elseif (is_array($oldEquipment)) {
+                                    $equipmentArray = $oldEquipment;
+                                }
+                            }
+                        @endphp
+                        @if(count($equipmentArray) > 0)
+                            @foreach($equipmentArray as $index => $item)
+                            <div class="equipment-item" style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <input type="text" name="equipment[]" value="{{ $item }}" class="form-input" placeholder="Equipment name">
+                                <button type="button" class="btn-remove-equipment" onclick="removeEquipmentItem(this)" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            @endforeach
+                        @else
+                            <div class="equipment-item" style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <input type="text" name="equipment[]" value="" class="form-input" placeholder="Equipment name">
+                                <button type="button" class="btn-remove-equipment" onclick="removeEquipmentItem(this)" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                    <button type="button" onclick="addEquipmentItem()" style="margin-top: 10px; background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                        <i class="fas fa-plus"></i> Add Equipment
+                    </button>
+                    <input type="hidden" id="equipment_json" name="equipment">
+                </div>
+
+                <div class="form-group">
+                    <label for="rules">Rules</label>
+                    <textarea id="rules" name="rules" rows="5" class="form-input" placeholder="Enter facility rules and guidelines...">{{ old('rules') }}</textarea>
+                    <small>Enter the rules and guidelines for using this facility</small>
+                </div>
+
+                <div class="form-group">
                     <label for="image">Facility Image</label>
                     <input type="file" id="image" name="image" 
                            accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" class="form-input" style="padding: 8px;">
@@ -199,4 +251,44 @@
 
 <link rel="stylesheet" href="{{ asset('css/admin/facilities.css') }}">
 <script src="{{ asset('js/admin/facilities/form.js') }}"></script>
+<script>
+function addEquipmentItem() {
+    const container = document.getElementById('equipmentContainer');
+    const newItem = document.createElement('div');
+    newItem.className = 'equipment-item';
+    newItem.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px;';
+    newItem.innerHTML = `
+        <input type="text" name="equipment[]" value="" class="form-input" placeholder="Equipment name">
+        <button type="button" class="btn-remove-equipment" onclick="removeEquipmentItem(this)" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(newItem);
+}
+
+function removeEquipmentItem(button) {
+    const container = document.getElementById('equipmentContainer');
+    if (container.children.length > 1) {
+        button.closest('.equipment-item').remove();
+    } else {
+        // If it's the last item, just clear the input
+        button.closest('.equipment-item').querySelector('input').value = '';
+    }
+}
+
+// Convert equipment array to JSON before form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const equipmentInputs = document.querySelectorAll('input[name="equipment[]"]');
+            const equipmentArray = Array.from(equipmentInputs)
+                .map(input => input.value.trim())
+                .filter(value => value !== '');
+            
+            document.getElementById('equipment_json').value = JSON.stringify(equipmentArray);
+        });
+    }
+});
+</script>
 @endsection

@@ -70,6 +70,34 @@
                     <p>{{ $facility->description }}</p>
                 </div>
                 @endif
+                @if($facility->equipment && !empty($facility->equipment))
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label><i class="fas fa-tools"></i> Equipment</label>
+                    <p>
+                        @if(is_array($facility->equipment))
+                            <ul style="list-style: none; padding: 0; margin: 10px 0;">
+                                @foreach($facility->equipment as $item)
+                                    @if(!empty($item))
+                                    <li style="padding: 8px 12px; margin: 5px 0; background: #f8f9fa; border-left: 3px solid #007bff; border-radius: 4px;">
+                                        <i class="fas fa-check-circle" style="color: #28a745; margin-right: 8px;"></i>{{ $item }}
+                                    </li>
+                                    @endif
+                                @endforeach
+                            </ul>
+                        @else
+                            <span style="color: #6c757d;">{{ $facility->equipment }}</span>
+                        @endif
+                    </p>
+                </div>
+                @endif
+                @if($facility->rules)
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <label><i class="fas fa-clipboard-list"></i> Rules</label>
+                    <p style="white-space: pre-line; padding: 10px 15px 35px 10px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #ffc107; line-height: 1.6;">
+                        {{ $facility->rules }}
+                    </p>
+                </div>
+                @endif
                 @if($facility->image_url)
                 <div class="detail-item" style="grid-column: 1 / -1;">
                     <label>Image</label>
