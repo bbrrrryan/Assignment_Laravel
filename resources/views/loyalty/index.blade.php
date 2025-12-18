@@ -20,6 +20,7 @@
 
         <div class="loyalty-tabs">
             <button class="tab-btn active" onclick="showTab('points')">Points History</button>
+            <button class="tab-btn" onclick="showTab('my-rewards')">My Rewards</button>
             <button class="tab-btn" onclick="showTab('rewards')">Available Rewards</button>
             <button class="tab-btn" onclick="showTab('certificates')">Certificates</button>
         </div>

@@ -52,8 +52,29 @@ async function loadFacilities() {
         facilities = result.data.data?.data || result.data.data || [];
         const select = document.getElementById('feedbackFacility');
         if (select) {
-            select.innerHTML = '<option value="">None</option>' +
-                facilities.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            // Build unique list of facility types (no duplicates)
+            const seenTypes = new Set();
+            const options = [];
+
+            facilities.forEach(f => {
+                const rawType = f.type || f.name || 'Unnamed facility';
+                const key = String(rawType).toLowerCase();
+
+                if (seenTypes.has(key)) return; // Skip duplicate types
+                seenTypes.add(key);
+
+                // Capitalize first letter of each word
+                const label = String(rawType)
+                    .toLowerCase()
+                    .split(' ')
+                    .filter(w => w.length > 0)
+                    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(' ');
+
+                options.push(`<option value="${f.id}">${label}</option>`);
+            });
+
+            select.innerHTML = '<option value="">None</option>' + options.join('');
         }
     }
 }

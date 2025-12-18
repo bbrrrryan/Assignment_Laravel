@@ -12,6 +12,7 @@ use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 
 class LoyaltyController extends Controller
@@ -63,6 +64,23 @@ class LoyaltyController extends Controller
                 'message' => 'This reward is not available',
                 'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
             ], 400);
+        }
+
+        // For certificate-type rewards, each user can only redeem once (pending/approved/redeemed)
+        if ($reward->reward_type === 'certificate') {
+            $alreadyRedeemed = DB::table('user_reward')
+                ->where('user_id', $user->id)
+                ->where('reward_id', $reward->id)
+                ->whereIn('status', ['pending', 'approved', 'redeemed'])
+                ->exists();
+
+            if ($alreadyRedeemed) {
+                return response()->json([
+                    'status' => 'F', // IFA Standard: F (Fail)
+                    'message' => 'You have already redeemed this certificate reward.',
+                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                ], 400);
+            }
         }
 
         $totalPoints = $user->loyaltyPoints()->sum('points');
@@ -128,6 +146,44 @@ class LoyaltyController extends Controller
         return response()->json([
             'status' => 'S', // IFA Standard
             'data' => auth()->user()->certificates,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
+    }
+
+    /**
+     * Get current user's redeemed rewards (badges, certificates, privileges, etc.)
+     */
+    public function myRewards(Request $request)
+    {
+        $user = auth()->user();
+
+        $query = $user->rewards()
+            ->withPivot('points_used', 'status', 'approved_by', 'redeemed_at', 'created_at')
+            ->orderBy('user_reward.created_at', 'desc');
+
+        if ($request->has('status') && $request->status !== null && $request->status !== '') {
+            $query->wherePivot('status', $request->status);
+        }
+
+        $rewards = $query->get()->map(function ($reward) {
+            return [
+                'id' => $reward->id,
+                'name' => $reward->name,
+                'description' => $reward->description,
+                'points_required' => $reward->points_required,
+                'reward_type' => $reward->reward_type,
+                'image_url' => $reward->image_url,
+                'points_used' => $reward->pivot->points_used,
+                'status' => $reward->pivot->status,
+                'approved_by' => $reward->pivot->approved_by,
+                'redeemed_at' => $reward->pivot->redeemed_at,
+                'created_at' => $reward->pivot->created_at,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $rewards,
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
@@ -381,7 +437,7 @@ class LoyaltyController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'points_required' => 'required|integer|min:1',
-            'reward_type' => 'required|in:certificate,badge,privilege,physical',
+            'reward_type' => 'required|in:certificate,physical',
             'image_url' => 'nullable|string', // Can be base64 image string or URL
             'stock_quantity' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
@@ -430,7 +486,7 @@ class LoyaltyController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'points_required' => 'required|integer|min:1',
-            'reward_type' => 'required|in:certificate,badge,privilege,physical',
+            'reward_type' => 'required|in:certificate,physical',
             'image_url' => 'nullable|string',
             'stock_quantity' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
@@ -517,19 +573,55 @@ class LoyaltyController extends Controller
             ], 404);
         }
 
-        DB::table('user_reward')
-            ->where('id', $id)
-            ->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
-                'updated_at' => now(),
-            ]);
+        DB::beginTransaction();
+        try {
+            // Update redemption status
+            DB::table('user_reward')
+                ->where('id', $id)
+                ->update([
+                    'status' => 'approved',
+                    'approved_by' => auth()->id(),
+                    'updated_at' => now(),
+                ]);
 
-        return response()->json([
-            'status' => 'S', // IFA Standard
-            'message' => 'Redemption approved successfully',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-        ]);
+            // Automatically issue certificate if this is a certificate-type reward
+            $reward = Reward::find($redemption->reward_id);
+            if ($reward && $reward->reward_type === 'certificate') {
+                // Optional: prevent duplicate certificates for the same reward/user on the same day
+                $existing = Certificate::where('user_id', $redemption->user_id)
+                    ->where('reward_id', $reward->id)
+                    ->whereDate('issued_date', now()->toDateString())
+                    ->first();
+
+                if (!$existing) {
+                    LoyaltyFactory::makeCertificate(
+                        $redemption->user_id,
+                        $reward->name,
+                        $reward->id,
+                        $reward->description,
+                        now()->toDateString(),
+                        auth()->id(),
+                        'approved'
+                    );
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'S', // IFA Standard
+                'message' => 'Redemption approved successfully',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => 'E', // IFA Standard: E (Error)
+                'message' => 'Failed to approve redemption',
+                'error' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 500);
+        }
     }
 
     /**
@@ -622,8 +714,9 @@ class LoyaltyController extends Controller
      */
     public function getParticipationReport(Request $request)
     {
-        $startDate = $request->start_date ?? now()->subDays(30)->toDateString();
-        $endDate = $request->end_date ?? now()->toDateString();
+        // 默认按当前月份统计（可通过 start_date / end_date 覆盖）
+        $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
+        $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
 
         $report = [
             'total_users' => User::where('role', 'student')->count(),
@@ -655,10 +748,16 @@ class LoyaltyController extends Controller
     /**
      * Get points distribution report (Admin only)
      */
-    public function getPointsDistribution()
+    public function getPointsDistribution(Request $request)
     {
+        // 按日期范围统计每个学生在该期间内获取的积分
+        $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
+        $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
+
         $distribution = User::where('role', 'student')
-            ->withSum('loyaltyPoints as total_points', 'points')
+            ->withSum(['loyaltyPoints as total_points' => function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+            }], 'points')
             ->get()
             ->map(function($user) {
                 return [
@@ -680,16 +779,29 @@ class LoyaltyController extends Controller
     /**
      * Get rewards statistics (Admin only)
      */
-    public function getRewardsStats()
+    public function getRewardsStats(Request $request)
     {
+        // 日期范围主要影响兑换相关统计
+        $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
+        $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
+
         $stats = [
             'total_rewards' => Reward::count(),
             'active_rewards' => Reward::where('is_active', true)->count(),
-            'total_redemptions' => DB::table('user_reward')->count(),
-            'pending_redemptions' => DB::table('user_reward')->where('status', 'pending')->count(),
-            'approved_redemptions' => DB::table('user_reward')->where('status', 'approved')->count(),
+            'total_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count(),
+            'pending_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->where('status', 'pending')
+                ->count(),
+            'approved_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->where('status', 'approved')
+                ->count(),
             'popular_rewards' => DB::table('user_reward')
                 ->join('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+                ->whereBetween('user_reward.created_at', [$startDate, $endDate])
                 ->select('rewards.name', DB::raw('count(*) as redemption_count'))
                 ->groupBy('rewards.id', 'rewards.name')
                 ->orderByDesc('redemption_count')
@@ -702,5 +814,76 @@ class LoyaltyController extends Controller
             'data' => $stats,
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
+    }
+
+    /**
+     * 导出 Loyalty Program 报表为 PDF（Admin）
+     */
+    public function exportReportsPdf(Request $request)
+    {
+        $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
+        $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
+
+        // 复用与 API 报表一致的统计逻辑
+        $participation = [
+            'total_users' => User::where('role', 'student')->count(),
+            'active_users' => LoyaltyPoint::whereBetween('created_at', [$startDate, $endDate])
+                ->distinct('user_id')
+                ->count('user_id'),
+            'total_points_awarded' => LoyaltyPoint::where('points', '>', 0)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->sum('points'),
+            'top_earners' => User::where('role', 'student')
+                ->withSum(['loyaltyPoints as total_points' => function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('created_at', [$startDate, $endDate]);
+                }], 'points')
+                ->orderByDesc('total_points')
+                ->limit(10)
+                ->get(['id', 'name', 'email']),
+        ];
+
+        $distribution = User::where('role', 'student')
+            ->withSum(['loyaltyPoints as total_points' => function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+            }], 'points')
+            ->get()
+            ->sortByDesc('total_points')
+            ->values();
+
+        $rewardsStats = [
+            'total_rewards' => Reward::count(),
+            'active_rewards' => Reward::where('is_active', true)->count(),
+            'total_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count(),
+            'pending_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->where('status', 'pending')
+                ->count(),
+            'approved_redemptions' => DB::table('user_reward')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->where('status', 'approved')
+                ->count(),
+            'popular_rewards' => DB::table('user_reward')
+                ->join('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+                ->whereBetween('user_reward.created_at', [$startDate, $endDate])
+                ->select('rewards.name', DB::raw('count(*) as redemption_count'))
+                ->groupBy('rewards.id', 'rewards.name')
+                ->orderByDesc('redemption_count')
+                ->limit(10)
+                ->get(),
+        ];
+
+        $pdf = Pdf::loadView('admin.loyalty.reports_pdf', [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'participation' => $participation,
+            'distribution' => $distribution,
+            'rewardsStats' => $rewardsStats,
+        ])->setPaper('A4', 'portrait');
+
+        $fileName = 'loyalty-reports-' . $startDate . '-to-' . $endDate . '.pdf';
+
+        return $pdf->download($fileName);
     }
 }

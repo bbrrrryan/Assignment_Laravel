@@ -97,7 +97,11 @@ async function loadPoints() {
     const result = await API.get('/loyalty/points');
     
     if (result.success) {
-        document.getElementById('totalPoints').textContent = result.data.total_points || 0;
+        // API returns: { status, data: { total_points }, timestamp }
+        const totalPoints = (result.data && result.data.data && typeof result.data.data.total_points !== 'undefined')
+            ? result.data.data.total_points
+            : 0;
+        document.getElementById('totalPoints').textContent = totalPoints;
     }
 }
 
@@ -197,6 +201,65 @@ async function loadRewards() {
     }
 }
 
+async function loadMyRewards() {
+    showLoading(document.getElementById('loyaltyContent'));
+    
+    const result = await API.get('/loyalty/rewards/my');
+    
+    if (result.success) {
+        const rewards = result.data.data || [];
+        const container = document.getElementById('loyaltyContent');
+        
+        if (rewards.length === 0) {
+            container.innerHTML = '<p>No rewards redeemed yet</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="rewards-grid">
+                ${rewards.map(reward => {
+                    const status = (reward.status || '').toLowerCase();
+                    let statusLabel = 'Pending';
+                    let statusClass = 'badge-warning';
+                    
+                    if (status === 'approved' || status === 'redeemed') {
+                        statusLabel = 'Approved';
+                        statusClass = 'badge-success';
+                    } else if (status === 'cancelled') {
+                        statusLabel = 'Cancelled';
+                        statusClass = 'badge-secondary';
+                    }
+
+                    const typeLabel = reward.reward_type
+                        ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1)
+                        : 'Reward';
+
+                    return `
+                    <div class="reward-card">
+                        <h3>${reward.name}</h3>
+                        <p>${reward.description || ''}</p>
+                        <div class="reward-points">
+                            <strong>${reward.points_used || reward.points_required} Points Used</strong>
+                        </div>
+                        <p style="margin: 5px 0; color: #636e72;">
+                            <strong>Type:</strong> ${typeLabel}
+                        </p>
+                        <p style="margin: 5px 0; color: #636e72;">
+                            <strong>Redeemed At:</strong> ${reward.redeemed_at ? formatDate(reward.redeemed_at) : 'N/A'}
+                        </p>
+                        <span class="badge ${statusClass}">
+                            ${statusLabel}
+                        </span>
+                    </div>
+                `;
+                }).join('')}
+            </div>
+        `;
+    } else {
+        showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load my rewards');
+    }
+}
+
 async function loadCertificates() {
     showLoading(document.getElementById('loyaltyContent'));
     
@@ -215,10 +278,14 @@ async function loadCertificates() {
             <div class="certificates-grid">
                 ${certificates.map(cert => `
                     <div class="certificate-card">
-                        <i class="fas fa-certificate"></i>
                         <h3>${cert.title}</h3>
-                        <p>${cert.certificate_type}</p>
+                        <p>${cert.description || 'Certificate'}</p>
                         <span class="cert-date">Issued: ${formatDate(cert.issued_date)}</span>
+                        <div style="margin-top: 10px;">
+                            <a href="/certificates/${cert.id}/download" class="btn-primary" target="_blank">
+                                Download PDF
+                            </a>
+                        </div>
                 </div>
             `).join('')}
             </div>
@@ -235,6 +302,7 @@ window.showTab = function(tab) {
     event.target.classList.add('active');
 
     if (tab === 'points') loadPointsHistory();
+    else if (tab === 'my-rewards') loadMyRewards();
     else if (tab === 'rewards') loadRewards();
     else if (tab === 'certificates') loadCertificates();
 };
