@@ -45,7 +45,6 @@
         </div>
     @endif
 
-    <!-- CSV Upload Section -->
     <div class="csv-upload-section">
         <div class="csv-upload-card">
             <h3><i class="fas fa-file-upload"></i> Bulk Import Users (CSV)</h3>
@@ -65,7 +64,6 @@
         </div>
     </div>
 
-    <!-- Search and Filters -->
     <div class="filters-section">
         <div class="filters-card">
             <form method="GET" action="{{ route('admin.users.index') }}" class="filters-form">
@@ -107,7 +105,6 @@
         </div>
     </div>
 
-    <!-- Users Table -->
     <div class="table-container">
         <table class="data-table">
             <thead>
@@ -158,12 +155,10 @@
         </table>
     </div>
     
-    <!-- Loading Indicator -->
     <div id="searchLoading" style="display: none; text-align: center; padding: 20px;">
         <i class="fas fa-spinner fa-spin"></i> Searching now...
     </div>
 
-    <!-- Pagination -->
     <div class="pagination-wrapper" id="paginationWrapper">
         {{ $users->links('pagination::bootstrap-5') }}
     </div>

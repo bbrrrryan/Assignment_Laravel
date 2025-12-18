@@ -1,4 +1,7 @@
 <?php
+/**
+ * Author: Liew Zi Li
+ */
 
 namespace App\Http\Controllers\API;
 
@@ -13,9 +16,6 @@ use Illuminate\Support\Facades\Log;
 
 class AnnouncementController extends Controller
 {
-    /**
-     * Display a listing of announcements (Admin only)
-     */
     public function index(Request $request)
     {
         $query = Announcement::with('creator')
@@ -30,11 +30,9 @@ class AnnouncementController extends Controller
                 });
             });
         
-        // Sorting
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
         
-        // Validate sort_by to prevent SQL injection
         $allowedSortFields = ['id', 'title', 'type', 'priority', 'created_at', 'is_active'];
         if (!in_array($sortBy, $allowedSortFields)) {
             $sortBy = 'created_at';
@@ -48,16 +46,13 @@ class AnnouncementController extends Controller
             ->paginate($request->get('per_page', 10));
 
         return response()->json([
-            'status' => 'S', // IFA Standard: S (Success), F (Fail), E (Error)
+            'status' => 'S',
             'message' => 'Announcements retrieved successfully',
             'data' => $announcements,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Store a newly created announcement
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -87,31 +82,25 @@ class AnnouncementController extends Controller
         );
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement created successfully',
             'data' => $announcement->load('creator'),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Display the specified announcement
-     */
     public function show(string $id)
     {
         $announcement = Announcement::with(['creator', 'users'])->findOrFail($id);
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement retrieved successfully',
             'data' => $announcement,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Update the specified announcement
-     */
     public function update(Request $request, string $id)
     {
         $announcement = Announcement::findOrFail($id);
@@ -132,47 +121,39 @@ class AnnouncementController extends Controller
         $announcement->update($validated);
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement updated successfully',
             'data' => $announcement->load('creator'),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Remove the specified announcement
-     */
     public function destroy(string $id)
     {
         $announcement = Announcement::findOrFail($id);
         $announcement->delete();
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement deleted successfully',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Publish announcement to target users
-     */
     public function publish(string $id)
     {
         $announcement = Announcement::findOrFail($id);
 
         if (!$announcement->is_active) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Announcement is not active',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 400);
         }
 
-        // Determine target users based on audience
         $targetUsers = $this->getTargetUsers($announcement);
 
-        // Attach announcement to users
         $syncData = [];
         foreach ($targetUsers as $userId) {
             $syncData[$userId] = [
@@ -182,28 +163,23 @@ class AnnouncementController extends Controller
 
         $announcement->users()->sync($syncData);
 
-        // Update published_at if not set
         if (!$announcement->published_at) {
             $announcement->update(['published_at' => now()]);
         }
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement published successfully',
             'data' => [
                 'announcement' => $announcement,
                 'recipients_count' => count($targetUsers),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get unread announcements count for current user
-     */
     public function unreadCount()
     {
-        /** @var \App\Models\User $user */
         $user = auth()->user();
         $count = $user->announcements()
             ->where('is_active', true)
@@ -211,21 +187,17 @@ class AnnouncementController extends Controller
             ->count();
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Unread announcements count retrieved successfully',
             'data' => [
                 'count' => $count,
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get current user's announcements
-     */
     public function myAnnouncements(Request $request)
     {
-        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         $query = $user->announcements()
@@ -240,20 +212,16 @@ class AnnouncementController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'My announcements retrieved successfully',
             'data' => $announcements,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Mark announcement as read
-     */
     public function markAsRead(string $id)
     {
         $announcement = Announcement::findOrFail($id);
-        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         if (!$user->announcements()->where('announcements.id', $id)->exists()) {
@@ -270,41 +238,33 @@ class AnnouncementController extends Controller
         ]);
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement marked as read',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Mark announcement as unread
-     */
     public function markAsUnread(string $id)
     {
         $announcement = Announcement::findOrFail($id);
-        /** @var \App\Models\User $user */
         $user = auth()->user();
 
-        // Check if announcement should be visible to this user (same logic as getUnreadItems)
         if (!$announcement->is_active || !$announcement->published_at) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Announcement is not published',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
-        // Check if announcement has expired
         if ($announcement->expires_at && $announcement->expires_at->isPast()) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Announcement has expired',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
-        // Check if user should see this announcement (same logic as getUnreadItems)
-        /** @var \App\Models\User $user */
         $user = auth()->user();
         $targetAudience = $announcement->target_audience;
         $role = strtolower($user->role ?? '');
@@ -331,15 +291,12 @@ class AnnouncementController extends Controller
             ], 404);
         }
 
-        // Check if announcement exists in pivot table
         if (!$user->announcements()->where('announcements.id', $id)->exists()) {
-            // Create the pivot record if it doesn't exist
             $user->announcements()->attach($id, [
                 'is_read' => false,
                 'read_at' => null,
             ]);
         } else {
-            // Update existing pivot record
             $user->announcements()->updateExistingPivot($id, [
                 'is_read' => false,
                 'read_at' => null,
@@ -347,36 +304,25 @@ class AnnouncementController extends Controller
         }
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Announcement marked as unread',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get target users based on announcement audience
-     * This method uses HTTP to call User Management Module's Web Service
-     * instead of directly querying the database (Inter-module communication)
-     */
     private function getTargetUsers(Announcement $announcement): array
     {
         try {
-            // Get base URL for User Management Module
-            // In a real microservices architecture, this would be a separate service URL
-            // For now, we use the same application's API endpoint
             $baseUrl = config('app.url', 'http://localhost:8000');
             $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
 
-            // Prepare request parameters based on target audience
-            // IFA Standard: Include timestamp in request (mandatory requirement)
             $params = [
                 'status' => 'active',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ];
 
             switch ($announcement->target_audience) {
                 case 'all':
-                    // Get all active users
                     break;
 
                 case 'students':
@@ -392,7 +338,6 @@ class AnnouncementController extends Controller
                     break;
 
                 case 'specific':
-                    // For specific users, use the provided user IDs
                     $targetUserIds = $announcement->target_user_ids ?? [];
                     if (empty($targetUserIds)) {
                         return [];
@@ -404,7 +349,6 @@ class AnnouncementController extends Controller
                     return [];
             }
 
-            // Make HTTP request to User Management Module (Inter-module Web Service call)
             $response = Http::timeout(10)->post($apiUrl, $params);
 
             if ($response->successful()) {
@@ -413,34 +357,26 @@ class AnnouncementController extends Controller
                     return $data['data']['user_ids'];
                 }
             } else {
-                // Log error but don't fail completely
                 Log::warning('Failed to get user IDs from User Management Module', [
                     'status' => $response->status(),
                     'response' => $response->body(),
                     'announcement_id' => $announcement->id,
                 ]);
                 
-                // Fallback to direct database query if HTTP call fails
                 return $this->getTargetUsersFallback($announcement);
             }
         } catch (\Exception $e) {
-            // Log exception and fallback to direct query
             Log::error('Exception when calling User Management Module', [
                 'message' => $e->getMessage(),
                 'announcement_id' => $announcement->id,
             ]);
             
-            // Fallback to direct database query
             return $this->getTargetUsersFallback($announcement);
         }
 
         return [];
     }
 
-    /**
-     * Fallback method: Direct database query when HTTP call fails
-     * This maintains backward compatibility and ensures system reliability
-     */
     private function getTargetUsersFallback(Announcement $announcement): array
     {
         switch ($announcement->target_audience) {

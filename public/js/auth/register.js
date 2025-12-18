@@ -1,3 +1,7 @@
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('registerForm');
     if (!form) return;
@@ -20,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Show loading
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.textContent = 'Creating account...';
@@ -51,7 +54,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const result = await API.register(formData);
         
         if (result.success) {
-            // Check if need to redirect to OTP page (OTP already sent)
             if (result.data && result.data.redirect_to_otp) {
                 if (typeof showToast === 'function') {
                     showToast('OTP already sent. Please check your email and verify.', 'info');
@@ -60,11 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.href = '/verify-otp?email=' + encodeURIComponent(result.data.email);
                 }, 1500);
             } else {
-                // New registration, email sent successfully
                 if (typeof showToast === 'function') {
                     showToast('Success register. Check email for OTP code', 'success');
                 }
-                // Redirect to OTP verification page
                 setTimeout(function() {
                     window.location.href = '/verify-otp?email=' + encodeURIComponent(formData.email);
                 }, 1500);

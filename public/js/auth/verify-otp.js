@@ -1,3 +1,7 @@
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('verifyOtpForm');
     const otpInput = document.getElementById('otp_code');
@@ -6,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!form || !otpInput) return;
 
     form.addEventListener('submit', function(e) {
-        const otpValue = otpInput.value.replace(/\D/g, ''); // Remove non-digits
+        const otpValue = otpInput.value.replace(/\D/g, '');
         
         if (otpValue.length !== 6) {
             e.preventDefault();
@@ -20,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
         otpInput.value = otpValue;
     });
 
-    // Auto format OTP input
     otpInput.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 6);
     });
@@ -31,17 +34,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Resend OTP function
 async function resendOtp(event) {
     event.preventDefault();
     
-    // Get email from URL parameter first (most secure), then from form input
     const urlParams = new URLSearchParams(window.location.search);
     const emailFromUrl = urlParams.get('email');
     const emailInput = document.getElementById('email');
     const emailFromForm = emailInput ? emailInput.value : null;
     
-    // Prioritize URL email (cannot be tampered), fallback to form email
     const email = emailFromUrl || emailFromForm;
     
     if (!email) {

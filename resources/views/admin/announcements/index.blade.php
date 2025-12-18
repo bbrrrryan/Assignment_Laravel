@@ -17,7 +17,6 @@
         </div>
     </div>
 
-    <!-- Tabs -->
     <div class="admin-tabs">
         <button class="admin-tab active" onclick="switchTab('announcements', this)">
             <i class="fas fa-bullhorn"></i> Announcements
@@ -39,7 +38,6 @@
         </div>
     @endif
 
-    <!-- Search and Filters -->
     <div class="filters-section">
         <div class="filters-card">
             <form class="filters-form" id="announcementSearchForm">
@@ -97,14 +95,11 @@
         </div>
     </div>
 
-    <!-- Loading Indicator -->
     <div id="announcementSearchLoading" style="display: none; text-align: center; padding: 20px;">
         <i class="fas fa-spinner"></i> Loading announcements...
     </div>
 
-    <!-- Announcements Section -->
     <div id="announcementsSection" class="tab-content active">
-        <!-- Announcements Table -->
         <div class="table-container">
             <table class="data-table">
                 <thead>
@@ -127,20 +122,16 @@
             </table>
         </div>
         
-        <!-- Pagination -->
         <div class="pagination-wrapper" id="paginationWrapper"></div>
     </div>
 
-    <!-- Notifications Section -->
     <div id="notificationsSection" class="tab-content" style="display: none;">
-        <!-- Notifications Table -->
         <div id="notificationsList" class="table-container">
             <p style="text-align: center; padding: 40px;">Loading notifications...</p>
         </div>
     </div>
 </div>
 
-<!-- Create Announcement Modal -->
 <div id="announcementModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
@@ -180,9 +171,8 @@
             </div>
         </form>
     </div>
-</div>
+    </div>
 
-<!-- Create/Edit Notification Modal -->
 <div id="notificationModal" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
