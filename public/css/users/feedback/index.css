@@ -1056,3 +1056,97 @@
     line-height: 1.6;
     font-size: 0.9rem;
 }
+
+/* Custom Pagination Styling - Same as Facility Management */
+.pagination-wrapper {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center; 
+    padding-bottom: 40px;
+}
+
+.pagination-wrapper p { display: none; }
+
+.pagination {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    border-radius: 0;
+    margin: 0;
+}
+
+.page-item {
+    margin: 0;
+    border: none;
+}
+
+.page-item .page-link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 15px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #6c757d;
+    background-color: #ffffff;
+    border: 1px solid #e9ecef; 
+    border-radius: 8px !important; 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.page-item:first-child .page-link,
+.page-item:last-child .page-link {
+    border-radius: 8px !important;
+}
+
+.page-item:not(.active):not(.disabled) .page-link:hover {
+    background-color: #f8f9fa;
+    color: #667eea; 
+    transform: translateY(-2px); 
+    box-shadow: 0 4px 10px rgba(102, 126, 234, 0.15);
+    border-color: #667eea;
+    z-index: 2;
+    text-decoration: none;
+}
+
+.page-item.active .page-link {
+    background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(118, 75, 162, 0.3);
+    transform: scale(1.05);
+    cursor: default;
+}
+
+.page-item.disabled .page-link {
+    background-color: #f1f3f5;
+    color: #adb5bd;
+    border-color: #e9ecef;
+    opacity: 0.7;
+    pointer-events: none;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.page-link svg {
+    width: 16px;
+    height: 16px;
+}
+
+@media (max-width: 576px) {
+    .page-item .page-link {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 10px;
+        font-size: 0.85rem;
+    }
+    .pagination {
+        gap: 5px;
+    }
+}

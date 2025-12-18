@@ -64,6 +64,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/loyalty/reports/export-pdf', [APILoyaltyController::class, 'exportReportsPdf'])
             ->name('loyalty.reports.export-pdf');
         
+        // Feedback Management
+        Route::get('/feedbacks', [PageController::class, 'adminFeedbacks'])->name('feedbacks.index');
+        Route::get('/feedbacks/{id}', [PageController::class, 'adminShowFeedback'])->name('feedbacks.show');
+        
         // Notification Management (redirected to announcements page with tabs)
         Route::get('/notifications', function() {
             return redirect()->route('announcements.index');

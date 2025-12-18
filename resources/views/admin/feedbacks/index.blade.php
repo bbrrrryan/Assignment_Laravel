@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Feedback - TARUMT FMS')
+@section('title', 'Feedback Management - TARUMT FMS')
 
 @section('content')
 <link rel="stylesheet" href="{{ asset('css/users/feedback/index.css') }}">
@@ -8,12 +8,7 @@
     <div class="page-header">
         <div class="page-header-content">
             <h1 id="feedbacksTitle">Feedback Management</h1>
-            <p id="feedbacksSubtitle">Submit and manage your feedback, complaints, and suggestions</p>
-        </div>
-        <div>
-            <button id="submitFeedbackBtn" class="btn-header-white" onclick="showCreateModal()" style="display: none;">
-                <i class="fas fa-plus"></i> <span>Submit Feedback</span>
-            </button>
+            <p id="feedbacksSubtitle">Manage all feedbacks, complaints, and suggestions</p>
         </div>
     </div>
 
@@ -66,67 +61,6 @@
 
     <!-- Pagination -->
     <div id="paginationContainer" class="pagination-wrapper"></div>
-</div>
-
-<!-- Create Feedback Modal -->
-<div id="feedbackModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Submit Feedback</h2>
-        <form id="feedbackForm">
-            <div class="form-group">
-                <label>Type *</label>
-                <select id="feedbackType" required>
-                    <option value="complaint">Complaint</option>
-                    <option value="suggestion">Suggestion</option>
-                    <option value="compliment">Compliment</option>
-                    <option value="general">General</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Subject *</label>
-                <input type="text" id="feedbackSubject" required>
-            </div>
-            <div class="form-group">
-                <label>Message *</label>
-                <textarea id="feedbackMessage" required rows="5" placeholder="Describe your feedback, complaint, or suggestion..."></textarea>
-            </div>
-            <div class="form-group">
-                <label>Rating (1-5) *</label>
-                <select id="feedbackRating" required>
-                    <option value="">Select Rating</option>
-                    <option value="1">1 - Poor</option>
-                    <option value="2">2 - Fair</option>
-                    <option value="3">3 - Good</option>
-                    <option value="4">4 - Very Good</option>
-                    <option value="5">5 - Excellent</option>
-                </select>
-                <small>Rate your experience from 1 to 5</small>
-            </div>
-            <div class="form-group">
-                <label>Image (Optional)</label>
-                <input type="file" id="feedbackImage" accept="image/*" onchange="handleImageUpload(event)">
-                <small>Upload an image related to your feedback (JPG, PNG, GIF). Maximum size: 1MB</small>
-                <div id="imagePreview" style="margin-top: 10px; display: none;">
-                    <img id="previewImg" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #ddd;">
-                    <button type="button" onclick="removeImage()" style="margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        <i class="fas fa-times"></i> Remove
-                    </button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Related Facility (Optional)</label>
-                <select id="feedbackFacility">
-                    <option value="">None</option>
-                </select>
-                <small>Select a facility if this feedback is related to a specific facility</small>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Submit</button>
-            </div>
-        </form>
-    </div>
 </div>
 
 <!-- Reply Feedback Modal -->
