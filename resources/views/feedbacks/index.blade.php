@@ -111,11 +111,18 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Related Facility (Optional)</label>
-                <select id="feedbackFacility">
+                <label>Filter for Related Booking</label>
+                <select id="facilityTypeFilter" onchange="filterBookingsByFacilityType()">
+                    <option value="">All Facility Types</option>
+                </select>
+                <small>Select a facility type to filter bookings</small>
+            </div>
+            <div class="form-group">
+                <label>Related Booking (Optional)</label>
+                <select id="feedbackBooking">
                     <option value="">None</option>
                 </select>
-                <small>Select a facility if this feedback is related to a specific facility</small>
+                <small>Select a booking if this feedback is related to a specific booking</small>
             </div>
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>

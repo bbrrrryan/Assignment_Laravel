@@ -89,7 +89,7 @@ class BookingController extends Controller
                 ], 422);
             }
             
-            //Service Consumption: Get facility info via HTTP from Facility Management Module
+
             $baseUrl = config('app.url', 'http://localhost:8000');
             $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
             
@@ -103,12 +103,10 @@ class BookingController extends Controller
                     'status' => $facilityResponse->status(),
                     'response' => $facilityResponse->body(),
                 ]);
-                // Fallback to direct query
                 $facility = Facility::find($facilityId);
             } else {
                 $facilityData = $facilityResponse->json();
                 if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
-                    // Convert array to Facility model instance
                     $facility = Facility::find($facilityId);
                 } else {
                     $facility = Facility::find($facilityId);
@@ -123,12 +121,10 @@ class BookingController extends Controller
                 ], 404);
             }
             
-            // Check if time_slots array is provided (new format) or use old format
             $timeSlots = $request->input('time_slots', []);
             $useTimeSlots = !empty($timeSlots) && is_array($timeSlots);
             
             if ($useTimeSlots) {
-                // New format: validate time_slots array
                 try {
                     $request->validate([
                         'time_slots' => 'required|array|min:1',
@@ -144,7 +140,6 @@ class BookingController extends Controller
                     throw $e;
                 }
                 
-                // Parse and validate each slot
                 $parsedSlots = [];
                 $totalDuration = 0;
                 $bookingDate = null;
@@ -981,18 +976,9 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Web Service API: Get booking information
-     * This endpoint is designed for inter-module communication
-     * Used by other modules (e.g., Analytics Module, Reporting Module) to query booking information
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     */
+    
     public function getBookingInfo(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -1011,9 +997,9 @@ class BookingController extends Controller
         $booking = Booking::with(['user', 'facility', 'attendees', 'slots', 'approver'])
             ->findOrFail($request->booking_id);
 
-        // IFA Standard Response Format
+
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',    
             'message' => 'Booking information retrieved successfully',
             'data' => [
                 'booking' => [
@@ -1039,7 +1025,7 @@ class BookingController extends Controller
                 'attendees_count' => $booking->attendees->count(),
                 'slots_count' => $booking->slots->count(),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'), 
         ]);
     }
 

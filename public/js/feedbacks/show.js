@@ -88,6 +88,26 @@ function displayFeedbackDetails(feedback) {
             </div>
             ` : ''}
 
+            ${feedback.booking_id ? `
+            <div class="details-section">
+                <h2>Related Booking</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Booking ID:</span>
+                    <span class="detail-value">#${feedback.booking_id}</span>
+                </div>
+                <div class="detail-row" style="margin-top: 10px;">
+                    <button class="btn-primary" onclick="loadBookingDetailsForFeedback(${feedback.id}, ${feedback.booking_id})" id="viewBookingBtn">
+                        <i class="fas fa-calendar-check"></i> View Booking Details
+                    </button>
+                </div>
+                <div id="bookingDetailsContainer" style="margin-top: 15px; display: none;">
+                    <div class="booking-details-card" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <p style="color: #666; margin: 0;"><i class="fas fa-spinner fa-spin"></i> Loading booking details...</p>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+
             ${feedback.status === 'pending' ? `
             <div class="details-section">
                 <h2>Status Notice</h2>
@@ -315,6 +335,148 @@ window.closeImageViewModal = function() {
     if (modal) {
         modal.style.display = 'none';
         document.body.style.overflow = 'auto';
+    }
+};
+
+// Load booking details for feedback using Web Service
+window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
+    const container = document.getElementById('bookingDetailsContainer');
+    const viewBtn = document.getElementById('viewBookingBtn');
+    
+    if (!container) return;
+    
+    // Show container
+    container.style.display = 'block';
+    
+    // Disable button while loading
+    if (viewBtn) {
+        viewBtn.disabled = true;
+        viewBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    }
+    
+    try {
+        // Call the new API endpoint that uses Booking Web Service
+        const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const result = await API.get(`/feedbacks/${feedbackId}/booking-details?timestamp=${encodeURIComponent(timestamp)}`);
+        
+        console.log('Booking details API response:', result); // Debug log
+        
+        if (result.success && result.data) {
+            // Response format from API.get():
+            // result.data = { status: 'S', data: { feedback: {...}, booking: {...} }, timestamp: '...' }
+            // So booking is at: result.data.data.booking
+            const booking = result.data.data?.booking;
+            
+            if (booking) {
+                container.innerHTML = `
+                <div class="booking-details-card" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">
+                        <i class="fas fa-calendar-check"></i> Booking Information
+                    </h3>
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Booking ID:</span>
+                        <span class="detail-value">#${booking.id}</span>
+                    </div>
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Status:</span>
+                        <span class="status-badge status-${booking.status}">${booking.status || 'N/A'}</span>
+                    </div>
+                    ${booking.facility_name ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Facility:</span>
+                        <span class="detail-value">${booking.facility_name} ${booking.facility_code ? '(' + booking.facility_code + ')' : ''}</span>
+                    </div>
+                    ` : ''}
+                    ${booking.booking_date ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Date:</span>
+                        <span class="detail-value">${formatDateTime(booking.booking_date)}</span>
+                    </div>
+                    ` : ''}
+                    ${booking.start_time && booking.end_time ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Time:</span>
+                        <span class="detail-value">${formatDateTime(booking.start_time)} - ${formatDateTime(booking.end_time)}</span>
+                    </div>
+                    ` : ''}
+                    ${booking.duration_hours ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Duration:</span>
+                        <span class="detail-value">${booking.duration_hours} hours</span>
+                    </div>
+                    ` : ''}
+                    ${booking.purpose ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Purpose:</span>
+                        <span class="detail-value">${booking.purpose}</span>
+                    </div>
+                    ` : ''}
+                    ${booking.expected_attendees ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Expected Attendees:</span>
+                        <span class="detail-value">${booking.expected_attendees}</span>
+                    </div>
+                    ` : ''}
+                    ${booking.user_name ? `
+                    <div class="detail-row" style="margin-bottom: 10px;">
+                        <span class="detail-label" style="font-weight: 600;">Booked By:</span>
+                        <span class="detail-value">${booking.user_name}</span>
+                    </div>
+                    ` : ''}
+                    <div class="detail-row" style="margin-top: 15px;">
+                        <a href="/bookings/${booking.id}" class="btn-primary" style="display: inline-block; text-decoration: none;">
+                            <i class="fas fa-external-link-alt"></i> View Full Booking Details
+                        </a>
+                    </div>
+                </div>
+                `;
+            } else {
+                // Handle error response
+                const errorMessage = result.error || result.data?.message || 'Failed to load booking details';
+                console.error('API Error:', result);
+                container.innerHTML = `
+                    <div class="booking-details-card" style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">
+                        <p style="color: #856404; margin: 0;">
+                            <i class="fas fa-exclamation-triangle"></i> ${errorMessage}
+                        </p>
+                        ${result.data?.status === 'F' && result.data?.message === 'This feedback is not related to a booking' ? `
+                        <p style="color: #856404; margin-top: 10px; font-size: 0.9rem;">
+                            This feedback does not have an associated booking.
+                        </p>
+                        ` : ''}
+                    </div>
+                `;
+            }
+        } else {
+            // API call failed
+            const errorMessage = result.error || 'Failed to load booking details';
+            console.error('API call failed:', result);
+            container.innerHTML = `
+                <div class="booking-details-card" style="background: #f8d7da; padding: 15px; border-radius: 8px; border: 1px solid #f5c6cb;">
+                    <p style="color: #721c24; margin: 0;">
+                        <i class="fas fa-exclamation-circle"></i> ${errorMessage}
+                    </p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading booking details:', error);
+        container.innerHTML = `
+            <div class="booking-details-card" style="background: #f8d7da; padding: 15px; border-radius: 8px; border: 1px solid #f5c6cb;">
+                <p style="color: #721c24; margin: 0;">
+                    <i class="fas fa-exclamation-circle"></i> Error loading booking details: ${error.message || 'Unknown error'}
+                </p>
+                <p style="color: #721c24; margin-top: 10px; font-size: 0.9rem;">
+                    Please check the browser console for more details.
+                </p>
+            </div>
+        `;
+    } finally {
+        // Re-enable button
+        if (viewBtn) {
+            viewBtn.disabled = false;
+            viewBtn.innerHTML = '<i class="fas fa-calendar-check"></i> View Booking Details';
+        }
     }
 };
 
