@@ -46,78 +46,10 @@ window.sortByCreatedDate = function() {
 };
 
 window.filterBookings = function() {
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    const statusFilter = document.getElementById('statusFilter');
-    const facilityFilter = document.getElementById('facilityFilter');
-    if (!statusFilter) return;
-    const status = statusFilter.value;
-    const facilityId = facilityFilter ? facilityFilter.value : '';
-    
-    let filtered = bookings.filter(b => {
-        const matchSearch = !search || 
-            (b.facility?.name && b.facility.name.toLowerCase().includes(search)) ||
-            (b.purpose && b.purpose.toLowerCase().includes(search));
-        const matchStatus = !status || b.status === status;
-        const matchFacility = !facilityId || b.facility_id == facilityId;
-        return matchSearch && matchStatus && matchFacility;
-    });
-    
-    // Apply sorting if sortOrder is set
-    if (sortOrder) {
-        console.log('Sorting with order:', sortOrder, 'Filtered bookings count:', filtered.length);
-        
-        // Log first few bookings before sort
-        if (filtered.length > 0) {
-            console.log('Before sort - First booking created_at:', filtered[0].created_at, 'Last booking created_at:', filtered[filtered.length - 1].created_at);
-            console.log('Before sort - All created_at values:', filtered.map(b => b.created_at));
-        }
-        
-        // Create a copy to avoid mutating the original array during sort
-        const sortedArray = [...filtered].sort((a, b) => {
-            if (sortOrder.startsWith('date-')) {
-                const dateA = new Date(a.booking_date);
-                const dateB = new Date(b.booking_date);
-                
-                if (sortOrder === 'date-asc') {
-                    return dateA.getTime() - dateB.getTime();
-                } else if (sortOrder === 'date-desc') {
-                    return dateB.getTime() - dateA.getTime();
-                }
-            } else if (sortOrder.startsWith('created-')) {
-                // Handle created_at sorting with null checks
-                const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
-                const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
-                
-                // Get timestamps, use 0 for invalid dates
-                const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
-                const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
-                
-                console.log(`Comparing: ${a.id} (${timeA}) vs ${b.id} (${timeB})`);
-                
-                if (sortOrder === 'created-asc') {
-                    return timeA - timeB;
-                } else if (sortOrder === 'created-desc') {
-                    return timeB - timeA;
-                }
-            }
-            return 0;
-        });
-        
-        // Replace filtered array with sorted array
-        filtered = sortedArray;
-        
-        // Log first few bookings after sort
-        if (filtered.length > 0) {
-            console.log('After sort - First booking created_at:', filtered[0].created_at, 'Last booking created_at:', filtered[filtered.length - 1].created_at);
-            console.log('After sort - All created_at values:', filtered.map(b => b.created_at));
-        }
-    }
-    
-    if (typeof displayBookings === 'function') {
-        displayBookings(filtered);
-    } else {
-        console.error('displayBookings function not found!');
-    }
+    // Reset to page 1 when filtering
+    currentPage = 1;
+    // Reload bookings from server with filters
+    loadBookings(1);
 };
 
 window.viewBooking = function(id) {
@@ -308,8 +240,44 @@ async function loadBookings(page = 1) {
     showLoading(document.getElementById('bookingsList'));
     currentPage = page;
     
+    // Get filter values
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const facilityFilter = document.getElementById('facilityFilter');
+    
+    const search = searchInput ? searchInput.value.trim() : '';
+    const status = statusFilter ? statusFilter.value : '';
+    const facilityId = facilityFilter ? facilityFilter.value : '';
+    
+    // Build query parameters
+    const params = new URLSearchParams({
+        page: page,
+        per_page: perPage
+    });
+    
+    if (search) {
+        params.append('search', search);
+    }
+    if (status) {
+        params.append('status', status);
+    }
+    if (facilityId) {
+        params.append('facility_id', facilityId);
+    }
+    
+    // Apply sorting if sortOrder is set
+    if (sortOrder) {
+        if (sortOrder.startsWith('date-')) {
+            params.append('sort_by', 'date');
+            params.append('sort_order', sortOrder === 'date-asc' ? 'asc' : 'desc');
+        } else if (sortOrder.startsWith('created-')) {
+            params.append('sort_by', 'created_at');
+            params.append('sort_order', sortOrder === 'created-asc' ? 'asc' : 'desc');
+        }
+    }
+    
     // Students can only view their own bookings
-    const endpoint = `/bookings/user/my-bookings?page=${page}&per_page=${perPage}`;
+    const endpoint = `/bookings/user/my-bookings?${params.toString()}`;
     const result = await API.get(endpoint);
     
     if (result.success) {

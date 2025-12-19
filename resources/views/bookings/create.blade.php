@@ -70,7 +70,7 @@
 
                 <div class="form-group" id="attendeesFieldContainer" style="display: none;">
                     <label>Attendees Passport <span class="required">*</span></label>
-                    <small style="display: block; margin-bottom: 10px;">Enter passport numbers for each attendee</small>
+                    <small style="display: block; margin-bottom: 10px;">Enter passport numbers in format YYWMR##### (e.g., 25WMR00001)</small>
                     <div id="attendeesList">
                         <!-- Attendee inputs will be dynamically added here -->
                     </div>

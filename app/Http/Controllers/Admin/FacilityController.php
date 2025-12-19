@@ -39,8 +39,21 @@ class FacilityController extends AdminBaseController
             $query->where('status', $request->status);
         }
 
-        // Order by latest
-        $query->latest();
+        // Sorting
+        $sortBy = $request->get('sort_by', 'id'); // Default sort by id
+        $sortOrder = $request->get('sort_order', 'asc'); // Default ascending
+        
+        // Validate sort_by and sort_order
+        $allowedSortFields = ['id', 'name', 'type', 'capacity'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'id';
+        }
+        
+        if (!in_array($sortOrder, ['asc', 'desc'])) {
+            $sortOrder = 'asc';
+        }
+        
+        $query->orderBy($sortBy, $sortOrder);
 
         // Paginate results
         $facilities = $query->paginate(15)->withQueryString();
@@ -80,6 +93,8 @@ class FacilityController extends AdminBaseController
             'available_time.start' => 'nullable|string|date_format:H:i',
             'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
+            'equipment_json' => 'nullable|string',
+            'equipment.*' => 'nullable|string|max:255',
             'rules' => 'nullable|string',
         ]);
 
@@ -115,8 +130,30 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if (isset($validated['equipment']) && is_string($validated['equipment'])) {
-            $validated['equipment'] = json_decode($validated['equipment'], true);
+        // Handle equipment - can be array, JSON string, or from hidden input
+        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
+            $equipmentJson = json_decode($request->equipment_json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
+                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+            }
+        } elseif (isset($validated['equipment'])) {
+            if (is_string($validated['equipment'])) {
+                $decoded = json_decode($validated['equipment'], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $validated['equipment'] = array_filter($decoded);
+                } else {
+                    $validated['equipment'] = null;
+                }
+            } elseif (is_array($validated['equipment'])) {
+                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+            }
+        } else {
+            $validated['equipment'] = null;
+        }
+        
+        // Ensure equipment is null if empty array
+        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
+            $validated['equipment'] = null;
         }
 
         // Set default values
@@ -188,6 +225,8 @@ class FacilityController extends AdminBaseController
             'available_time.start' => 'nullable|string|date_format:H:i',
             'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
+            'equipment_json' => 'nullable|string',
+            'equipment.*' => 'nullable|string|max:255',
             'rules' => 'nullable|string',
         ]);
 
@@ -232,8 +271,30 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if (isset($validated['equipment']) && is_string($validated['equipment'])) {
-            $validated['equipment'] = json_decode($validated['equipment'], true);
+        // Handle equipment - can be array, JSON string, or from hidden input
+        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
+            $equipmentJson = json_decode($request->equipment_json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
+                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+            }
+        } elseif (isset($validated['equipment'])) {
+            if (is_string($validated['equipment'])) {
+                $decoded = json_decode($validated['equipment'], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $validated['equipment'] = array_filter($decoded);
+                } else {
+                    $validated['equipment'] = null;
+                }
+            } elseif (is_array($validated['equipment'])) {
+                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+            }
+        } else {
+            $validated['equipment'] = null;
+        }
+        
+        // Ensure equipment is null if empty array
+        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
+            $validated['equipment'] = null;
         }
 
         // Handle enable_multi_attendees and max_attendees

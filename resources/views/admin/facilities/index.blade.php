@@ -86,12 +86,66 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Name</th>
+                    <th>
+                        @php
+                            $currentSortBy = request('sort_by', 'id');
+                            $currentSortOrder = request('sort_order', 'asc');
+                            $isIdSorted = ($currentSortBy === 'id');
+                            $nextOrder = ($isIdSorted && $currentSortOrder === 'asc') ? 'desc' : 'asc';
+                        @endphp
+                        <a href="{{ route('admin.facilities.index', array_merge(request()->except(['sort_by', 'sort_order', 'page']), ['sort_by' => 'id', 'sort_order' => $nextOrder])) }}" class="sort-link">
+                            ID
+                            @if($isIdSorted)
+                                <i class="fas fa-sort-{{ $currentSortOrder === 'asc' ? 'up' : 'down' }}"></i>
+                            @else
+                                <i class="fas fa-sort sort-inactive"></i>
+                            @endif
+                        </a>
+                    </th>
+                    <th>
+                        @php
+                            $isNameSorted = (request('sort_by') === 'name');
+                            $nameNextOrder = ($isNameSorted && request('sort_order') === 'asc') ? 'desc' : 'asc';
+                        @endphp
+                        <a href="{{ route('admin.facilities.index', array_merge(request()->except(['sort_by', 'sort_order', 'page']), ['sort_by' => 'name', 'sort_order' => $nameNextOrder])) }}" class="sort-link">
+                            Name
+                            @if($isNameSorted)
+                                <i class="fas fa-sort-{{ request('sort_order') === 'asc' ? 'up' : 'down' }}"></i>
+                            @else
+                                <i class="fas fa-sort sort-inactive"></i>
+                            @endif
+                        </a>
+                    </th>
                     <th>Code</th>
-                    <th>Type</th>
+                    <th>
+                        @php
+                            $isTypeSorted = (request('sort_by') === 'type');
+                            $typeNextOrder = ($isTypeSorted && request('sort_order') === 'asc') ? 'desc' : 'asc';
+                        @endphp
+                        <a href="{{ route('admin.facilities.index', array_merge(request()->except(['sort_by', 'sort_order', 'page']), ['sort_by' => 'type', 'sort_order' => $typeNextOrder])) }}" class="sort-link">
+                            Type
+                            @if($isTypeSorted)
+                                <i class="fas fa-sort-{{ request('sort_order') === 'asc' ? 'up' : 'down' }}"></i>
+                            @else
+                                <i class="fas fa-sort sort-inactive"></i>
+                            @endif
+                        </a>
+                    </th>
                     <th>Location</th>
-                    <th>Capacity</th>
+                    <th>
+                        @php
+                            $isCapacitySorted = (request('sort_by') === 'capacity');
+                            $capacityNextOrder = ($isCapacitySorted && request('sort_order') === 'asc') ? 'desc' : 'asc';
+                        @endphp
+                        <a href="{{ route('admin.facilities.index', array_merge(request()->except(['sort_by', 'sort_order', 'page']), ['sort_by' => 'capacity', 'sort_order' => $capacityNextOrder])) }}" class="sort-link">
+                            Capacity
+                            @if($isCapacitySorted)
+                                <i class="fas fa-sort-{{ request('sort_order') === 'asc' ? 'up' : 'down' }}"></i>
+                            @else
+                                <i class="fas fa-sort sort-inactive"></i>
+                            @endif
+                        </a>
+                    </th>
                     <th>Status</th>
                     <th>Created At</th>
                     <th>Actions</th>
@@ -525,6 +579,41 @@
     opacity: 0.7;
     pointer-events: none;
     box-shadow: none;
+}
+
+/* Sort Link Styling */
+.sort-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #495057;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.sort-link:hover {
+    color: #cb2d3e;
+    text-decoration: none;
+}
+
+.sort-link i {
+    font-size: 0.75rem;
+    transition: color 0.3s ease;
+}
+
+.sort-link:hover i {
+    color: #cb2d3e;
+}
+
+.sort-inactive {
+    color: #adb5bd;
+    opacity: 0.5;
+}
+
+.sort-link .fa-sort-up,
+.sort-link .fa-sort-down {
+    color: #cb2d3e;
+    opacity: 1;
 }
 
 .page-link svg {
