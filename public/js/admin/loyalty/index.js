@@ -695,10 +695,6 @@ function displayReports(data) {
             </div>
         </div>
 
-        <div class="report-section">
-            <h3>Points by Action Type</h3>
-            <canvas id="loyaltyPointsByActionChart" style="max-height: 260px;"></canvas>
-        </div>
 
         <div class="report-section">
             <h3>Redemptions by Reward</h3>
