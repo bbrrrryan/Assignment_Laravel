@@ -226,7 +226,7 @@
 <style>
 /* Container Styling - Expanded Width */
 .container {
-    max-width: 75%;
+    max-width: 95% !important;
     margin: 0 auto;
     padding: 0 20px;
 }
