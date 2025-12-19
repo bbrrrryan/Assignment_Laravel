@@ -24,7 +24,7 @@
                     <div class="filter-icon">
                         <i class="fas fa-search"></i>
                     </div>
-                    <input type="text" id="searchInput" placeholder="Search by booking number, facility or purpose..." 
+                    <input type="text" id="searchInput" placeholder="Search by booking number or purpose..." 
                            class="filter-input" onkeyup="filterBookings()">
                 </div>
                 
@@ -60,19 +60,14 @@
 </div>
 
 <!-- Cancel Booking Confirmation Modal -->
-<div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
-    <div class="cancel-modal-content" onclick="event.stopPropagation()">
-        <div class="cancel-modal-header">
-            <div class="cancel-modal-icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h3>Cancel Booking Confirmation</h3>
-            <span class="cancel-modal-close" onclick="closeCancelModal()">&times;</span>
+<div id="cancelBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Cancel</h3>
+            <span class="modal-close" onclick="closeCancelModal()">&times;</span>
         </div>
-        <div class="cancel-modal-body">
-            <p class="cancel-warning-text">
-                Are you sure you want to cancel this booking? This action cannot be undone.
-            </p>
+        <div class="modal-body">
+            <p>Are you sure you want to cancel this booking? This action cannot be undone.</p>
             <div class="cancel-reason-section">
                 <label for="cancelReason" class="cancel-reason-label">
                     <i class="fas fa-comment-alt"></i> Reason for Cancellation <span class="text-danger">*</span>
@@ -96,12 +91,12 @@
                 ></textarea>
             </div>
         </div>
-        <div class="cancel-modal-footer">
-            <button class="btn-cancel-modal" onclick="closeCancelModal()">
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeCancelModal()">
                 <i class="fas fa-times"></i> Keep Booking
             </button>
-            <button class="btn-confirm-cancel" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled>
-                <i class="fas fa-check"></i> Confirm Cancellation
+            <button type="button" class="btn-danger" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled>
+                <i class="fas fa-ban"></i> Cancel Booking
             </button>
         </div>
     </div>

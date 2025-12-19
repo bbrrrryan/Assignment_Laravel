@@ -69,6 +69,23 @@
     box-shadow: 0 0 0 0.2rem rgba(203, 45, 62, 0.25);
 }
 
+.attendee-passport-input.is-invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.attendee-passport-input.is-invalid:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.passport-error {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 5px;
+    display: block;
+}
+
 .form-input.is-invalid,
 .form-select.is-invalid {
     border-color: #dc3545;

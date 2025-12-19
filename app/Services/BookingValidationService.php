@@ -38,7 +38,19 @@ class BookingValidationService
             'purpose' => 'required|string|max:500',
             'expected_attendees' => $expectedAttendeesRule,
             'attendees_passports' => 'nullable|array',
-            'attendees_passports.*' => 'nullable|string|max:255',
+            'attendees_passports.*' => [
+                'nullable',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    if (!empty($value)) {
+                        $trimmedValue = trim($value);
+                        if (!empty($trimmedValue) && !$this->validateStudentIdFormat($trimmedValue)) {
+                            $fail('The attendee passport must be in the format YYWMR##### (e.g., 25WMR00001).');
+                        }
+                    }
+                },
+            ],
         ];
     }
 
@@ -153,6 +165,20 @@ class BookingValidationService
         }
         
         return null;
+    }
+
+    /**
+     * Validate student ID format
+     * Format: YYWMR##### (e.g., 25WMR00001)
+     * YY: 2-digit year
+     * WMR: Fixed prefix
+     * #####: 5-digit sequential number
+     */
+    public function validateStudentIdFormat(string $studentId): bool
+    {
+        // Pattern: 2 digits, WMR, 5 digits
+        $pattern = '/^\d{2}WMR\d{5}$/';
+        return preg_match($pattern, $studentId) === 1;
     }
 }
 

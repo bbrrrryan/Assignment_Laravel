@@ -1441,6 +1441,57 @@ function clearTimetable() {
     });
 }
 
+// Validate student ID format (YYWMR#####)
+function validateStudentIdFormat(studentId) {
+    if (!studentId || !studentId.trim()) return true; // Empty is valid (handled by required)
+    const trimmed = studentId.trim();
+    // Pattern: 2 digits, WMR, 5 digits (e.g., 25WMR00001)
+    const pattern = /^\d{2}WMR\d{5}$/;
+    return pattern.test(trimmed);
+}
+
+// Show validation error below input field
+function showPassportError(input, message) {
+    // Remove existing error
+    const existingError = input.parentElement.parentElement.querySelector('.passport-error');
+    if (existingError) {
+        existingError.remove();
+    }
+    
+    // Remove error styling
+    input.classList.remove('is-invalid');
+    
+    if (message) {
+        // Add error styling
+        input.classList.add('is-invalid');
+        
+        // Create error message element
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'passport-error text-danger';
+        errorDiv.style.fontSize = '0.875rem';
+        errorDiv.style.marginTop = '5px';
+        errorDiv.textContent = message;
+        
+        // Insert error message after the input group
+        const inputGroup = input.closest('.input-group');
+        if (inputGroup && inputGroup.parentElement) {
+            inputGroup.parentElement.appendChild(errorDiv);
+        }
+    }
+}
+
+// Validate passport input on change
+function validatePassportInput(input) {
+    const value = input.value.trim();
+    if (value && !validateStudentIdFormat(value)) {
+        showPassportError(input, 'Invalid format. Must be YYWMR##### (e.g., 25WMR00001)');
+        return false;
+    } else {
+        showPassportError(input, null);
+        return true;
+    }
+}
+
 // Add attendee passport input field
 window.addAttendeeField = function() {
     const attendeesList = document.getElementById('attendeesList');
@@ -1466,7 +1517,7 @@ window.addAttendeeField = function() {
         <div class="input-group">
             <span class="input-group-text">${fieldIndex}</span>
             <input type="text" class="form-control attendee-passport-input" 
-                   placeholder="Enter passport number" 
+                   placeholder="Enter passport number (e.g., 25WMR00001)" 
                    required
                    data-index="${fieldIndex}">
             <button type="button" class="btn btn-outline-danger" onclick="removeAttendeeField(this)" ${currentCount === 0 ? 'disabled' : ''}>
@@ -1476,6 +1527,21 @@ window.addAttendeeField = function() {
     `;
     
     attendeesList.appendChild(attendeeField);
+    
+    // Add validation event listeners
+    const input = attendeeField.querySelector('.attendee-passport-input');
+    if (input) {
+        input.setAttribute('data-validation-attached', 'true');
+        input.addEventListener('blur', function() {
+            validatePassportInput(this);
+        });
+        input.addEventListener('input', function() {
+            // Clear error on input if format becomes valid
+            if (validateStudentIdFormat(this.value)) {
+                showPassportError(this, null);
+            }
+        });
+    }
     
     // Update field numbers and enable/disable remove buttons
     updateAttendeeFieldNumbers();
@@ -1488,6 +1554,31 @@ window.removeAttendeeField = function(button) {
         attendeeField.remove();
         updateAttendeeFieldNumbers();
     }
+}
+
+// Attach validation to all passport inputs
+function attachPassportValidation() {
+    const passportInputs = document.querySelectorAll('.attendee-passport-input');
+    passportInputs.forEach(input => {
+        // Check if validation is already attached
+        if (input.hasAttribute('data-validation-attached')) {
+            return;
+        }
+        
+        // Mark as having validation attached
+        input.setAttribute('data-validation-attached', 'true');
+        
+        // Add validation event listeners
+        input.addEventListener('blur', function() {
+            validatePassportInput(this);
+        });
+        input.addEventListener('input', function() {
+            // Clear error on input if format becomes valid
+            if (validateStudentIdFormat(this.value)) {
+                showPassportError(this, null);
+            }
+        });
+    });
 }
 
 // Update attendee field numbers
@@ -1520,6 +1611,9 @@ function updateAttendeeFieldNumbers() {
     if (addAttendeeBtn) {
         addAttendeeBtn.disabled = fields.length >= maxAttendees;
     }
+    
+    // Re-attach validation after updating
+    attachPassportValidation();
 }
 
 // Handle facility change
@@ -1608,6 +1702,9 @@ async function updateTimeInputConstraints(facilityId) {
                     // Add first attendee field if list is empty
                     if (attendeesList.children.length === 0) {
                         addAttendeeField();
+                    } else {
+                        // Attach validation to existing fields
+                        attachPassportValidation();
                     }
                 } else {
                     // Hide attendees field if multi-attendees is disabled
@@ -1791,14 +1888,32 @@ function bindBookingForm() {
     const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
     
     if (enableMultiAttendees) {
-        // Collect all passport inputs
+        // Validate all passport inputs before submission
         const passportInputs = document.querySelectorAll('.attendee-passport-input');
+        let hasErrors = false;
+        
         passportInputs.forEach(input => {
             const passport = input.value.trim();
             if (passport) {
-                attendeesPassports.push(passport);
+                if (!validateStudentIdFormat(passport)) {
+                    showPassportError(input, 'Invalid format. Must be YYWMR##### (e.g., 25WMR00001)');
+                    hasErrors = true;
+                } else {
+                    attendeesPassports.push(passport);
+                }
             }
         });
+        
+        if (hasErrors) {
+            if (typeof showToast !== 'undefined') {
+                showToast('Please fix the invalid passport format(s) before submitting.', 'warning');
+            } else {
+                alert('Please fix the invalid passport format(s) before submitting.');
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            return;
+        }
         
         if (attendeesPassports.length === 0) {
             if (typeof showToast !== 'undefined') {
@@ -1878,9 +1993,30 @@ function bindBookingForm() {
                 // Show detailed error message including validation errors
                 let errorMsg = result.error || result.data?.message || 'Unknown error';
                 if (result.data?.errors) {
+                    // Handle validation errors for attendees_passports
+                    if (result.data.errors['attendees_passports.0'] || result.data.errors['attendees_passports.1'] || result.data.errors['attendees_passports.*']) {
+                        // Map errors to specific input fields
+                        const passportInputs = document.querySelectorAll('.attendee-passport-input');
+                        passportInputs.forEach((input, index) => {
+                            const errorKey = `attendees_passports.${index}`;
+                            const errorKeyWildcard = 'attendees_passports.*';
+                            
+                            if (result.data.errors[errorKey]) {
+                                const errorMessage = Array.isArray(result.data.errors[errorKey]) 
+                                    ? result.data.errors[errorKey][0] 
+                                    : result.data.errors[errorKey];
+                                showPassportError(input, errorMessage);
+                            } else if (result.data.errors[errorKeyWildcard] && input.value.trim()) {
+                                const errorMessage = Array.isArray(result.data.errors[errorKeyWildcard]) 
+                                    ? result.data.errors[errorKeyWildcard][0] 
+                                    : result.data.errors[errorKeyWildcard];
+                                showPassportError(input, errorMessage);
+                            }
+                        });
+                    }
+                    
                     const validationErrors = Object.values(result.data.errors).flat().join(', ');
                     errorMsg = validationErrors || errorMsg;
-                   
                 }
               
                 errors.push(errorMsg);

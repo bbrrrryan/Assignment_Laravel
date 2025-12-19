@@ -31,11 +31,33 @@ class AdminBookingController extends AdminBaseController
     {
         $perPage = $request->get('per_page', 15);
         
-        $bookings = Booking::with(['user', 'facility', 'slots'])
+        $query = Booking::with(['user', 'facility', 'slots'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->facility_id, fn($q) => $q->where('facility_id', $request->facility_id))
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+            ->when($request->search, function($q) use ($request) {
+                $search = $request->search;
+                $q->where(function($query) use ($search) {
+                    $query->where('id', 'like', "%{$search}%")
+                        ->orWhere('purpose', 'like', "%{$search}%")
+                        ->orWhereHas('user', function($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        });
+                });
+            });
+        
+        // Apply sorting
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        
+        if ($sortBy === 'date') {
+            $query->orderBy('booking_date', $sortOrder);
+        } elseif ($sortBy === 'created_at') {
+            $query->orderBy('created_at', $sortOrder);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+        
+        $bookings = $query->paginate($perPage);
         
         return response()->json([
             'status' => 'S', // IFA Standard
@@ -88,15 +110,6 @@ class AdminBookingController extends AdminBaseController
             'approved_at' => now(),
         ]);
 
-        // Create status history
-        $user = auth()->user();
-        $notes = 'Booking approved by ' . ($user->isAdmin() ? 'admin' : 'staff');
-        $booking->statusHistory()->create([
-            'status' => 'approved',
-            'changed_by' => auth()->id(),
-            'notes' => $notes,
-        ]);
-
         // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'approved', 'Your booking has been approved!');
 
@@ -131,19 +144,6 @@ class AdminBookingController extends AdminBaseController
             'status' => 'rejected',
             'rejection_reason' => $request->reason,
         ]);
-
-        // Create status history
-        try {
-            $user = auth()->user();
-            $notes = 'Booking rejected by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
-            $booking->statusHistory()->create([
-                'status' => 'rejected',
-                'changed_by' => auth()->id(),
-                'notes' => $notes,
-            ]);
-        } catch (\Exception $e) {
-            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-        }
 
         // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your booking has been rejected. Reason: ' . $request->reason);
@@ -180,19 +180,6 @@ class AdminBookingController extends AdminBaseController
             'cancelled_at' => now(),
             'cancellation_reason' => $request->reason,
         ]);
-
-        // Create status history
-        try {
-            $user = auth()->user();
-            $notes = 'Booking cancelled by ' . ($user->isAdmin() ? 'admin' : 'staff') . '. Reason: ' . $request->reason;
-            $booking->statusHistory()->create([
-                'status' => 'cancelled',
-                'changed_by' => auth()->id(),
-                'notes' => $notes,
-            ]);
-        } catch (\Exception $e) {
-            \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-        }
 
         // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled by admin. Reason: ' . $request->reason);
@@ -235,19 +222,6 @@ class AdminBookingController extends AdminBaseController
             $booking->update([
                 'status' => 'completed',
             ]);
-
-            // Create status history
-            try {
-                $user = auth()->user();
-                $notes = 'Booking marked as completed by ' . ($user->isAdmin() ? 'admin' : 'staff');
-                $booking->statusHistory()->create([
-                    'status' => 'completed',
-                    'changed_by' => auth()->id(),
-                    'notes' => $notes,
-                ]);
-            } catch (\Exception $e) {
-                \Log::warning('Failed to create booking status history: ' . $e->getMessage());
-            }
 
             // Send notification to user
             $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been marked as completed!');

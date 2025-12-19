@@ -19,7 +19,7 @@
                     <div class="filter-icon">
                         <i class="fas fa-search"></i>
                     </div>
-                    <input type="text" id="searchInput" placeholder="Search by booking number, facility, user or purpose..." 
+                    <input type="text" id="searchInput" placeholder="Search by booking number, user or purpose..." 
                            class="filter-input" onkeyup="filterBookings()">
                 </div>
                 
@@ -57,45 +57,35 @@
 </div>
 
 <!-- Approve Booking Confirmation Modal -->
-<div id="approveBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeApproveModal()">
-    <div class="cancel-modal-content" onclick="event.stopPropagation()">
-        <div class="cancel-modal-header" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-bottom: 2px solid #bae6fd;">
-            <div class="cancel-modal-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <h3 style="color: #059669;">Approve Booking</h3>
-            <span class="cancel-modal-close" onclick="closeApproveModal()">&times;</span>
+<div id="approveBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeApproveModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Approve</h3>
+            <span class="modal-close" onclick="closeApproveModal()">&times;</span>
         </div>
-        <div class="cancel-modal-body">
-            <p class="cancel-warning-text" style="color: #059669;">
-                Are you sure you want to approve this booking? This action will notify the user.
-            </p>
+        <div class="modal-body">
+            <p>Are you sure you want to approve this booking? This action will notify the user.</p>
         </div>
-        <div class="cancel-modal-footer">
-            <button class="btn-cancel-modal" onclick="closeApproveModal()">
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeApproveModal()">
                 <i class="fas fa-times"></i> Cancel
             </button>
-            <button class="btn-confirm-cancel" onclick="confirmApproveBooking()" id="confirmApproveBtn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                <i class="fas fa-check"></i> Confirm Approval
+            <button type="button" class="btn-success" onclick="confirmApproveBooking()" id="confirmApproveBtn">
+                <i class="fas fa-check"></i> Approve Booking
             </button>
         </div>
     </div>
 </div>
 
 <!-- Reject Booking Confirmation Modal -->
-<div id="rejectBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeRejectModal()">
-    <div class="cancel-modal-content" onclick="event.stopPropagation()">
-        <div class="cancel-modal-header">
-            <div class="cancel-modal-icon">
-                <i class="fas fa-times-circle"></i>
-            </div>
-            <h3>Reject Booking</h3>
-            <span class="cancel-modal-close" onclick="closeRejectModal()">&times;</span>
+<div id="rejectBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeRejectModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Reject</h3>
+            <span class="modal-close" onclick="closeRejectModal()">&times;</span>
         </div>
-        <div class="cancel-modal-body">
-            <p class="cancel-warning-text">
-                Are you sure you want to reject this booking? This action cannot be undone.
-            </p>
+        <div class="modal-body">
+            <p>Are you sure you want to reject this booking? This action cannot be undone.</p>
             <div class="cancel-reason-section">
                 <label for="rejectReason" class="cancel-reason-label">
                     <i class="fas fa-comment-alt"></i> Reason for Rejection <span class="text-danger">*</span>
@@ -118,31 +108,47 @@
                 ></textarea>
             </div>
         </div>
-        <div class="cancel-modal-footer">
-            <button class="btn-cancel-modal" onclick="closeRejectModal()">
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeRejectModal()">
                 <i class="fas fa-times"></i> Cancel
             </button>
-            <button class="btn-confirm-cancel" onclick="confirmRejectBooking()" id="confirmRejectBtn" disabled>
-                <i class="fas fa-check"></i> Confirm Rejection
+            <button type="button" class="btn-danger" onclick="confirmRejectBooking()" id="confirmRejectBtn" disabled>
+                <i class="fas fa-times"></i> Reject Booking
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Mark Complete Booking Confirmation Modal -->
+<div id="markCompleteModal" class="modal" style="display: none;" onclick="if(event.target === this) closeMarkCompleteModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Mark Complete</h3>
+            <span class="modal-close" onclick="closeMarkCompleteModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to mark this booking as completed? This action will award loyalty points to the user.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeMarkCompleteModal()">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn-success" onclick="confirmMarkComplete()" id="confirmMarkCompleteBtn">
+                <i class="fas fa-check-circle"></i> Mark Complete
             </button>
         </div>
     </div>
 </div>
 
 <!-- Cancel Approved Booking Confirmation Modal -->
-<div id="cancelBookingModal" class="cancel-modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
-    <div class="cancel-modal-content" onclick="event.stopPropagation()">
-        <div class="cancel-modal-header" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-bottom: 2px solid #fbbf24;">
-            <div class="cancel-modal-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
-                <i class="fas fa-ban"></i>
-            </div>
-            <h3 style="color: #d97706;">Cancel Approved Booking</h3>
-            <span class="cancel-modal-close" onclick="closeCancelModal()">&times;</span>
+<div id="cancelBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirm Cancel</h3>
+            <span class="modal-close" onclick="closeCancelModal()">&times;</span>
         </div>
-        <div class="cancel-modal-body">
-            <p class="cancel-warning-text" style="color: #d97706;">
-                Are you sure you want to cancel this approved booking? This action will notify the user and cannot be undone.
-            </p>
+        <div class="modal-body">
+            <p>Are you sure you want to cancel this approved booking? This action will notify the user and cannot be undone.</p>
             <div class="cancel-reason-section">
                 <label for="cancelReason" class="cancel-reason-label">
                     <i class="fas fa-comment-alt"></i> Reason for Cancellation <span class="text-danger">*</span>
@@ -164,12 +170,12 @@
                 ></textarea>
             </div>
         </div>
-        <div class="cancel-modal-footer">
-            <button class="btn-cancel-modal" onclick="closeCancelModal()">
-                <i class="fas fa-times"></i> Close
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeCancelModal()">
+                <i class="fas fa-times"></i> Cancel
             </button>
-            <button class="btn-confirm-cancel" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                <i class="fas fa-ban"></i> Confirm Cancellation
+            <button type="button" class="btn-danger" onclick="confirmCancelBooking()" id="confirmCancelBtn" disabled>
+                <i class="fas fa-ban"></i> Cancel Booking
             </button>
         </div>
     </div>

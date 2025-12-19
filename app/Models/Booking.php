@@ -50,11 +50,6 @@ class Booking extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    public function statusHistory()
-    {
-        return $this->hasMany(BookingStatusHistory::class);
-    }
-
     public function feedbacks()
     {
         return $this->hasMany(Feedback::class);

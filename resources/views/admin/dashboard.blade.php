@@ -529,18 +529,6 @@ function displayBookingReports(data) {
                 </div>
             </div>
 
-            <!-- Bookings by Date Line Chart -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-calendar-day"></i> Bookings Trend by Date</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="dateChart" style="max-height: 300px;"></canvas>
-                    </div>
-                </div>
-            </div>
-
             <!-- Bookings by Facility Bar Chart -->
             <div class="col-md-12">
                 <div class="card">
@@ -560,14 +548,12 @@ function displayBookingReports(data) {
     // Render charts after HTML is inserted
     setTimeout(() => {
         renderStatusChart(data.status_stats);
-        renderDateChart(data.bookings_by_date || []);
         renderFacilityChart(data.bookings_by_facility || []);
     }, 100);
 }
 
 // Chart instances storage
 let statusChart = null;
-let dateChart = null;
 let facilityChart = null;
 let facilityTypeChart = null;
 let facilityStatusChart = null;
@@ -629,66 +615,6 @@ function renderStatusChart(statusStats) {
                             return label;
                         }
                     }
-                }
-            }
-        }
-    });
-}
-
-// Render Bookings by Date Line Chart
-function renderDateChart(bookingsByDate) {
-    const ctx = document.getElementById('dateChart');
-    if (!ctx) return;
-    
-    // Destroy existing chart if it exists
-    if (dateChart) {
-        dateChart.destroy();
-    }
-    
-    const dates = bookingsByDate.map(item => new Date(item.date).toLocaleDateString());
-    const pending = bookingsByDate.map(item => item.pending || 0);
-    const approved = bookingsByDate.map(item => item.approved || 0);
-    const total = bookingsByDate.map(item => item.total || 0);
-    
-    dateChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [
-                {
-                    label: 'Pending',
-                    data: pending,
-                    borderColor: '#ffc107',
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: 'Approved',
-                    data: approved,
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: 'Total',
-                    data: total,
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
                 }
             }
         }
