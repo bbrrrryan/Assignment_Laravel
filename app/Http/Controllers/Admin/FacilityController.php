@@ -8,6 +8,7 @@ use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class FacilityController extends AdminBaseController
@@ -83,10 +84,9 @@ class FacilityController extends AdminBaseController
             'description' => 'nullable|string',
             'status' => 'nullable|in:available,maintenance,unavailable,reserved',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'requires_approval' => 'nullable|boolean',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
             'enable_multi_attendees' => 'nullable|boolean',
-            'max_attendees' => 'nullable|integer|min:1|required_if:enable_multi_attendees,1',
+            'max_attendees' => 'nullable|integer|min:1|lte:capacity|required_if:enable_multi_attendees,1',
             'available_day' => 'nullable|array',
             'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'available_time' => 'nullable|array',
@@ -158,7 +158,6 @@ class FacilityController extends AdminBaseController
 
         // Set default values
         $validated['status'] = $validated['status'] ?? 'available';
-        $validated['requires_approval'] = $validated['requires_approval'] ?? false;
         $validated['max_booking_hours'] = $validated['max_booking_hours'] ?? 4;
         $validated['enable_multi_attendees'] = $validated['enable_multi_attendees'] ?? false;
         // If multi-attendees is disabled, set max_attendees to null
@@ -166,7 +165,25 @@ class FacilityController extends AdminBaseController
             $validated['max_attendees'] = null;
         }
 
+        // Set created_by and updated_by to current admin user
+        $currentUserId = auth()->id();
+        $validated['created_by'] = $currentUserId;
+        $validated['updated_by'] = $currentUserId;
+
+        // Create the facility
         $facility = Facility::create($validated);
+        
+        // Manually set timestamps to Malaysia timezone after creation using DB query
+        $now = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s');
+        DB::table('facilities')
+            ->where('id', $facility->id)
+            ->update([
+                'created_at' => $now,
+                'updated_at' => $now
+            ]);
+        
+        // Refresh the model to get updated timestamps
+        $facility->refresh();
 
         // Create announcement for new facility
         $this->createFacilityAnnouncement($facility, 'new');
@@ -180,7 +197,9 @@ class FacilityController extends AdminBaseController
      */
     public function show(string $id)
     {
-        $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
+        $facility = Facility::where('is_deleted', false)
+            ->with(['bookings', 'creator', 'updater'])
+            ->findOrFail($id);
 
         // Check if facility has any bookings in the current month (for CSV export button)
         $hasBookingsThisMonth = $facility->bookings()
@@ -215,10 +234,9 @@ class FacilityController extends AdminBaseController
             'description' => 'nullable|string',
             'status' => 'nullable|in:available,maintenance,unavailable,reserved',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'requires_approval' => 'nullable|boolean',
             'max_booking_hours' => 'nullable|integer|min:1|max:24',
             'enable_multi_attendees' => 'nullable|boolean',
-            'max_attendees' => 'nullable|integer|min:1|required_if:enable_multi_attendees,1',
+            'max_attendees' => 'nullable|integer|min:1|lte:capacity|required_if:enable_multi_attendees,1',
             'available_day' => 'nullable|array',
             'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'available_time' => 'nullable|array',
@@ -308,7 +326,26 @@ class FacilityController extends AdminBaseController
         $oldStatus = $facility->status;
         $newStatus = $validated['status'] ?? $oldStatus;
 
+        // Set updated_by to current admin user
+        $currentUserId = auth()->id();
+        $validated['updated_by'] = $currentUserId;
+        
+        // Ensure created_by is set if it's null (shouldn't happen, but safety check)
+        if (empty($facility->created_by)) {
+            $validated['created_by'] = $currentUserId;
+        }
+
+        // Update the facility
         $facility->update($validated);
+        
+        // Manually set updated_at to Malaysia timezone after update using DB query
+        $now = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s');
+        DB::table('facilities')
+            ->where('id', $facility->id)
+            ->update(['updated_at' => $now]);
+        
+        // Refresh the model to get updated timestamp
+        $facility->refresh();
 
         // Create announcement if status changed to unavailable or maintenance
         if ($oldStatus !== $newStatus && in_array($newStatus, ['unavailable', 'maintenance'])) {

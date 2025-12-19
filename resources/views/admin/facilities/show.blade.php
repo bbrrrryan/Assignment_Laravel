@@ -119,10 +119,6 @@
             <h2><i class="fas fa-calendar-alt"></i> Booking Settings</h2>
             <div class="details-grid">
                 <div class="detail-item">
-                    <label>Requires Approval</label>
-                    <p>{{ $facility->requires_approval ? 'Yes' : 'No' }}</p>
-                </div>
-                <div class="detail-item">
                     <label>Max Booking Hours</label>
                     <p>{{ $facility->max_booking_hours ?? 4 }} hours</p>
                 </div>
@@ -187,6 +183,14 @@
                 <div class="detail-item">
                     <label>Updated At</label>
                     <p>{{ $facility->updated_at->format('M d, Y H:i') }}</p>
+                </div>
+                <div class="detail-item">
+                    <label>Created By</label>
+                    <p>{{ $facility->creator ? $facility->creator->name : 'N/A' }}</p>
+                </div>
+                <div class="detail-item">
+                    <label>Updated By</label>
+                    <p>{{ $facility->updater ? $facility->updater->name : 'N/A' }}</p>
                 </div>
             </div>
         </div>

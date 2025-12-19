@@ -503,10 +503,6 @@ function displayFacilityDetails(facility) {
                 <h2><i class="fas fa-calendar-alt"></i> Booking Settings</h2>
                 <div class="details-grid">
                     <div class="detail-item">
-                        <label>Requires Approval</label>
-                        <p>${facility.requires_approval ? 'Yes' : 'No'}</p>
-                    </div>
-                    <div class="detail-item">
                         <label>Max Booking Hours</label>
                         <p>${facility.max_booking_hours || 4} hours</p>
                     </div>

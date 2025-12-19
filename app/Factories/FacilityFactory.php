@@ -20,7 +20,6 @@ class FacilityFactory
         $description = null,
         $status = null,
         $imageUrl = null,
-        $requiresApproval = null,
         $maxBookingHours = null,
         $enableMultiAttendees = null,
         $maxAttendees = null,
@@ -116,7 +115,6 @@ class FacilityFactory
         ];
 
         // Set default values for boolean and integer fields
-        $facilityData['requires_approval'] = $requiresApproval ?? false;
         $facilityData['max_booking_hours'] = $maxBookingHours ?? 4;
         $facilityData['enable_multi_attendees'] = $enableMultiAttendees ?? false;
         
