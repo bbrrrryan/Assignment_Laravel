@@ -157,6 +157,16 @@ class PageController extends Controller
         return view('feedbacks.show', compact('id'));
     }
 
+    public function adminFeedbacks()
+    {
+        return view('admin.feedbacks.index');
+    }
+
+    public function adminShowFeedback($id)
+    {
+        return view('admin.feedbacks.show', compact('id'));
+    }
+
     public function profile()
     {
         return view('profile.index');

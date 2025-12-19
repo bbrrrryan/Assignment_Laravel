@@ -1055,7 +1055,7 @@
                         <li><a href="{{ route('admin.bookings.index') }}">Booking Management</a></li>
                         <li><a href="{{ route('admin.announcements.index') }}">Announcement Management</a></li>
                         <li><a href="{{ route('admin.loyalty.index') }}">Loyalty Management</a></li>
-                        <li><a href="{{ route('feedbacks.index') }}">Feedback Management</a></li>
+                        <li><a href="{{ route('admin.feedbacks.index') }}">Feedback Management</a></li>
                     @else
                         {{-- Staff and Student Navigation (User Site) --}}
                         <li><a href="{{ route('home') }}">Home</a></li>

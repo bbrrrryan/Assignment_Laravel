@@ -13,7 +13,7 @@ class Feedback extends Model
 
     protected $fillable = [
         'user_id',
-        'facility_id',
+        'facility_type',
         'type',
         'subject',
         'message',
@@ -38,10 +38,12 @@ class Feedback extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function facility()
-    {
-        return $this->belongsTo(Facility::class);
-    }
+    // Note: facility relationship removed as we now store facility_type directly
+    // If needed, you can add a method to get facilities by type:
+    // public function facilities()
+    // {
+    //     return Facility::where('type', $this->facility_type)->get();
+    // }
 
     public function reviewer()
     {

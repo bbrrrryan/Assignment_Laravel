@@ -1427,44 +1427,35 @@ window.closeRewardModal = function() {
 
 window.deleteReward = function(id) {
     console.log('deleteReward called with id:', id);
-    pendingDeleteId = id;
     
-    const deleteCallback = function() {
-        console.log('Delete reward callback executed, pendingDeleteId:', pendingDeleteId);
-        const idToDelete = pendingDeleteId; // Save the ID before it might be cleared
-        if (idToDelete) {
-            API.delete(`/loyalty/rewards/${idToDelete}`).then(result => {
-                console.log('Delete reward API result:', result);
-                pendingDeleteId = null; // Clear after successful deletion
-                if (result.success) {
-                    loadRewardsManagement();
-                    if (typeof showToast !== 'undefined') {
-                        showToast('Reward deleted successfully', 'success');
-                    } else {
-                        alert('Reward deleted successfully');
-                    }
-                } else {
-                    if (typeof showToast !== 'undefined') {
-                        showToast(result.error || 'Failed to delete reward', 'error');
-                    } else {
-                        alert(result.error || 'Failed to delete reward');
-                    }
-                }
-            }).catch(error => {
-                console.error('Error deleting reward:', error);
-                pendingDeleteId = null; // Clear on error too
-                if (typeof showToast !== 'undefined') {
-                    showToast('An error occurred while deleting the reward', 'error');
-                } else {
-                    alert('An error occurred while deleting the reward');
-                }
-            });
+    if (!confirm('Are you sure you want to delete this reward? This action cannot be undone.')) {
+        return;
+    }
+    
+    API.delete(`/loyalty/rewards/${id}`).then(result => {
+        console.log('Delete reward API result:', result);
+        if (result.success) {
+            loadRewardsManagement();
+            if (typeof showToast !== 'undefined') {
+                showToast('Reward deleted successfully', 'success');
+            } else {
+                alert('Reward deleted successfully');
+            }
         } else {
-            console.error('pendingDeleteId is null');
+            if (typeof showToast !== 'undefined') {
+                showToast(result.error || 'Failed to delete reward', 'error');
+            } else {
+                alert(result.error || 'Failed to delete reward');
+            }
         }
-    };
-    
-    showDeleteConfirmModal('Are you sure you want to delete this reward? This action cannot be undone.', deleteCallback);
+    }).catch(error => {
+        console.error('Error deleting reward:', error);
+        if (typeof showToast !== 'undefined') {
+            showToast('An error occurred while deleting the reward', 'error');
+        } else {
+            alert('An error occurred while deleting the reward');
+        }
+    });
 };
 
 window.approveRedemption = async function(id) {

@@ -49,6 +49,26 @@ class LoyaltyController extends Controller
         ]);
     }
 
+    public function showReward($id)
+    {
+        $reward = Reward::findOrFail($id);
+        
+        // Only show active rewards to users (unless admin)
+        if (!$reward->is_active && !auth()->user()->isAdmin()) {
+            return response()->json([
+                'status' => 'F', // IFA Standard: F (Fail)
+                'message' => 'Reward not found',
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ], 404);
+        }
+        
+        return response()->json([
+            'status' => 'S', // IFA Standard
+            'data' => $reward,
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+        ]);
+    }
+
     public function redeemReward(Request $request)
     {
         $request->validate([
@@ -157,27 +177,45 @@ class LoyaltyController extends Controller
     {
         $user = auth()->user();
 
-        $query = $user->rewards()
-            ->withPivot('points_used', 'status', 'approved_by', 'redeemed_at', 'created_at')
+        // Query directly from user_reward table and left join with rewards table
+        // This ensures we get all redemption records even if reward is deleted
+        $query = DB::table('user_reward')
+            ->leftJoin('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+            ->where('user_reward.user_id', $user->id)
+            ->select(
+                'user_reward.id as redemption_id',
+                'user_reward.reward_id',
+                'user_reward.points_used',
+                'user_reward.status',
+                'user_reward.approved_by',
+                'user_reward.redeemed_at',
+                'user_reward.created_at',
+                'rewards.name',
+                'rewards.description',
+                'rewards.points_required',
+                'rewards.reward_type',
+                'rewards.image_url'
+            )
             ->orderBy('user_reward.created_at', 'desc');
 
         if ($request->has('status') && $request->status !== null && $request->status !== '') {
-            $query->wherePivot('status', $request->status);
+            $query->where('user_reward.status', $request->status);
         }
 
-        $rewards = $query->get()->map(function ($reward) {
+        $rewards = $query->get()->map(function ($item) {
             return [
-                'id' => $reward->id,
-                'name' => $reward->name,
-                'description' => $reward->description,
-                'points_required' => $reward->points_required,
-                'reward_type' => $reward->reward_type,
-                'image_url' => $reward->image_url,
-                'points_used' => $reward->pivot->points_used,
-                'status' => $reward->pivot->status,
-                'approved_by' => $reward->pivot->approved_by,
-                'redeemed_at' => $reward->pivot->redeemed_at,
-                'created_at' => $reward->pivot->created_at,
+                'id' => $item->reward_id,
+                'redemption_id' => $item->redemption_id,
+                'name' => $item->name ?? 'Deleted Reward',
+                'description' => $item->description ?? '',
+                'points_required' => $item->points_required ?? $item->points_used,
+                'reward_type' => $item->reward_type ?? 'unknown',
+                'image_url' => $item->image_url,
+                'points_used' => $item->points_used,
+                'status' => $item->status,
+                'approved_by' => $item->approved_by,
+                'redeemed_at' => $item->redeemed_at,
+                'created_at' => $item->created_at,
             ];
         });
 

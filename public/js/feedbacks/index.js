@@ -1,6 +1,8 @@
 let feedbacks = [];
 let facilities = [];
 let selectedImageBase64 = null;
+let paginationData = null;
+let currentPage = 1;
 
 function initFeedbacks() {
     // Update title and button visibility based on user role
@@ -29,16 +31,40 @@ function initFeedbacks() {
     loadFacilities();
 }
 
-async function loadFeedbacks() {
+async function loadFeedbacks(page = 1) {
     showLoading(document.getElementById('feedbacksList'));
+    currentPage = page;
+
+    // Build query parameters
+    const params = new URLSearchParams();
+    params.append('page', page);
+    
+    const search = document.getElementById('searchFilter')?.value.trim();
+    const type = document.getElementById('typeFilter')?.value;
+    const status = document.getElementById('statusFilter')?.value;
+    
+    if (search) params.append('search', search);
+    if (type) params.append('type', type);
+    if (status) params.append('status', status);
 
     // Use appropriate endpoint based on user role
     const endpoint = API.isAdmin() ? '/feedbacks' : '/feedbacks/user/my-feedbacks';
-    const result = await API.get(endpoint);
+    const url = `${endpoint}?${params.toString()}`;
+    const result = await API.get(url);
 
     if (result.success) {
-        feedbacks = result.data.data?.data || result.data.data || [];
+        const responseData = result.data.data;
+        feedbacks = responseData.data || [];
+        paginationData = {
+            current_page: responseData.current_page || 1,
+            last_page: responseData.last_page || 1,
+            per_page: responseData.per_page || 10,
+            total: responseData.total || 0,
+            from: responseData.from || 0,
+            to: responseData.to || 0,
+        };
         displayFeedbacks(feedbacks);
+        displayPagination();
     } else {
         showError(document.getElementById('feedbacksList'), result.error || 'Failed to load feedbacks');
         console.error('Error loading feedbacks:', result);
@@ -57,7 +83,7 @@ async function loadFacilities() {
             const options = [];
 
             facilities.forEach(f => {
-                const rawType = f.type || f.name || 'Unnamed facility';
+                const rawType = f.type || 'other';
                 const key = String(rawType).toLowerCase();
 
                 if (seenTypes.has(key)) return; // Skip duplicate types
@@ -71,7 +97,7 @@ async function loadFacilities() {
                     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
                     .join(' ');
 
-                options.push(`<option value="${f.id}">${label}</option>`);
+                options.push(`<option value="${rawType}">${label}</option>`);
             });
 
             select.innerHTML = '<option value="">None</option>' + options.join('');
@@ -89,6 +115,18 @@ function formatDateTime(dateTimeString) {
     return `${date} ${time}`;
 }
 
+// Format type name (capitalize first letter)
+function formatTypeName(type) {
+    if (!type) return 'General';
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+}
+
+// Format facility type name (capitalize first letter)
+function formatFacilityType(type) {
+    if (!type) return 'N/A';
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+}
+
 function displayFeedbacks(feedbacksToShow) {
     const container = document.getElementById('feedbacksList');
     if (feedbacksToShow.length === 0) {
@@ -98,13 +136,7 @@ function displayFeedbacks(feedbacksToShow) {
 
     const isAdmin = typeof API !== 'undefined' && API.isAdmin();
 
-    // Sort by newest date first
-    const sortedFeedbacks = [...feedbacksToShow].sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateB - dateA;
-    });
-
+    // Data is already sorted by backend (orderBy created_at desc)
     container.innerHTML = `
         <table class="data-table">
             <thead>
@@ -120,7 +152,7 @@ function displayFeedbacks(feedbacksToShow) {
                 </tr>
             </thead>
             <tbody>
-                ${sortedFeedbacks.map(feedback => {
+                ${feedbacksToShow.map(feedback => {
                     // Format status for display
                     const formatStatus = (status) => {
                         const statusMap = {
@@ -163,11 +195,11 @@ function displayFeedbacks(feedbacksToShow) {
                         <td>${feedback.subject || 'No Subject'}</td>
                         <td>
                             <span class="badge ${getTypeBadgeClass(feedback.type)}">
-                                ${feedback.type || 'general'}
+                                ${formatTypeName(feedback.type)}
                             </span>
                         </td>
                         <td style="white-space: nowrap;">${ratingStars}</td>
-                        ${!isAdmin ? `<td>${feedback.facility ? feedback.facility.name : 'N/A'}</td>` : ''}
+                        ${!isAdmin ? `<td>${feedback.facility_type ? formatFacilityType(feedback.facility_type) : 'N/A'}</td>` : ''}
                         <td>
                             <span class="badge ${getStatusBadgeClass(feedback.status)}">
                                 ${formatStatus(feedback.status)}
@@ -183,7 +215,12 @@ function displayFeedbacks(feedbacksToShow) {
                                     <i class="fas fa-reply"></i>
                                 </button>
                             ` : ''}
-                            ${isAdmin && !feedback.is_blocked ? `
+                            ${isAdmin && feedback.status !== 'resolved' && feedback.status !== 'rejected' && !feedback.is_blocked ? `
+                                <button class="btn-sm btn-warning" onclick="rejectFeedback(${feedback.id})" title="Reject">
+                                    <i class="fas fa-times-circle"></i>
+                                </button>
+                            ` : ''}
+                            ${isAdmin && feedback.status !== 'rejected' && !feedback.is_blocked ? `
                                 <button class="btn-sm btn-danger" onclick="blockFeedback(${feedback.id})" title="Block">
                                     <i class="fas fa-ban"></i>
                                 </button>
@@ -199,27 +236,107 @@ function displayFeedbacks(feedbacksToShow) {
 
 // Make functions global
 window.filterFeedbacks = function() {
-    const search = document.getElementById('searchFilter').value.toLowerCase().trim();
-    const type = document.getElementById('typeFilter').value;
-    const status = document.getElementById('statusFilter').value;
-
-    const filtered = feedbacks.filter(f => {
-        // Search filter - check subject and message
-        const matchSearch = !search || 
-            (f.subject && f.subject.toLowerCase().includes(search)) ||
-            (f.message && f.message.toLowerCase().includes(search));
-        
-        // Type filter
-        const matchType = !type || f.type === type;
-        
-        // Status filter
-        const matchStatus = !status || f.status === status;
-        
-        return matchSearch && matchType && matchStatus;
-    });
-
-    displayFeedbacks(filtered);
+    // Reload feedbacks with filters (server-side filtering)
+    loadFeedbacks(1);
 };
+
+// Display pagination - Bootstrap 5 style (same as Facility Management)
+function displayPagination() {
+    if (!paginationData || paginationData.last_page <= 1) {
+        const paginationContainer = document.getElementById('paginationContainer');
+        if (paginationContainer) {
+            paginationContainer.innerHTML = '';
+        }
+        return;
+    }
+
+    const container = document.getElementById('paginationContainer');
+    if (!container) return;
+
+    const { current_page, last_page } = paginationData;
+    
+    let paginationHTML = '<ul class="pagination">';
+
+    // Previous button
+    if (current_page > 1) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${current_page - 1}); return false;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+        </li>`;
+    } else {
+        paginationHTML += `<li class="page-item disabled">
+            <span class="page-link">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </span>
+        </li>`;
+    }
+
+    // Page numbers
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, current_page - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(last_page, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage < maxPagesToShow - 1) {
+        startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    if (startPage > 1) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(1); return false;">1</a>
+        </li>`;
+        if (startPage > 2) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === current_page) {
+            paginationHTML += `<li class="page-item active">
+                <span class="page-link">${i}</span>
+            </li>`;
+        } else {
+            paginationHTML += `<li class="page-item">
+                <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${i}); return false;">${i}</a>
+            </li>`;
+        }
+    }
+
+    if (endPage < last_page) {
+        if (endPage < last_page - 1) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${last_page}); return false;">${last_page}</a>
+        </li>`;
+    }
+
+    // Next button
+    if (current_page < last_page) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${current_page + 1}); return false;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </a>
+        </li>`;
+    } else {
+        paginationHTML += `<li class="page-item disabled">
+            <span class="page-link">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </span>
+        </li>`;
+    }
+
+    paginationHTML += '</ul>';
+    container.innerHTML = paginationHTML;
+}
 
 window.showCreateModal = function() {
     loadFacilities();
@@ -255,7 +372,8 @@ window.closeModal = function() {
 };
 
 window.viewFeedback = function(id) {
-    window.location.href = `/feedbacks/${id}`;
+    const basePath = API.isAdmin() ? '/admin/feedbacks' : '/feedbacks';
+    window.location.href = `${basePath}/${id}`;
 };
 
 // Admin function to reply to feedback
@@ -276,7 +394,7 @@ window.replyToFeedback = function(id) {
                     <strong>Subject:</strong> ${feedback.subject || 'N/A'}
                 </div>
                 <div class="preview-type">
-                    <span class="status-badge status-${feedback.type}">${feedback.type}</span>
+                    <span class="status-badge status-${feedback.type}">${formatTypeName(feedback.type)}</span>
                 </div>
                 <div class="preview-message">
                     <strong>Original Message:</strong>
@@ -334,7 +452,7 @@ window.blockFeedback = function(id) {
                     <strong>Subject:</strong> ${feedback.subject || 'N/A'}
                 </div>
                 <div class="preview-type">
-                    <span class="status-badge status-${feedback.type}">${feedback.type}</span>
+                    <span class="status-badge status-${feedback.type}">${formatTypeName(feedback.type)}</span>
                 </div>
                 <div class="preview-message">
                     <strong>Original Message:</strong>
@@ -372,6 +490,37 @@ window.closeBlockModal = function() {
         blockForm.reset();
         delete blockForm.dataset.feedbackId;
     }
+};
+
+// Admin function to reject feedback
+window.rejectFeedback = function(id) {
+    if (!confirm('Are you sure you want to reject this feedback? This action cannot be undone.')) {
+        return;
+    }
+
+    API.put(`/feedbacks/${id}/reject`, {}).then(result => {
+        if (result.success) {
+            loadFeedbacks(currentPage);
+            if (typeof showToast !== 'undefined') {
+                showToast('Feedback rejected successfully', 'success');
+            } else {
+                alert('Feedback rejected successfully');
+            }
+        } else {
+            if (typeof showToast !== 'undefined') {
+                showToast(result.error || 'Failed to reject feedback', 'error');
+            } else {
+                alert(result.error || 'Failed to reject feedback');
+            }
+        }
+    }).catch(error => {
+        console.error('Error rejecting feedback:', error);
+        if (typeof showToast !== 'undefined') {
+            showToast('An error occurred while rejecting the feedback', 'error');
+        } else {
+            alert('An error occurred while rejecting the feedback');
+        }
+    });
 };
 
 // Handle image upload and convert to base64
@@ -504,7 +653,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (result.success) {
                     closeReplyModal();
-                    loadFeedbacks();
+                    loadFeedbacks(currentPage);
                     // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Response submitted successfully!', 'success');
@@ -578,7 +727,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (result.success) {
                     closeBlockModal();
-                    loadFeedbacks();
+                    loadFeedbacks(currentPage);
                     // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Feedback blocked successfully!', 'success');
@@ -628,7 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 subject: document.getElementById('feedbackSubject').value,
                 message: document.getElementById('feedbackMessage').value,
                 rating: parseInt(document.getElementById('feedbackRating').value),
-                facility_id: document.getElementById('feedbackFacility').value || null,
+                facility_type: document.getElementById('feedbackFacility').value || null,
                 image: selectedImageBase64 || null
             };
 
@@ -651,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 closeModal();
-                loadFeedbacks();
+                loadFeedbacks(1);
                 if (typeof showToast === 'function') {
                     showToast('Feedback submitted successfully!', 'success');
                 } else {

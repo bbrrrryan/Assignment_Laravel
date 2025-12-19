@@ -20,33 +20,16 @@ class FeedbackController extends Controller
     {
         $feedbacks = Feedback::with(['user'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->type, fn($q) => $q->where('type', $request->type))
+            ->when($request->search, fn($q) => $q->where(function($query) use ($request) {
+                $query->where('subject', 'like', "%{$request->search}%")
+                      ->orWhere('message', 'like', "%{$request->search}%");
+            }))
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(10)->withQueryString();
         
-        // ✅ Service Consumption: Get facility info via HTTP from Facility Management Module
-        $feedbacks->getCollection()->transform(function ($feedback) {
-            if ($feedback->facility_id) {
-                try {
-                    $baseUrl = config('app.url', 'http://localhost:8000');
-                    $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
-                    
-                    $facilityResponse = Http::timeout(10)->post($apiUrl, [
-                        'facility_id' => $feedback->facility_id,
-                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-                    ]);
-                    
-                    if ($facilityResponse->successful()) {
-                        $facilityData = $facilityResponse->json();
-                        if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
-                            $feedback->facility_info = $facilityData['data']['facility'];
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Exception when calling Facility Management Module: ' . $e->getMessage());
-                }
-            }
-            return $feedback;
-        });
+        // Note: facility_id removed, now using facility_type directly
+        // No need to fetch facility info via HTTP service
         
         return response()->json([
             'status' => 'S', // IFA Standard
@@ -62,7 +45,7 @@ class FeedbackController extends Controller
     {
         $limit = $request->get('limit', 10);
 
-        $feedbacks = Feedback::with(['user', 'facility'])
+        $feedbacks = Feedback::with(['user'])
             ->where('status', 'pending')
             ->orderBy('created_at', 'desc')
             ->limit($limit)
@@ -73,7 +56,7 @@ class FeedbackController extends Controller
                     'subject' => $feedback->subject,
                     'type' => $feedback->type,
                     'user_name' => $feedback->user->name ?? 'Unknown',
-                    'facility_name' => $feedback->facility->name ?? 'N/A',
+                    'facility_type' => $feedback->facility_type ?? 'N/A',
                     'created_at' => $feedback->created_at,
                 ];
             });
@@ -94,7 +77,7 @@ class FeedbackController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'facility_id' => 'nullable|exists:facilities,id',
+            'facility_type' => 'nullable|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
             'type' => 'required|in:complaint,suggestion,compliment,general',
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
@@ -130,7 +113,7 @@ class FeedbackController extends Controller
             $validated['subject'],
             $validated['message'],
             $validated['rating'],
-            $validated['facility_id'] ?? null,
+            $validated['facility_type'] ?? null,
             $validated['image'] ?? null,
             'pending' // Default status
         );
@@ -148,7 +131,7 @@ class FeedbackController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $feedback = Feedback::with(['user', 'facility', 'reviewer'])->findOrFail($id);
+        $feedback = Feedback::with(['user', 'reviewer'])->findOrFail($id);
         
         // Allow users to view their own feedbacks, or admin to view any
         if (!$request->user()->isAdmin() && $feedback->user_id !== $request->user()->id) {
@@ -182,11 +165,15 @@ class FeedbackController extends Controller
 
     public function myFeedbacks(Request $request)
     {
-        $feedbacks = Feedback::with(['facility'])
-            ->where('user_id', $request->user()->id)
+        $feedbacks = Feedback::where('user_id', $request->user()->id)
             ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->type, fn($q) => $q->where('type', $request->type))
+            ->when($request->search, fn($q) => $q->where(function($query) use ($request) {
+                $query->where('subject', 'like', "%{$request->search}%")
+                      ->orWhere('message', 'like', "%{$request->search}%");
+            }))
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(10)->withQueryString();
         
         return response()->json([
             'status' => 'S', // IFA Standard
@@ -196,12 +183,12 @@ class FeedbackController extends Controller
     }
 
     /**
-     * Get feedbacks for a specific facility
+     * Get feedbacks for a specific facility type
      */
-    public function getFacilityFeedbacks(Request $request, string $facilityId)
+    public function getFacilityFeedbacks(Request $request, string $facilityType)
     {
         $feedbacks = Feedback::with(['user'])
-            ->where('facility_id', $facilityId)
+            ->where('facility_type', $facilityType)
             ->where('is_blocked', false) // Only show non-blocked feedbacks
             ->where('status', '!=', 'rejected') // Exclude rejected feedbacks
             ->orderBy('created_at', 'desc')
@@ -210,17 +197,6 @@ class FeedbackController extends Controller
         return response()->json([
             'status' => 'S', // IFA Standard
             'data' => $feedbacks,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-        ]);
-    }
-
-    public function update(Request $request, string $id)
-    {
-        $feedback = Feedback::findOrFail($id);
-        $feedback->update($request->all());
-        return response()->json([
-            'status' => 'S', // IFA Standard
-            'data' => $feedback,
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
@@ -249,7 +225,7 @@ class FeedbackController extends Controller
 
         // Reload to get updated relationships
         $feedback->refresh();
-        $feedback->load(['user', 'facility', 'reviewer']);
+        $feedback->load(['user', 'reviewer']);
 
         // Loyalty points: Trigger feedback_resolved rule when feedback is resolved
         try {
@@ -330,10 +306,10 @@ class FeedbackController extends Controller
     {
         try {
             // Load related data
-            $feedback->load(['user', 'facility']);
+            $feedback->load(['user']);
             
             // Build notification title and message in English
-            $facilityName = $feedback->facility->name ?? 'N/A';
+            $facilityType = $feedback->facility_type ? ucfirst($feedback->facility_type) : 'N/A';
             $typeLabels = [
                 'complaint' => 'Complaint',
                 'suggestion' => 'Suggestion',
@@ -345,8 +321,8 @@ class FeedbackController extends Controller
             $title = "Feedback Submitted Successfully";
             $message = "Your {$typeLabel} has been submitted successfully:\n\n";
             $message .= "Subject: {$feedback->subject}\n";
-            if ($feedback->facility) {
-                $message .= "Facility: {$facilityName}\n";
+            if ($feedback->facility_type) {
+                $message .= "Facility Type: {$facilityType}\n";
             }
             $message .= "Rating: {$feedback->rating}/5\n";
             $message .= "Feedback ID: #{$feedback->id}\n\n";
@@ -393,7 +369,7 @@ class FeedbackController extends Controller
     {
         try {
             // Load related data
-            $feedback->load(['user', 'facility', 'reviewer']);
+            $feedback->load(['user', 'reviewer']);
             
             if (!$feedback->user) {
                 Log::warning("Cannot send resolution notification: feedback has no user", [
@@ -456,11 +432,11 @@ class FeedbackController extends Controller
     {
         try {
             // Load related data
-            $feedback->load(['user', 'facility']);
+            $feedback->load(['user']);
             
             // Build notification title and message in English
             $userName = $feedback->user->name ?? 'A user';
-            $facilityName = $feedback->facility->name ?? 'N/A';
+            $facilityType = $feedback->facility_type ? ucfirst($feedback->facility_type) : 'N/A';
             $typeLabels = [
                 'complaint' => 'Complaint',
                 'suggestion' => 'Suggestion',
@@ -473,8 +449,8 @@ class FeedbackController extends Controller
             $message = "{$userName} has submitted a new feedback:\n\n";
             $message .= "Subject: {$feedback->subject}\n";
             $message .= "Type: {$typeLabel}\n";
-            if ($feedback->facility) {
-                $message .= "Facility: {$facilityName}\n";
+            if ($feedback->facility_type) {
+                $message .= "Facility Type: {$facilityType}\n";
             }
             $message .= "Rating: {$feedback->rating}/5\n";
             $message .= "Feedback ID: #{$feedback->id}";
