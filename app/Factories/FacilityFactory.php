@@ -11,27 +11,6 @@ use App\Models\Facility;
 
 class FacilityFactory
 {
-    /**
-     * Create a facility with type and status validation
-     * 
-     * @param string $name
-     * @param string $code
-     * @param string $type Facility type ('classroom', 'laboratory', 'sports', 'auditorium', 'library')
-     * @param string $location
-     * @param int $capacity
-     * @param string|null $description
-     * @param string|null $status Facility status ('available', 'maintenance', 'unavailable', 'reserved')
-     * @param string|null $imageUrl
-     * @param bool|null $requiresApproval
-     * @param int|null $maxBookingHours
-     * @param bool|null $enableMultiAttendees
-     * @param int|null $maxAttendees
-     * @param array|null $availableDay
-     * @param array|null $availableTime
-     * @param array|null $equipment
-     * @param string|null $rules
-     * @return Facility
-     */
     public static function makeFacility(
         $name,
         $code,
