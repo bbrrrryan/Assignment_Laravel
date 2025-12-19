@@ -28,19 +28,13 @@ class FeedbackController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(10)->withQueryString();
         
-        // Note: facility_id removed, now using facility_type directly
-        // No need to fetch facility info via HTTP service
-        
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedbacks,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get pending feedbacks for admin dropdown
-     */
     public function getPendingFeedbacks(Request $request)
     {
         $limit = $request->get('limit', 10);
@@ -64,13 +58,13 @@ class FeedbackController extends Controller
         $count = Feedback::where('status', 'pending')->count();
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Pending feedbacks retrieved successfully',
             'data' => [
                 'feedbacks' => $feedbacks,
                 'count' => $count,
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -83,10 +77,9 @@ class FeedbackController extends Controller
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
             'rating' => 'required|integer|min:1|max:5',
-            'image' => 'nullable|string', // base64 image string
+            'image' => 'nullable|string',
         ]);
         
-        // Validate that booking belongs to the authenticated user (if provided)
         if (isset($validated['booking_id'])) {
             $booking = \App\Models\Booking::find($validated['booking_id']);
             if (!$booking) {
@@ -105,7 +98,6 @@ class FeedbackController extends Controller
                 ], 403);
             }
             
-            // Check if this booking already has feedback
             $existingFeedback = Feedback::where('booking_id', $validated['booking_id'])
                 ->where('user_id', auth()->id())
                 ->first();
@@ -119,24 +111,20 @@ class FeedbackController extends Controller
             }
         }
 
-        // Validate base64 image if provided
         if ($request->has('image') && $request->image) {
-            // Check if it's a valid base64 image string
             if (!preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image)) {
                 return response()->json([
-                    'status' => 'F', // IFA Standard: F (Fail)
+                    'status' => 'F',
                     'message' => 'Invalid image format. Please upload a valid image (JPG, PNG, or GIF).',
-                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
                 ], 422);
             }
             
-            // Check base64 string length (limit to ~1.5MB base64, which is ~1MB actual image)
-            // Base64 encoding increases size by ~33%, so 1.5MB base64 ≈ 1MB image
             if (strlen($request->image) > 1500000) {
                 return response()->json([
-                    'status' => 'F', // IFA Standard: F (Fail)
+                    'status' => 'F',
                     'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.',
-                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
                 ], 422);
             }
         }
@@ -150,17 +138,15 @@ class FeedbackController extends Controller
             $validated['facility_id'] ?? null,
             $validated['booking_id'] ?? null,
             $validated['image'] ?? null,
-            'pending' // Default status
+            'pending'
         );
         
-        // Don't send "Feedback Submitted" confirmation to students
-        // Only notify admins about new feedback
         $this->notifyAdminsAboutFeedback($feedback);
         
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
@@ -168,39 +154,35 @@ class FeedbackController extends Controller
     {
         $feedback = Feedback::with(['user', 'reviewer'])->findOrFail($id);
         
-        // Allow users to view their own feedbacks, or admin to view any
         if (!$request->user()->isAdmin() && $feedback->user_id !== $request->user()->id) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Unauthorized',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 403);
         }
         
-        // If admin/staff views a pending feedback, automatically change status to under_review
-        // This makes under_review mean "admin has seen it and is reviewing/processing it"
-        if (($request->user()->isAdmin() || $request->user()->isStaff()) 
-            && $feedback->status === 'pending') {
+        if ($request->user()->isAdmin() && $feedback->status === 'pending') {
             $feedback->update([
                 'status' => 'under_review',
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
             ]);
-            // Reload to get updated data with reviewer relationship
             $feedback->refresh();
             $feedback->load('reviewer');
         }
         
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
     public function myFeedbacks(Request $request)
     {
         $feedbacks = Feedback::where('user_id', $request->user()->id)
+            ->with(['booking.facility'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->search, fn($q) => $q->where(function($query) use ($request) {
@@ -210,29 +192,36 @@ class FeedbackController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(10)->withQueryString();
         
+        $feedbacks->getCollection()->transform(function ($feedback) {
+            $facilityName = $feedback->booking && $feedback->booking->facility 
+                ? $feedback->booking->facility->name 
+                : null;
+            
+            $feedback->facility_name = $facilityName;
+            
+            return $feedback;
+        });
+        
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedbacks,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get feedbacks for a specific facility type
-     */
     public function getFacilityFeedbacks(Request $request, string $facilityType)
     {
         $feedbacks = Feedback::with(['user'])
             ->where('facility_type', $facilityType)
-            ->where('is_blocked', false) // Only show non-blocked feedbacks
-            ->where('status', '!=', 'rejected') // Exclude rejected feedbacks
+            ->where('is_blocked', false)
+            ->where('status', '!=', 'rejected')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
         
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedbacks,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -240,9 +229,9 @@ class FeedbackController extends Controller
     {
         Feedback::findOrFail($id)->delete();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Deleted',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -258,18 +247,15 @@ class FeedbackController extends Controller
             'status' => 'resolved',
         ]);
 
-        // Reload to get updated relationships
         $feedback->refresh();
         $feedback->load(['user', 'reviewer']);
 
-        // Loyalty points: Trigger feedback_resolved rule when feedback is resolved
         try {
             $rule = LoyaltyRule::where('action_type', 'feedback_resolved')
                 ->where('is_active', true)
                 ->first();
 
             if ($rule) {
-                // Prevent duplicate rewards: Only award once per feedback for the same action_type
                 $existingPoint = LoyaltyPoint::where('user_id', $feedback->user_id)
                     ->where('action_type', 'feedback_resolved')
                     ->where('related_id', $feedback->id)
@@ -288,19 +274,17 @@ class FeedbackController extends Controller
                 }
             }
         } catch (\Exception $e) {
-            // Errors should not affect the feedback update itself
             Log::error("Error awarding loyalty points for feedback resolution: " . $e->getMessage());
         }
 
-        // Send notification to user when feedback is resolved
         if ($originalStatus !== 'resolved') {
             $this->notifyUserAboutFeedbackResolution($feedback);
         }
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -313,9 +297,9 @@ class FeedbackController extends Controller
             'status' => 'blocked',
         ]);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -328,22 +312,17 @@ class FeedbackController extends Controller
             'reviewed_at' => now(),
         ]);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Send confirmation notification to student who submitted the feedback
-     */
     protected function notifyStudentAboutFeedbackSubmission(Feedback $feedback): void
     {
         try {
-            // Load related data
             $feedback->load(['user']);
             
-            // Build notification title and message in English
             $facilityType = $feedback->facility_type ? ucfirst($feedback->facility_type) : 'N/A';
             $typeLabels = [
                 'complaint' => 'Complaint',
@@ -363,7 +342,6 @@ class FeedbackController extends Controller
             $message .= "Feedback ID: #{$feedback->id}\n\n";
             $message .= "Our team will review your feedback and respond soon.";
             
-            // Create notification for the student
             $notification = Notification::create([
                 'title' => $title,
                 'message' => $message,
@@ -376,7 +354,6 @@ class FeedbackController extends Controller
                 'scheduled_at' => now(),
             ]);
             
-            // Sync notification to the student
             $notification->users()->sync([
                 $feedback->user_id => [
                     'is_read' => false,
@@ -397,13 +374,9 @@ class FeedbackController extends Controller
         }
     }
 
-    /**
-     * Send notification to user when their feedback is resolved
-     */
     protected function notifyUserAboutFeedbackResolution(Feedback $feedback): void
     {
         try {
-            // Load related data
             $feedback->load(['user', 'reviewer']);
             
             if (!$feedback->user) {
@@ -413,7 +386,6 @@ class FeedbackController extends Controller
                 return;
             }
             
-            // Build notification title and message in English
             $reviewerName = $feedback->reviewer->name ?? 'Administrator';
             $adminResponse = $feedback->admin_response ?? 'Your feedback has been reviewed and resolved.';
             
@@ -424,7 +396,6 @@ class FeedbackController extends Controller
             $message .= "Admin Response:\n{$adminResponse}\n\n";
             $message .= "You can view the full details in your feedback history.";
             
-            // Create notification for the user
             $notification = Notification::create([
                 'title' => $title,
                 'message' => $message,
@@ -437,7 +408,6 @@ class FeedbackController extends Controller
                 'scheduled_at' => now(),
             ]);
             
-            // Sync notification to the user
             $notification->users()->sync([
                 $feedback->user_id => [
                     'is_read' => false,
@@ -460,16 +430,11 @@ class FeedbackController extends Controller
         }
     }
 
-    /**
-     * Send notification to all admin users about new feedback submission
-     */
     protected function notifyAdminsAboutFeedback(Feedback $feedback): void
     {
         try {
-            // Load related data
             $feedback->load(['user']);
             
-            // Build notification title and message in English
             $userName = $feedback->user->name ?? 'A user';
             $facilityType = $feedback->facility_type ? ucfirst($feedback->facility_type) : 'N/A';
             $typeLabels = [
@@ -490,7 +455,6 @@ class FeedbackController extends Controller
             $message .= "Rating: {$feedback->rating}/5\n";
             $message .= "Feedback ID: #{$feedback->id}";
             
-            // Get all active admin user IDs
             $adminUserIds = User::where('status', 'active')
                 ->where('role', 'admin')
                 ->pluck('id')
@@ -501,7 +465,6 @@ class FeedbackController extends Controller
                 return;
             }
             
-            // Create notification
             $notification = Notification::create([
                 'title' => $title,
                 'message' => $message,
@@ -514,7 +477,6 @@ class FeedbackController extends Controller
                 'scheduled_at' => now(),
             ]);
             
-            // Sync notification to all admin users
             $syncData = [];
             foreach ($adminUserIds as $adminId) {
                 $syncData[$adminId] = [
@@ -536,17 +498,8 @@ class FeedbackController extends Controller
         }
     }
 
-    /**
-     * Web Service API: Get feedbacks by facility ID
-     * This endpoint is exposed for consumption by other modules (e.g., Facility Management Module)
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     */
     public function getFeedbacksByFacilityId(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -558,19 +511,17 @@ class FeedbackController extends Controller
             ], 422);
         }
 
-        // Validate facility_id
         $request->validate([
             'facility_id' => 'required|integer|exists:facilities,id',
         ]);
 
         $facilityId = $request->input('facility_id');
-        $limit = $request->input('limit', 10); // Default limit
+        $limit = $request->input('limit', 10);
 
-        // Get feedbacks for the facility
         $feedbacks = Feedback::with(['user'])
             ->where('facility_id', $facilityId)
-            ->where('is_blocked', false) // Only show non-blocked feedbacks
-            ->where('status', '!=', 'rejected') // Exclude rejected feedbacks
+            ->where('is_blocked', false)
+            ->where('status', '!=', 'rejected')
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
@@ -591,7 +542,6 @@ class FeedbackController extends Controller
                 ];
             });
 
-        // IFA Standard Response Format
         return response()->json([
             'status' => 'S',
             'message' => 'Feedbacks retrieved successfully',
@@ -604,17 +554,8 @@ class FeedbackController extends Controller
         ]);
     }
 
-    /**
-     * Get booking details for a feedback (if feedback is related to booking)
-     * This endpoint uses Booking Module's web service to retrieve booking information
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     */
     public function getBookingDetailsForFeedback(Request $request, string $id)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -628,7 +569,6 @@ class FeedbackController extends Controller
 
         $feedback = Feedback::with(['user', 'facility'])->findOrFail($id);
         
-        // Check if user has permission to view this feedback
         $user = $request->user();
         if (!$user->isAdmin() && $feedback->user_id !== $user->id) {
             return response()->json([
@@ -638,7 +578,6 @@ class FeedbackController extends Controller
             ], 403);
         }
         
-        // Check if feedback is related to a booking
         if (!$feedback->booking_id) {
             return response()->json([
                 'status' => 'F',
@@ -654,7 +593,6 @@ class FeedbackController extends Controller
             ], 404);
         }
         
-        // Use Web Service to get booking information from Booking Module
         $baseUrl = config('app.url', 'http://localhost:8000');
         $apiUrl = rtrim($baseUrl, '/') . '/api/bookings/service/get-info';
         
@@ -667,7 +605,6 @@ class FeedbackController extends Controller
             if ($response->successful()) {
                 $data = $response->json();
                 if ($data['status'] === 'S') {
-                    // IFA Standard Response Format
                     return response()->json([
                         'status' => 'S',
                         'message' => 'Booking details retrieved successfully',
@@ -685,7 +622,6 @@ class FeedbackController extends Controller
                         'timestamp' => now()->format('Y-m-d H:i:s'),
                     ]);
                 } else {
-                    // Booking service returned error
                     Log::warning("Booking service returned error for booking #{$feedback->booking_id}", [
                         'feedback_id' => $feedback->id,
                         'booking_response' => $data,
@@ -700,7 +636,6 @@ class FeedbackController extends Controller
                 ]);
             }
             
-            // Fallback to direct query if web service fails
             Log::info("Falling back to direct query for booking #{$feedback->booking_id}");
             $booking = \App\Models\Booking::with(['user', 'facility', 'attendees', 'slots'])
                 ->findOrFail($feedback->booking_id);
