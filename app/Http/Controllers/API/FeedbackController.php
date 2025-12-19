@@ -77,13 +77,47 @@ class FeedbackController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'facility_type' => 'nullable|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
+            'facility_id' => 'nullable|exists:facilities,id',
+            'booking_id' => 'nullable|exists:bookings,id',
             'type' => 'required|in:complaint,suggestion,compliment,general',
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
             'rating' => 'required|integer|min:1|max:5',
             'image' => 'nullable|string', // base64 image string
         ]);
+        
+        // Validate that booking belongs to the authenticated user (if provided)
+        if (isset($validated['booking_id'])) {
+            $booking = \App\Models\Booking::find($validated['booking_id']);
+            if (!$booking) {
+                return response()->json([
+                    'status' => 'F',
+                    'message' => 'Booking not found',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 404);
+            }
+            
+            if ($booking->user_id !== auth()->id()) {
+                return response()->json([
+                    'status' => 'F',
+                    'message' => 'You can only associate feedback with your own bookings',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 403);
+            }
+            
+            // Check if this booking already has feedback
+            $existingFeedback = Feedback::where('booking_id', $validated['booking_id'])
+                ->where('user_id', auth()->id())
+                ->first();
+            
+            if ($existingFeedback) {
+                return response()->json([
+                    'status' => 'F',
+                    'message' => 'This booking has already been rated. You cannot submit multiple feedbacks for the same booking.',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 422);
+            }
+        }
 
         // Validate base64 image if provided
         if ($request->has('image') && $request->image) {
@@ -113,7 +147,8 @@ class FeedbackController extends Controller
             $validated['subject'],
             $validated['message'],
             $validated['rating'],
-            $validated['facility_type'] ?? null,
+            $validated['facility_id'] ?? null,
+            $validated['booking_id'] ?? null,
             $validated['image'] ?? null,
             'pending' // Default status
         );
@@ -498,6 +533,157 @@ class FeedbackController extends Controller
             Log::error("Failed to send feedback notification to admins: " . $e->getMessage(), [
                 'feedback_id' => $feedback->id ?? null
             ]);
+        }
+    }
+
+    /**
+     * Get booking details for a feedback (if feedback is related to booking)
+     * This endpoint uses Booking Module's web service to retrieve booking information
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     */
+    public function getBookingDetailsForFeedback(Request $request, string $id)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $feedback = Feedback::with(['user', 'facility'])->findOrFail($id);
+        
+        // Check if user has permission to view this feedback
+        $user = $request->user();
+        if (!$user->isAdmin() && $feedback->user_id !== $user->id) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Unauthorized. You can only view booking details for your own feedbacks.',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 403);
+        }
+        
+        // Check if feedback is related to a booking
+        if (!$feedback->booking_id) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'This feedback is not related to a booking',
+                'data' => [
+                    'feedback' => [
+                        'id' => $feedback->id,
+                        'subject' => $feedback->subject,
+                        'type' => $feedback->type,
+                    ],
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 404);
+        }
+        
+        // Use Web Service to get booking information from Booking Module
+        $baseUrl = config('app.url', 'http://localhost:8000');
+        $apiUrl = rtrim($baseUrl, '/') . '/api/bookings/service/get-info';
+        
+        try {
+            $response = Http::timeout(10)->post($apiUrl, [
+                'booking_id' => $feedback->booking_id,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                if ($data['status'] === 'S') {
+                    // IFA Standard Response Format
+                    return response()->json([
+                        'status' => 'S',
+                        'message' => 'Booking details retrieved successfully',
+                        'data' => [
+                            'feedback' => [
+                                'id' => $feedback->id,
+                                'subject' => $feedback->subject,
+                                'type' => $feedback->type,
+                                'rating' => $feedback->rating,
+                                'status' => $feedback->status,
+                                'created_at' => $feedback->created_at ? $feedback->created_at->format('Y-m-d H:i:s') : null,
+                            ],
+                            'booking' => $data['data']['booking'],
+                        ],
+                        'timestamp' => now()->format('Y-m-d H:i:s'),
+                    ]);
+                } else {
+                    // Booking service returned error
+                    Log::warning("Booking service returned error for booking #{$feedback->booking_id}", [
+                        'feedback_id' => $feedback->id,
+                        'booking_response' => $data,
+                    ]);
+                }
+            } else {
+                Log::warning("Failed to get booking info from Booking Module", [
+                    'feedback_id' => $feedback->id,
+                    'booking_id' => $feedback->booking_id,
+                    'status' => $response->status(),
+                    'response' => $response->body(),
+                ]);
+            }
+            
+            // Fallback to direct query if web service fails
+            Log::info("Falling back to direct query for booking #{$feedback->booking_id}");
+            $booking = \App\Models\Booking::with(['user', 'facility', 'attendees', 'slots'])
+                ->findOrFail($feedback->booking_id);
+            
+            return response()->json([
+                'status' => 'S',
+                'message' => 'Booking details retrieved successfully (via direct query)',
+                'data' => [
+                    'feedback' => [
+                        'id' => $feedback->id,
+                        'subject' => $feedback->subject,
+                        'type' => $feedback->type,
+                        'rating' => $feedback->rating,
+                        'status' => $feedback->status,
+                        'created_at' => $feedback->created_at ? $feedback->created_at->format('Y-m-d H:i:s') : null,
+                    ],
+                    'booking' => [
+                        'id' => $booking->id,
+                        'user_id' => $booking->user_id,
+                        'user_name' => $booking->user->name ?? null,
+                        'user_email' => $booking->user->email ?? null,
+                        'facility_id' => $booking->facility_id,
+                        'facility_name' => $booking->facility->name ?? null,
+                        'facility_code' => $booking->facility->code ?? null,
+                        'booking_date' => $booking->booking_date ? $booking->booking_date->format('Y-m-d') : null,
+                        'start_time' => $booking->start_time ? $booking->start_time->format('Y-m-d H:i:s') : null,
+                        'end_time' => $booking->end_time ? $booking->end_time->format('Y-m-d H:i:s') : null,
+                        'duration_hours' => $booking->duration_hours,
+                        'purpose' => $booking->purpose,
+                        'status' => $booking->status,
+                        'expected_attendees' => $booking->expected_attendees,
+                        'created_at' => $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : null,
+                    ],
+                    'attendees_count' => $booking->attendees->count(),
+                    'slots_count' => $booking->slots->count(),
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to get booking details for feedback #{$id}: " . $e->getMessage(), [
+                'feedback_id' => $feedback->id,
+                'booking_id' => $feedback->booking_id,
+                'exception' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'status' => 'E',
+                'message' => 'Failed to retrieve booking details',
+                'error' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 500);
         }
     }
 }

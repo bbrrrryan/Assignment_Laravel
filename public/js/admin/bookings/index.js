@@ -482,16 +482,28 @@ window.confirmCancelBooking = async function() {
     }
 };
 
-// Mark booking as complete
-window.markComplete = async function(id) {
+// Store current booking ID for mark complete
+let currentMarkCompleteBookingId = null;
+
+// Mark booking as complete - show modal
+window.markComplete = function(id) {
     const dropdown = document.getElementById(`booking-dropdown-${id}`);
     if (dropdown) dropdown.classList.remove('show');
     
-    if (typeof showConfirm === 'function') {
-        const confirmed = await showConfirm('Are you sure you want to mark this booking as completed?', 'Mark as Completed');
-        if (!confirmed) return;
-    } else {
-        if (!confirm('Are you sure you want to mark this booking as completed?')) return;
+    currentMarkCompleteBookingId = id;
+    document.getElementById('markCompleteModal').style.display = 'flex';
+};
+
+// Close mark complete modal
+function closeMarkCompleteModal() {
+    document.getElementById('markCompleteModal').style.display = 'none';
+    currentMarkCompleteBookingId = null;
+}
+
+// Confirm mark complete booking
+window.confirmMarkComplete = async function() {
+    if (!currentMarkCompleteBookingId) {
+        return;
     }
     
     if (typeof API === 'undefined') {
@@ -502,20 +514,40 @@ window.markComplete = async function(id) {
         }
         return;
     }
-    const result = await API.put(`/bookings/${id}/mark-complete`);
-            if (result.success) {
-                loadBookings(window.adminCurrentPage || 1);
-                if (typeof showToast !== 'undefined') {
-                    showToast('Booking marked as completed successfully!', 'success');
-                } else {
-                    alert('Booking marked as completed successfully!');
-                }
-    } else {
-        if (typeof showToast !== 'undefined') {
-            showToast(result.error || 'Error marking booking as completed', 'error');
+    
+    const confirmBtn = document.getElementById('confirmMarkCompleteBtn');
+    const originalText = confirmBtn.innerHTML;
+    
+    try {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Marking...';
+        
+        const result = await API.put(`/bookings/${currentMarkCompleteBookingId}/mark-complete`);
+        closeMarkCompleteModal();
+        
+        if (result.success) {
+            loadBookings(window.adminCurrentPage || 1);
+            if (typeof showToast !== 'undefined') {
+                showToast('Booking marked as completed successfully!', 'success');
+            } else {
+                alert('Booking marked as completed successfully!');
+            }
         } else {
-            alert(result.error || 'Error marking booking as completed');
+            if (typeof showToast !== 'undefined') {
+                showToast(result.error || 'Error marking booking as completed', 'error');
+            } else {
+                alert(result.error || 'Error marking booking as completed');
+            }
         }
+    } catch (error) {
+        if (typeof showToast !== 'undefined') {
+            showToast('Error marking booking as completed: ' + (error.message || 'An unexpected error occurred'), 'error');
+        } else {
+            alert('Error marking booking as completed: ' + (error.message || 'An unexpected error occurred'));
+        }
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
     }
 };
 
@@ -1154,7 +1186,7 @@ function displayBookings(bookingsToShow) {
                                             <i class="fas fa-check-circle text-success"></i> Mark Complete
                                         </button>
                                         <button class="dropdown-item" onclick="cancelBooking(${booking.id})">
-                                            <i class="fas fa-ban text-warning"></i> Cancel Booking
+                                            <i class="fas fa-ban text-danger"></i> Cancel Booking
                                         </button>
                                     </div>
                                 </div>

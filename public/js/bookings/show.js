@@ -113,6 +113,22 @@ function displayBookingDetails(booking) {
                 </div>
             </div>
 
+            ${window.isAdmin && booking.user ? `
+            <div class="details-section">
+                <h2>User Information</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Name:</span>
+                    <span class="detail-value">${booking.user.name || 'N/A'}</span>
+                </div>
+                ${booking.user.personal_id ? `
+                <div class="detail-row">
+                    <span class="detail-label">Student ID:</span>
+                    <span class="detail-value">${booking.user.personal_id}</span>
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+
             <div class="details-section">
                 <h2>Facility Information</h2>
                 <div class="detail-row">
@@ -164,16 +180,15 @@ function displayBookingDetails(booking) {
                 ` : ''}
             </div>
 
-            ${booking.status === 'pending' && !window.isAdmin ? `
+            ${(booking.status === 'pending' || booking.status === 'approved') && !window.isAdmin ? `
             <div class="details-actions">
                 <div class="cancel-booking-section">
-                    <div class="cancel-warning">
+                    <p class="cancel-warning-text">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <span>You can cancel this pending booking if needed</span>
-                    </div>
-                    <button class="btn-cancel-booking" onclick="cancelBooking(${booking.id}, this)">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Cancel Booking</span>
+                        You can cancel this ${booking.status} booking if needed
+                    </p>
+                    <button class="btn-danger" onclick="cancelBooking(${booking.id}, this)">
+                        <i class="fas fa-ban"></i> Cancel Booking
                     </button>
                 </div>
             </div>
@@ -181,13 +196,12 @@ function displayBookingDetails(booking) {
             ${booking.status === 'approved' && window.isAdmin ? `
             <div class="details-actions">
                 <div class="cancel-booking-section">
-                    <div class="cancel-warning">
+                    <p class="cancel-warning-text">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <span>You can cancel this approved booking if needed</span>
-                    </div>
-                    <button class="btn-cancel-booking" onclick="adminCancelBooking(${booking.id}, this)">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Cancel Booking</span>
+                        You can cancel this approved booking if needed
+                    </p>
+                    <button class="btn-danger" onclick="adminCancelBooking(${booking.id}, this)">
+                        <i class="fas fa-ban"></i> Cancel Booking
                     </button>
                 </div>
             </div>

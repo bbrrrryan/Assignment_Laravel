@@ -1,5 +1,7 @@
 let feedbacks = [];
 let facilities = [];
+let allBookings = []; // Store all bookings for filtering
+let ratedBookingIds = []; // Store booking IDs that already have feedback
 let selectedImageBase64 = null;
 let paginationData = null;
 let currentPage = 1;
@@ -28,7 +30,8 @@ function initFeedbacks() {
     }
 
     loadFeedbacks();
-    loadFacilities();
+    // Load bookings first, then extract facility types from bookings
+    loadBookings();
 }
 
 async function loadFeedbacks(page = 1) {
@@ -71,37 +74,142 @@ async function loadFeedbacks(page = 1) {
     }
 }
 
-async function loadFacilities() {
-    const result = await API.get('/facilities');
+function loadFacilityTypes() {
+    // Only load facility types for non-admin users (students/staff)
+    if (typeof API !== 'undefined' && API.isAdmin()) {
+        return; // Admin doesn't need this filter
+    }
+
+    // Use already loaded bookings to extract facility types
+    const select = document.getElementById('facilityTypeFilter');
+    if (select && allBookings.length > 0) {
+        // Extract unique facility types from bookings
+        const seenTypes = new Set();
+        const typeOptions = [];
+
+        allBookings.forEach(booking => {
+            const facilityType = booking.facility?.type;
+            if (facilityType) {
+                const key = String(facilityType).toLowerCase();
+                if (!seenTypes.has(key)) {
+                    seenTypes.add(key);
+                    
+                    // Capitalize first letter of each word
+                    const label = String(facilityType)
+                        .toLowerCase()
+                        .split(' ')
+                        .filter(w => w.length > 0)
+                        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ');
+                    
+                    typeOptions.push(`<option value="${facilityType}">${label}</option>`);
+                }
+            }
+        });
+
+        select.innerHTML = '<option value="">All Facility Types</option>' + typeOptions.join('');
+    }
+}
+
+async function loadBookings(facilityTypeFilter = null) {
+    // Only load bookings for non-admin users (students/staff)
+    if (typeof API !== 'undefined' && API.isAdmin()) {
+        return; // Admin doesn't need to select bookings
+    }
+
+    // Load user's feedbacks first to get rated booking IDs
+    await loadRatedBookingIds();
+
+    const result = await API.get('/bookings/user/my-bookings');
 
     if (result.success) {
-        facilities = result.data.data?.data || result.data.data || [];
-        const select = document.getElementById('feedbackFacility');
+        // Store all bookings for filtering
+        allBookings = result.data.data?.data || result.data.data || [];
+        
+        // Filter out bookings that already have feedback
+        allBookings = allBookings.filter(booking => !ratedBookingIds.includes(booking.id));
+        
+        // Filter bookings by facility type if filter is provided
+        let filteredBookings = allBookings;
+        if (facilityTypeFilter) {
+            filteredBookings = allBookings.filter(booking => {
+                const bookingFacilityType = booking.facility?.type;
+                return bookingFacilityType && String(bookingFacilityType).toLowerCase() === String(facilityTypeFilter).toLowerCase();
+            });
+        }
+        
+        const select = document.getElementById('feedbackBooking');
         if (select) {
-            // Build unique list of facility types (no duplicates)
-            const seenTypes = new Set();
-            const options = [];
-
-            facilities.forEach(f => {
-                const rawType = f.type || 'other';
-                const key = String(rawType).toLowerCase();
-
-                if (seenTypes.has(key)) return; // Skip duplicate types
-                seenTypes.add(key);
-
-                // Capitalize first letter of each word
-                const label = String(rawType)
-                    .toLowerCase()
-                    .split(' ')
-                    .filter(w => w.length > 0)
-                    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(' ');
-
-                options.push(`<option value="${rawType}">${label}</option>`);
+            const options = ['<option value="">None</option>'];
+            
+            filteredBookings.forEach(booking => {
+                // Format: "Booking #123 - Facility Name - 2024-01-20"
+                const facilityName = booking.facility?.name || 'Unknown Facility';
+                const bookingDate = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A';
+                const status = booking.status || 'unknown';
+                
+                const label = `Booking #${booking.id} - ${facilityName} - ${bookingDate} (${status})`;
+                options.push(`<option value="${booking.id}">${label}</option>`);
             });
 
-            select.innerHTML = '<option value="">None</option>' + options.join('');
+            select.innerHTML = options.join('');
         }
+        
+        // After loading bookings, populate facility type filter
+        loadFacilityTypes();
+    }
+}
+
+async function loadRatedBookingIds() {
+    // Only load for non-admin users (students/staff)
+    if (typeof API !== 'undefined' && API.isAdmin()) {
+        return;
+    }
+
+    try {
+        const result = await API.get('/feedbacks/user/my-feedbacks');
+        if (result.success) {
+            const userFeedbacks = result.data.data?.data || result.data.data || [];
+            // Extract booking IDs that already have feedback
+            ratedBookingIds = userFeedbacks
+                .filter(feedback => feedback.booking_id !== null && feedback.booking_id !== undefined)
+                .map(feedback => feedback.booking_id);
+        }
+    } catch (error) {
+        console.error('Error loading rated booking IDs:', error);
+        ratedBookingIds = [];
+    }
+}
+
+function filterBookingsByFacilityType() {
+    const facilityTypeFilter = document.getElementById('facilityTypeFilter');
+    const selectedType = facilityTypeFilter ? facilityTypeFilter.value : null;
+    
+    // Filter existing bookings without reloading from API
+    // Note: allBookings already excludes rated bookings
+    const select = document.getElementById('feedbackBooking');
+    if (select && allBookings.length > 0) {
+        let filteredBookings = allBookings;
+        if (selectedType) {
+            filteredBookings = allBookings.filter(booking => {
+                const bookingFacilityType = booking.facility?.type;
+                return bookingFacilityType && String(bookingFacilityType).toLowerCase() === String(selectedType).toLowerCase();
+            });
+        }
+        
+        const options = ['<option value="">None</option>'];
+        
+        filteredBookings.forEach(booking => {
+            // Format: "Booking #123 - Facility Name - 2024-01-20"
+            const facilityName = booking.facility?.name || 'Unknown Facility';
+            const bookingDate = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A';
+            const status = booking.status || 'unknown';
+            
+            const label = `Booking #${booking.id} - ${facilityName} - ${bookingDate} (${status})`;
+            options.push(`<option value="${booking.id}">${label}</option>`);
+        });
+
+        select.innerHTML = options.join('');
     }
 }
 
@@ -339,7 +447,8 @@ function displayPagination() {
 }
 
 window.showCreateModal = function() {
-    loadFacilities();
+    // Facility types are already loaded during initialization
+    // No need to reload them when opening the modal
     const form = document.getElementById('feedbackForm');
     if (form) {
         form.reset();
@@ -772,18 +881,50 @@ document.addEventListener('DOMContentLoaded', function() {
         feedbackForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
+            const bookingId = document.getElementById('feedbackBooking')?.value || null;
+            let facilityId = null;
+            
+            // If booking is selected, get facility_id from the booking
+            if (bookingId) {
+                const selectedBooking = allBookings.find(booking => booking.id == bookingId);
+                if (selectedBooking && selectedBooking.facility_id) {
+                    facilityId = selectedBooking.facility_id;
+                }
+            }
+
             const data = {
                 type: document.getElementById('feedbackType').value,
                 subject: document.getElementById('feedbackSubject').value,
                 message: document.getElementById('feedbackMessage').value,
                 rating: parseInt(document.getElementById('feedbackRating').value),
-                facility_type: document.getElementById('feedbackFacility').value || null,
+                facility_id: facilityId,
+                booking_id: bookingId,
                 image: selectedImageBase64 || null
             };
 
             const result = await API.post('/feedbacks', data);
 
             if (result.success) {
+                // If feedback is associated with a booking, add it to rated list
+                if (data.booking_id) {
+                    ratedBookingIds.push(parseInt(data.booking_id));
+                    // Remove from allBookings if it exists
+                    allBookings = allBookings.filter(booking => booking.id !== parseInt(data.booking_id));
+                    // Update the booking dropdown
+                    const select = document.getElementById('feedbackBooking');
+                    if (select) {
+                        const options = ['<option value="">None</option>'];
+                        allBookings.forEach(booking => {
+                            const facilityName = booking.facility?.name || 'Unknown Facility';
+                            const bookingDate = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A';
+                            const status = booking.status || 'unknown';
+                            const label = `Booking #${booking.id} - ${facilityName} - ${bookingDate} (${status})`;
+                            options.push(`<option value="${booking.id}">${label}</option>`);
+                        });
+                        select.innerHTML = options.join('');
+                    }
+                }
+                
                 // Reset image selection
                 selectedImageBase64 = null;
                 const imageInput = document.getElementById('feedbackImage');

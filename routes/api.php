@@ -33,6 +33,7 @@ Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
 Route::post('/users/service/get-ids', [UserController::class, 'getUserIds']);
 Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
 Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
+Route::post('/bookings/service/get-info', [BookingController::class, 'getBookingInfo']);
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -152,6 +153,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [FeedbackController::class, 'store']);
         Route::get('/user/my-feedbacks', [FeedbackController::class, 'myFeedbacks']);
         Route::get('/facility/{facilityId}', [FeedbackController::class, 'getFacilityFeedbacks']);
+        Route::get('/{id}/booking-details', [FeedbackController::class, 'getBookingDetailsForFeedback']); // Must be before /{id}
         Route::get('/{id}', [FeedbackController::class, 'show']);
         
         // Admin only routes
