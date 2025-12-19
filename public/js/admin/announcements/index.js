@@ -1,3 +1,7 @@
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -9,7 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadAnnouncements(null, null, 1);
     
-    // Add click handlers to sortable headers
     document.querySelectorAll('.sortable').forEach(th => {
         th.style.cursor = 'pointer';
         th.addEventListener('click', function() {
@@ -18,16 +21,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Real-time search on input (debounced)
     const searchInput = document.getElementById('announcementSearchInput');
     const searchClearBtn = document.getElementById('announcementSearchClear');
     if (searchInput) {
         const debouncedSearch = debounce(() => {
             loadAnnouncements(null, null, 1);
-        }, 300); // 300ms delay
+        }, 300);
         
         searchInput.addEventListener('input', function() {
-            // Show/hide clear button
             if (searchClearBtn) {
                 if (this.value.trim()) {
                     searchClearBtn.style.display = 'flex';
@@ -39,7 +40,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Filter changes trigger search
     const typeFilter = document.getElementById('typeFilter');
     const priorityFilter = document.getElementById('priorityFilter');
     const statusFilter = document.getElementById('statusFilter');
@@ -62,7 +62,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Prevent form submission
     const searchForm = document.getElementById('announcementSearchForm');
     if (searchForm) {
         searchForm.addEventListener('submit', function(e) {
@@ -77,7 +76,6 @@ let currentSortOrder = 'desc';
 let currentPage = 1;
 let searchTimeout;
 
-// Debounce function
 function debounce(func, wait) {
     return function executedFunction(...args) {
         const later = () => {
@@ -97,7 +95,6 @@ async function loadAnnouncements(sortBy = null, sortOrder = null, page = 1) {
 
     container.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">Loading announcements...</td></tr>';
     
-    // Show loading indicator
     if (loadingIndicator) {
         loadingIndicator.style.display = 'block';
     }
@@ -107,7 +104,6 @@ async function loadAnnouncements(sortBy = null, sortOrder = null, page = 1) {
     
     if (sortBy !== null) {
         if (currentSortBy === sortBy) {
-            // Toggle sort order
             currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
         } else {
             currentSortBy = sortBy;
@@ -117,7 +113,6 @@ async function loadAnnouncements(sortBy = null, sortOrder = null, page = 1) {
     
     currentPage = page;
     
-    // Get search and filter values
     const searchInput = document.getElementById('announcementSearchInput');
     const typeFilter = document.getElementById('typeFilter');
     const priorityFilter = document.getElementById('priorityFilter');
@@ -159,7 +154,6 @@ async function loadAnnouncements(sortBy = null, sortOrder = null, page = 1) {
         container.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #dc3545;">Error loading announcements: ' + (result.error || 'Unknown error') + '</td></tr>';
     }
     
-    // Hide loading indicator
     if (loadingIndicator) {
         loadingIndicator.style.display = 'none';
     }
@@ -168,12 +162,10 @@ async function loadAnnouncements(sortBy = null, sortOrder = null, page = 1) {
     }
 }
 
-// Perform search function
 function performAnnouncementSearch() {
     loadAnnouncements(null, null, 1);
 }
 
-// Clear announcement search
 function clearAnnouncementSearch() {
     const searchInput = document.getElementById('announcementSearchInput');
     const searchClearBtn = document.getElementById('announcementSearchClear');
@@ -187,13 +179,11 @@ function clearAnnouncementSearch() {
 }
 
 function updateSortIndicators() {
-    // Remove all sort indicators
     document.querySelectorAll('.sort-icon').forEach(icon => {
         icon.className = 'sort-icon';
         icon.textContent = '';
     });
     
-    // Add indicator to current sort column
     const currentSortTh = document.querySelector(`th[data-sort="${currentSortBy}"]`);
     if (currentSortTh) {
         const icon = currentSortTh.querySelector('.sort-icon');
@@ -250,7 +240,6 @@ function displayAnnouncements(announcements, paginationData = null, pageRoot = n
         `;
     }).join('');
     
-    // Render pagination
     if (paginationData && paginationData.links && paginationData.links.length > 0) {
         let paginationHtml = '<ul class="pagination">';
         
@@ -273,7 +262,6 @@ function displayAnnouncements(announcements, paginationData = null, pageRoot = n
         paginationHtml += '</ul>';
         paginationWrapper.innerHTML = paginationHtml;
         
-        // Attach click handlers to pagination links
         paginationWrapper.querySelectorAll('.page-link').forEach(link => {
             if (link.href && !link.closest('.page-item').classList.contains('disabled')) {
                 link.addEventListener('click', function(e) {
@@ -319,7 +307,6 @@ window.closeModal = function() {
     }
 };
 
-// Bind form submit event
 const announcementForm = document.getElementById('announcementForm');
 if (announcementForm) {
     announcementForm.addEventListener('submit', async function(e) {
@@ -336,7 +323,6 @@ if (announcementForm) {
         const result = await API.post('/announcements', data);
 
         if (result.success) {
-            // Publish announcement
             await API.post(`/announcements/${result.data.data.id}/publish`, {});
             
             window.closeModal();

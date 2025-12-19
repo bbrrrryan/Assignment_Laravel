@@ -8,6 +8,7 @@ use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Carbon\Carbon;
 
 class FacilityController extends AdminBaseController
 {
@@ -38,8 +39,21 @@ class FacilityController extends AdminBaseController
             $query->where('status', $request->status);
         }
 
-        // Order by latest
-        $query->latest();
+        // Sorting
+        $sortBy = $request->get('sort_by', 'id'); // Default sort by id
+        $sortOrder = $request->get('sort_order', 'asc'); // Default ascending
+        
+        // Validate sort_by and sort_order
+        $allowedSortFields = ['id', 'name', 'type', 'capacity'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'id';
+        }
+        
+        if (!in_array($sortOrder, ['asc', 'desc'])) {
+            $sortOrder = 'asc';
+        }
+        
+        $query->orderBy($sortBy, $sortOrder);
 
         // Paginate results
         $facilities = $query->paginate(15)->withQueryString();
@@ -79,6 +93,8 @@ class FacilityController extends AdminBaseController
             'available_time.start' => 'nullable|string|date_format:H:i',
             'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
+            'equipment_json' => 'nullable|string',
+            'equipment.*' => 'nullable|string|max:255',
             'rules' => 'nullable|string',
         ]);
 
@@ -114,8 +130,30 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if (isset($validated['equipment']) && is_string($validated['equipment'])) {
-            $validated['equipment'] = json_decode($validated['equipment'], true);
+        // Handle equipment - can be array, JSON string, or from hidden input
+        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
+            $equipmentJson = json_decode($request->equipment_json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
+                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+            }
+        } elseif (isset($validated['equipment'])) {
+            if (is_string($validated['equipment'])) {
+                $decoded = json_decode($validated['equipment'], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $validated['equipment'] = array_filter($decoded);
+                } else {
+                    $validated['equipment'] = null;
+                }
+            } elseif (is_array($validated['equipment'])) {
+                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+            }
+        } else {
+            $validated['equipment'] = null;
+        }
+        
+        // Ensure equipment is null if empty array
+        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
+            $validated['equipment'] = null;
         }
 
         // Set default values
@@ -187,6 +225,8 @@ class FacilityController extends AdminBaseController
             'available_time.start' => 'nullable|string|date_format:H:i',
             'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
             'equipment' => 'nullable|string',
+            'equipment_json' => 'nullable|string',
+            'equipment.*' => 'nullable|string|max:255',
             'rules' => 'nullable|string',
         ]);
 
@@ -231,8 +271,30 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if (isset($validated['equipment']) && is_string($validated['equipment'])) {
-            $validated['equipment'] = json_decode($validated['equipment'], true);
+        // Handle equipment - can be array, JSON string, or from hidden input
+        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
+            $equipmentJson = json_decode($request->equipment_json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
+                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+            }
+        } elseif (isset($validated['equipment'])) {
+            if (is_string($validated['equipment'])) {
+                $decoded = json_decode($validated['equipment'], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $validated['equipment'] = array_filter($decoded);
+                } else {
+                    $validated['equipment'] = null;
+                }
+            } elseif (is_array($validated['equipment'])) {
+                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+            }
+        } else {
+            $validated['equipment'] = null;
+        }
+        
+        // Ensure equipment is null if empty array
+        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
+            $validated['equipment'] = null;
         }
 
         // Handle enable_multi_attendees and max_attendees
@@ -273,6 +335,194 @@ class FacilityController extends AdminBaseController
 
         return redirect()->route('admin.facilities.index')
             ->with('success', 'Facility deleted successfully!');
+    }
+
+    /**
+     * Get facility utilization statistics
+     */
+    public function utilization(string $id, Request $request)
+    {
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
+        
+        $startDate = $request->get('start_date', now()->startOfMonth());
+        $endDate = $request->get('end_date', now()->endOfMonth());
+
+        // Get utilization statistics using shared logic
+        $stats = $this->calculateUtilizationStats($facility, $startDate, $endDate);
+
+        // If this is an API request, return JSON
+        if ($request->wantsJson() || $request->expectsJson()) {
+            return response()->json([
+                'status' => 'S', // IFA Standard
+                'message' => 'Utilization statistics retrieved',
+                'data' => [
+                    'facility' => [
+                        'id' => $stats['facility']->id,
+                        'name' => $stats['facility']->name,
+                        'capacity' => $stats['facility']->capacity,
+                    ],
+                    'period' => [
+                        'start_date' => $stats['start_date'],
+                        'end_date' => $stats['end_date'],
+                    ],
+                    'statistics' => [
+                        'total_bookings' => $stats['total_bookings'],
+                        'total_hours' => round($stats['total_hours'], 2),
+                        'unique_users' => $stats['unique_users'],
+                        'utilization_percentage' => round($stats['utilization_percentage'], 2),
+                        'status_breakdown' => $stats['status_breakdown'],
+                    ],
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            ]);
+        }
+
+        // For web requests, you might want to return a view
+        // For now, return JSON as well
+        return response()->json([
+            'status' => 'S',
+            'data' => $stats,
+        ]);
+    }
+
+    /**
+     * Export facility bookings for a period as CSV
+     */
+    public function exportUtilizationCsv(string $id, Request $request)
+    {
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
+
+        // If no dates are provided, default to the current month
+        $startInput = $request->get('start_date');
+        $endInput = $request->get('end_date');
+
+        if (!$startInput || !$endInput) {
+            $start = now()->startOfMonth();
+            $end = now()->endOfMonth();
+        } else {
+            $start = Carbon::parse($startInput)->startOfDay();
+            $end = Carbon::parse($endInput)->endOfDay();
+        }
+
+        // Get all bookings for this facility within the date range (all statuses)
+        $bookings = $facility->bookings()
+            ->with('user')
+            ->whereBetween('booking_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('booking_date')
+            ->orderBy('start_time')
+            ->get();
+
+        $filename = 'facility_bookings_' . $facility->id . '_' . $start->format('Ymd') . '_to_' . $end->format('Ymd') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($bookings, $facility, $start, $end) {
+            $handle = fopen('php://output', 'w');
+
+            // CSV header (one row per booking)
+            fputcsv($handle, [
+                'booking_id',
+                'facility_id',
+                'facility_code',
+                'facility_name',
+                'user_id',
+                'user_name',
+                'user_email',
+                'booking_date',
+                'start_time',
+                'end_time',
+                'duration_hours',
+                'expected_attendees',
+                'status',
+                'purpose',
+                'created_at',
+                'approved_at',
+                'cancelled_at',
+                'rejection_reason',
+                'cancellation_reason',
+            ]);
+
+            foreach ($bookings as $booking) {
+                fputcsv($handle, [
+                    $booking->id,
+                    $facility->id,
+                    $facility->code,
+                    $facility->name,
+                    $booking->user_id,
+                    optional($booking->user)->name,
+                    optional($booking->user)->email,
+                    $booking->booking_date ? $booking->booking_date->format('Y-m-d') : null,
+                    $booking->start_time ? $booking->start_time->format('Y-m-d H:i:s') : null,
+                    $booking->end_time ? $booking->end_time->format('Y-m-d H:i:s') : null,
+                    $booking->duration_hours,
+                    $booking->expected_attendees,
+                    $booking->status,
+                    $booking->purpose,
+                    $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : null,
+                    $booking->approved_at ? $booking->approved_at->format('Y-m-d H:i:s') : null,
+                    $booking->cancelled_at ? $booking->cancelled_at->format('Y-m-d H:i:s') : null,
+                    $booking->rejection_reason,
+                    $booking->cancellation_reason,
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Shared internal logic to calculate utilization statistics
+     *
+     * @param  \App\Models\Facility  $facility
+     * @param  mixed  $startDate
+     * @param  mixed  $endDate
+     * @return array
+     */
+    private function calculateUtilizationStats(Facility $facility, $startDate, $endDate): array
+    {
+        // Normalize dates to Carbon instances for calculations,
+        // but keep original values so callers can format them as needed.
+        $start = $startDate instanceof Carbon ? $startDate : Carbon::parse($startDate);
+        $end = $endDate instanceof Carbon ? $endDate : Carbon::parse($endDate);
+
+        // Get all approved bookings in the date range
+        $bookings = $facility->bookings()
+            ->whereBetween('booking_date', [$start, $end])
+            ->where('status', 'approved')
+            ->get();
+
+        $totalBookings = $bookings->count();
+        $totalHours = $bookings->sum('duration_hours');
+        $uniqueUsers = $bookings->pluck('user_id')->unique()->count();
+
+        // Calculate utilization percentage (assuming facility is available 8 hours/day)
+        $daysInRange = $start->copy()->startOfDay()->diffInDays($end->copy()->endOfDay()) + 1;
+        $maxPossibleHours = $daysInRange * 8; // Assuming 8 hours per day
+        $utilizationPercentage = $maxPossibleHours > 0 ? ($totalHours / $maxPossibleHours) * 100 : 0;
+
+        // Group by status for the same date range (all statuses)
+        $statusBreakdown = $facility->bookings()
+            ->whereBetween('booking_date', [$start, $end])
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->get()
+            ->pluck('count', 'status');
+
+        return [
+            'facility' => $facility,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'total_bookings' => $totalBookings,
+            'total_hours' => $totalHours,
+            'unique_users' => $uniqueUsers,
+            'utilization_percentage' => $utilizationPercentage,
+            'status_breakdown' => $statusBreakdown,
+        ];
     }
 
     /**

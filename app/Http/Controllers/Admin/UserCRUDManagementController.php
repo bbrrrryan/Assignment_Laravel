@@ -1,4 +1,7 @@
 <?php
+/**
+ * Author: Liew Zi Li
+ */
 
 namespace App\Http\Controllers\Admin;
 
@@ -11,10 +14,6 @@ use Illuminate\Support\Facades\Log;
 
 class UserCRUDManagementController extends AdminBaseController
 {
-    /**
-     * Show the form for creating a new staff user.
-     * Only admin is allowed to access this.
-     */
     public function create()
     {
         $currentUser = auth()->user();
@@ -27,10 +26,6 @@ class UserCRUDManagementController extends AdminBaseController
         return view('admin.users.create');
     }
 
-    /**
-     * Store a newly created staff user in storage.
-     * Role is fixed as 'staff' and cannot be changed here.
-     */
     public function store(Request $request)
     {
         $currentUser = auth()->user();
@@ -58,7 +53,7 @@ class UserCRUDManagementController extends AdminBaseController
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => 'staff', // fixed role for this create flow
+            'role' => 'staff',
             'status' => 'active',
             'phone_number' => $request->phone_number ?: null,
             'address' => $request->address ?: null,
@@ -71,14 +66,10 @@ class UserCRUDManagementController extends AdminBaseController
             ->with('success', 'Staff user created successfully');
     }
 
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = User::query();
 
-        // Search filter
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -87,28 +78,21 @@ class UserCRUDManagementController extends AdminBaseController
             });
         }
 
-        // Status filter
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        // Role filter
         if ($request->has('role') && $request->role) {
             $query->where('role', $request->role);
         }
 
-        // Order by latest
         $query->latest();
 
-        // Paginate results
         $users = $query->paginate(10)->withQueryString();
 
         return view('admin.users.index', compact('users'));
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
         $user = User::with(['activityLogs' => function($query) {
@@ -118,18 +102,12 @@ class UserCRUDManagementController extends AdminBaseController
         return view('admin.users.show', compact('user'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(string $id)
     {
         $user = User::findOrFail($id);
         return view('admin.users.edit', compact('user'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
@@ -152,19 +130,15 @@ class UserCRUDManagementController extends AdminBaseController
 
         $updateData = $request->only(['name', 'email', 'phone_number', 'address']);
         
-        // Only admin can change status to inactive
         if ($request->has('status')) {
             if ($currentUser->isAdmin()) {
-                // Admin can set status to active or inactive
                 $updateData['status'] = $request->status;
             } else {
-                // Staff can only set status to active, not inactive
                 if ($request->status === 'inactive') {
                     return redirect()->back()
                         ->withErrors(['status' => 'Only admin can set user to inactive'])
                         ->withInput();
                 }
-                // Staff can set status to active
                 $updateData['status'] = $request->status;
             }
         }
@@ -179,9 +153,6 @@ class UserCRUDManagementController extends AdminBaseController
             ->with('success', 'User updated already');
     }
 
-    /**
-     * Export users to CSV
-     */
     public function exportCsv()
     {
         $users = User::all();
@@ -196,15 +167,13 @@ class UserCRUDManagementController extends AdminBaseController
         $callback = function() use ($users) {
             $file = fopen('php://output', 'w');
             
-            // Add CSV headers
             fputcsv($file, ['name', 'email', 'password', 'role', 'phone_number', 'address', 'status']);
             
-            // Add user data
             foreach ($users as $user) {
                 fputcsv($file, [
                     $user->name,
                     $user->email,
-                    $user->password, // Export hashed password (never plain text)
+                    $user->password,
                     $user->role,
                     $user->phone_number ?? '',
                     $user->address ?? '',
@@ -218,12 +187,8 @@ class UserCRUDManagementController extends AdminBaseController
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Upload CSV to create multiple users
-     */
     public function uploadCsv(Request $request)
     {
-        // Check if this is an AJAX request
         $isAjax = $request->ajax() || $request->wantsJson() || $request->expectsJson();
         
         $request->validate([
@@ -233,12 +198,9 @@ class UserCRUDManagementController extends AdminBaseController
         $file = $request->file('csv_file');
         $path = $file->getRealPath();
         
-        // Read file content and handle encoding
         $content = file_get_contents($path);
-        // Remove BOM if present
         $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
         
-        // Parse CSV lines
         $lines = str_getcsv($content, "\n");
         $data = [];
         foreach ($lines as $line) {
@@ -247,7 +209,6 @@ class UserCRUDManagementController extends AdminBaseController
             }
         }
         
-        // Remove header row
         if (empty($data)) {
             if ($isAjax) {
                 return response()->json([
@@ -270,14 +231,12 @@ class UserCRUDManagementController extends AdminBaseController
         
         try {
             foreach ($data as $index => $row) {
-                // Skip if row is empty or has insufficient columns
                 if (empty($row) || count($row) < 3) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": Empty row or insufficient columns";
                     continue;
                 }
 
-                // Trim all values and map CSV columns: name, email, password, role, phone_number, address, status
                 $userData = [
                     'name' => trim($row[0] ?? ''),
                     'email' => trim($row[1] ?? ''),
@@ -288,12 +247,10 @@ class UserCRUDManagementController extends AdminBaseController
                     'status' => isset($row[6]) ? trim($row[6]) : 'active',
                 ];
 
-                // Skip if all required fields are empty (empty row)
                 if (empty($userData['name']) && empty($userData['email']) && empty($userData['password'])) {
-                    continue; // Skip empty rows silently
+                    continue;
                 }
 
-                // Validate required fields
                 if (empty($userData['name'])) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": Need to fill in name";
@@ -306,51 +263,42 @@ class UserCRUDManagementController extends AdminBaseController
                     continue;
                 }
 
-                // If password is empty, use phone_number as password, otherwise use default password
                 if (empty($userData['password'])) {
                     if (!empty($userData['phone_number'])) {
-                        // Use phone_number as password
                         $userData['password'] = $userData['phone_number'];
                     } else {
-                        // Use default password if phone_number is also empty
                         $userData['password'] = '123456';
                     }
                 }
 
-                // Validate email format
                 if (!filter_var($userData['email'], FILTER_VALIDATE_EMAIL)) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": Email format wrong ({$userData['email']})";
                     continue;
                 }
 
-                // Check if email already exists
                 if (User::where('email', $userData['email'])->exists()) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": This email already got ({$userData['email']})";
                     continue;
                 }
 
-                // Validate role
                 $userData['role'] = strtolower($userData['role']);
                 if (!in_array($userData['role'], ['admin', 'student', 'staff'])) {
-                    $userData['role'] = 'student'; // Default to student if invalid
+                    $userData['role'] = 'student';
                 }
 
-                // Validate status
                 $userData['status'] = strtolower($userData['status']);
                 if (!in_array($userData['status'], ['active', 'inactive'])) {
-                    $userData['status'] = 'active'; // Default to active if invalid
+                    $userData['status'] = 'active';
                 }
 
-                // Validate password length (after using phone_number or default password if needed)
                 if (strlen($userData['password']) < 6) {
                     $errorCount++;
                     $errors[] = "Row " . ($index + 2) . ": Password need at least 6 characters";
                     continue;
                 }
 
-                // Clean up empty optional fields
                 if (empty($userData['phone_number'])) {
                     $userData['phone_number'] = null;
                 }
@@ -358,13 +306,9 @@ class UserCRUDManagementController extends AdminBaseController
                     $userData['address'] = null;
                 }
 
-                // Create user
-                // If password already looks like a bcrypt hash (e.g. exported from system),
-                // store it as-is. Otherwise, hash the plain text password.
                 $rawPassword = $userData['password'];
                 $hashedPassword = $rawPassword;
                 if (!preg_match('/^\$2y\$\d{2}\$.{53}$/', $rawPassword)) {
-                    // Not a bcrypt hash, so hash it before saving
                     $hashedPassword = Hash::make($rawPassword);
                 }
 
@@ -391,7 +335,6 @@ class UserCRUDManagementController extends AdminBaseController
 
             DB::commit();
 
-            // Return JSON response for API
             if ($isAjax) {
                 $message = "Done! Created {$successCount} user";
                 if ($successCount != 1) {
@@ -415,7 +358,6 @@ class UserCRUDManagementController extends AdminBaseController
                 ]);
             }
 
-            // Fallback to redirect for non-AJAX requests
             $message = "Done! Created {$successCount} user";
             if ($successCount != 1) {
                 $message .= "s";
@@ -435,7 +377,6 @@ class UserCRUDManagementController extends AdminBaseController
             DB::rollBack();
             Log::error('CSV Import Error: ' . $e->getMessage());
             
-            // Return JSON response for API
             if ($isAjax) {
                 return response()->json([
                     'success' => false,

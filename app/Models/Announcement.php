@@ -1,4 +1,7 @@
 <?php
+/**
+ * Author: Liew Zi Li
+ */
 
 namespace App\Models;
 
@@ -29,7 +32,6 @@ class Announcement extends Model
         'is_active' => 'boolean',
     ];
 
-    // Relationships
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -1,32 +1,6 @@
 <?php
 /**
  * Author: Liew Zi Li
- * Module: User Management Module
- * 
- * @property int $id
- * @property string $name
- * @property string $email
- * @property string $password
- * @property string $role
- * @property string $status
- * @property string|null $phone_number
- * @property string|null $address
- * @property \Illuminate\Support\Carbon|null $last_login_at
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * 
- * @property-read \Illuminate\Database\Eloquent\Collection<int, UserActivityLog> $activityLogs
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Notification> $notifications
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoyaltyPoint> $loyaltyPoints
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Certificate> $certificates
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Reward> $rewards
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Feedback> $feedbacks
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Booking> $bookings
- * 
- * @method \Illuminate\Database\Eloquent\Relations\HasMany activityLogs()
- * @method bool update(array $attributes = [])
- * @method bool save(array $options = [])
- * @method static self fresh(array|string $with = [])
  */
 
 namespace App\Models;
@@ -66,7 +40,6 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
-    // Relationships
     public function activityLogs()
     {
         return $this->hasMany(UserActivityLog::class);
@@ -113,15 +86,11 @@ class User extends Authenticatable
         return $this->hasMany(Booking::class);
     }
 
-    // Helper methods
     public function getTotalPointsAttribute()
     {
         return $this->loyaltyPoints()->sum('points');
     }
 
-    /**
-     * Check if user is admin - using simple if-else
-     */
     public function isAdmin()
     {
         $role = strtolower($this->role ?? '');
@@ -133,9 +102,6 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * Check if user is staff - using simple if-else
-     */
     public function isStaff()
     {
         $role = strtolower($this->role ?? '');
@@ -147,9 +113,6 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * Check if user is student - using simple if-else
-     */
     public function isStudent()
     {
         $role = strtolower($this->role ?? '');
@@ -161,15 +124,6 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * Generate a unique student personal ID
-     * Format: YYWMR##### (e.g., 25WMR00001)
-     * YY: 2-digit year (e.g., 25 for 2025)
-     * WMR: Fixed prefix
-     * #####: 5-digit sequential number starting from 00001
-     * 
-     * @return string
-     */
     public static function generateStudentId()
     {
         $year = date('y');
@@ -190,14 +144,6 @@ class User extends Authenticatable
         return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Generate a unique staff personal ID
-     * Format: p#### (e.g., p0001, p0002, p0003...)
-     * p: Fixed prefix
-     * ####: 4-digit sequential number starting from 0001
-     * 
-     * @return string
-     */
     public static function generateStaffId()
     {
         $prefix = 'p';
@@ -208,7 +154,6 @@ class User extends Authenticatable
             ->first();
         
         if ($lastStaff && $lastStaff->personal_id) {
-            // Extract number from personal_id (e.g., "p0001" -> 1)
             $lastNumber = intval(substr($lastStaff->personal_id, 1));
             $nextNumber = $lastNumber + 1;
         } else {

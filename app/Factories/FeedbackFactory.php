@@ -20,12 +20,11 @@ class FeedbackFactory
      * @param string $message
      * @param int $rating (1-5)
      * @param int|null $facilityId
-     * @param int|null $bookingId
      * @param string|null $image (base64 image string)
      * @param string|null $status ('pending', 'reviewed', 'resolved', 'rejected')
      * @return Feedback
      */
-    public static function makeFeedback($userId, $type, $subject, $message, $rating, $facilityId = null, $bookingId = null, $image = null, $status = 'pending')
+    public static function makeFeedback($userId, $type, $subject, $message, $rating, $facilityId = null, $image = null, $status = 'pending')
     {
         // Normalize feedback type
         $normalizedType = strtolower(trim($type));
@@ -72,7 +71,6 @@ class FeedbackFactory
         return Feedback::create([
             'user_id' => $userId,
             'facility_id' => $facilityId,
-            'booking_id' => $bookingId,
             'type' => $typeName,
             'subject' => $subject,
             'message' => $message,

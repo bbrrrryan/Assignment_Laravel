@@ -1,5 +1,7 @@
-// Author: Liew Zi Li (notification management)
-// wait for dom and api to be ready
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('api.js not loaded!');
@@ -22,7 +24,6 @@ function initNotifications() {
     loadNotifications(1, '');
 }
 
-// debounce function to make sure not call too many times
 function debounce(func, wait) {
     return function executedFunction(...args) {
         const later = () => {
@@ -34,26 +35,22 @@ function debounce(func, wait) {
     };
 }
 
-// initialize search functionality
 function initSearch() {
     const searchInput = document.getElementById('notificationSearchInput');
     const searchClearBtn = document.getElementById('notificationSearchClear');
     const isAdmin = API.isAdmin();
     
-    // only show search for regular users
     if (isAdmin) {
         return;
     }
     
     if (searchInput) {
-        // debounced search on input
         const debouncedSearch = debounce(() => {
             const searchTerm = searchInput.value.trim();
             loadNotifications(1, searchTerm);
-        }, 300); // 300ms delay
+        }, 300);
         
         searchInput.addEventListener('input', function() {
-            // show/hide clear button
             if (searchClearBtn) {
                 if (this.value.trim()) {
                     searchClearBtn.style.display = 'flex';
@@ -65,7 +62,6 @@ function initSearch() {
         });
     }
     
-    // clear search button
     if (searchClearBtn) {
         searchClearBtn.addEventListener('click', function() {
             if (searchInput) {
@@ -89,7 +85,6 @@ async function loadNotifications(page = 1, search = '') {
         let items = [];
         
         if (isAdmin) {
-            // for admin: show pending bookings
             document.getElementById('pageTitle').textContent = 'Pending Bookings';
             
             const bookingsResult = await API.get('/bookings/pending?limit=100');
@@ -107,20 +102,17 @@ async function loadNotifications(page = 1, search = '') {
                 }));
             }
         } else {
-            // for regular users: show announcements and notifications
             document.getElementById('pageTitle').textContent = 'Announcements & Notifications';
             const pageSubtitle = document.getElementById('pageSubtitle');
             if (pageSubtitle) {
                 pageSubtitle.textContent = 'View and manage your announcements and notifications';
             }
             
-            // show search section for regular users only
             const searchSection = document.getElementById('searchSection');
             if (searchSection) {
                 searchSection.style.display = 'block';
             }
             
-            // get items with pagination (10 per page) and search
             let apiUrl = `/notifications/user/unread-items?per_page=10&page=${page}`;
             if (search) {
                 apiUrl += `&search=${encodeURIComponent(search)}`;
@@ -129,7 +121,6 @@ async function loadNotifications(page = 1, search = '') {
             console.log('unread items api response:', result);
             
             if (result && result.success && result.data) {
-                // api.js wraps laravel response, so structure is: result.data.data.items
                 const responseData = result.data.data || result.data;
                 
                 if (responseData && Array.isArray(responseData.items)) {
@@ -156,12 +147,11 @@ function displayNotifications(items, isAdmin, pagination = null) {
     const container = document.getElementById('notificationsList');
 
     if (items.length === 0) {
-        container.innerHTML = '<p>no items found</p>';
+        container.innerHTML = '<p>NO ITEMS FOUND</p>';
         return;
     }
     
     if (isAdmin) {
-        // display bookings for admin
         container.innerHTML = `
             <table class="notification-table">
                 <thead>
@@ -202,9 +192,8 @@ function displayNotifications(items, isAdmin, pagination = null) {
             </table>
         `;
         } else {
-            // display announcements and notifications for regular users
             if (items.length === 0) {
-                container.innerHTML = '<div class="table-container"><table class="notification-table"><tbody><tr><td colspan="6" class="text-center">no items found</td></tr></tbody></table></div>';
+                container.innerHTML = '<div class="table-container"><table class="notification-table"><tbody><tr><td colspan="6" class="text-center">NO ITEMS FOUND</td></tr></tbody></table></div>';
                 return;
             }
             
@@ -257,11 +246,9 @@ function displayNotifications(items, isAdmin, pagination = null) {
             </table>
         `;
         
-        // render pagination after table
         if (pagination) {
             const paginationHtml = renderPagination(pagination);
             container.innerHTML += paginationHtml;
-            // attach event listeners after pagination is rendered
             setTimeout(attachPaginationListeners, 0);
         }
     }
@@ -282,7 +269,6 @@ function renderPagination(pagination) {
     paginationHtml += `<div class="pagination-info">Showing ${from}-${to} / total ${total} items</div>`;
     paginationHtml += '<div class="pagination-buttons">';
     
-    // previous button
     if (currentPageNum > 1) {
         paginationHtml += `<button class="btn-pagination" data-page="${currentPageNum - 1}">
             <i class="fas fa-chevron-left"></i> Previous
@@ -293,7 +279,6 @@ function renderPagination(pagination) {
         </button>`;
     }
     
-    // page numbers
     let startPage = Math.max(1, currentPageNum - 2);
     let endPage = Math.min(lastPage, currentPageNum + 2);
     
@@ -319,7 +304,6 @@ function renderPagination(pagination) {
         paginationHtml += `<button class="btn-pagination" data-page="${lastPage}">${lastPage}</button>`;
     }
     
-    // next button
     if (currentPageNum < lastPage) {
         paginationHtml += `<button class="btn-pagination" data-page="${currentPageNum + 1}">
             Next <i class="fas fa-chevron-right"></i>
@@ -334,7 +318,6 @@ function renderPagination(pagination) {
     return paginationHtml;
 }
 
-// attach pagination event listeners
 function attachPaginationListeners() {
     document.querySelectorAll('.pagination-wrapper .btn-pagination[data-page]').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -352,7 +335,6 @@ async function toggleStar(type, id, event) {
     try {
         const result = await API.put(`/notifications/star/${type}/${id}`, {});
         if (result.success) {
-            // reload current page to reflect the change
             loadNotifications(currentPage, currentSearch);
         } else {
             alert('Error: ' + (result.error || 'Failed to toggle star'));
@@ -380,13 +362,11 @@ function formatDateTime(dateString) {
     return date.toLocaleString();
 }
 
-// handle row click - mark as read and navigate
 async function handleRowClick(event, type, id, isRead, url) {
     if (event) {
         event.stopPropagation();
     }
     
-    // for regular users, mark as read if not already read
     if (!isRead) {
         try {
             if (type === 'announcement') {
@@ -399,7 +379,6 @@ async function handleRowClick(event, type, id, isRead, url) {
         }
     }
     
-    // navigate to detail page
     window.location.href = url;
 }
 
@@ -443,7 +422,6 @@ window.markAsUnread = async function(type, id, event) {
     }
 };
 
-// admin functions for booking approval/rejection
 window.approveBookingFromPage = async function(bookingId, event) {
     if (event) {
         event.stopPropagation();

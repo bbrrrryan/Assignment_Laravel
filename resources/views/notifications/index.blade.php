@@ -12,7 +12,6 @@
         </div>
     </div>
 
-    <!-- Search Section -->
     <div class="filters-section" id="searchSection" style="display: none;">
         <div class="filters-card">
             <div class="filters-form">
@@ -29,7 +28,6 @@
         </div>
     </div>
 
-    <!-- Notifications Table -->
     <div id="notificationsList" class="table-container">
         <p>Loading...</p>
     </div>

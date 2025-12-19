@@ -104,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/points', [LoyaltyController::class, 'getPoints']);
         Route::get('/points/history', [LoyaltyController::class, 'pointsHistory']);
         Route::get('/rewards', [LoyaltyController::class, 'getRewards']);
+        Route::get('/rewards/my', [LoyaltyController::class, 'myRewards']);
         Route::post('/rewards/redeem', [LoyaltyController::class, 'redeemReward']);
         Route::get('/certificates', [LoyaltyController::class, 'getCertificates']);
         
@@ -176,8 +177,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{id}', [FacilityController::class, 'update']);
             Route::delete('/{id}', [FacilityController::class, 'destroy']);
             Route::get('/reports/summary', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getFacilityReports']);
-            Route::get('/{id}/utilization', [FacilityController::class, 'utilization']);
-            Route::get('/{id}/utilization/export-csv', [FacilityController::class, 'exportUtilizationCsv']);
+            Route::get('/{id}/utilization', [\App\Http\Controllers\Admin\FacilityController::class, 'utilization']);
+            Route::get('/{id}/utilization/export-csv', [\App\Http\Controllers\Admin\FacilityController::class, 'exportUtilizationCsv']);
         });
     });
 

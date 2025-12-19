@@ -14,7 +14,6 @@ class Feedback extends Model
     protected $fillable = [
         'user_id',
         'facility_id',
-        'booking_id',
         'type',
         'subject',
         'message',
@@ -42,11 +41,6 @@ class Feedback extends Model
     public function facility()
     {
         return $this->belongsTo(Facility::class);
-    }
-
-    public function booking()
-    {
-        return $this->belongsTo(Booking::class);
     }
 
     public function reviewer()

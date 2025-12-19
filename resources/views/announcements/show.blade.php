@@ -1,3 +1,4 @@
+{{-- Author: Liew Zi Li --}}
 @extends('layouts.app')
 
 @section('title', 'Announcement Details - TARUMT FMS')
@@ -32,7 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadAnnouncementDetails() {
     const announcementId = {{ $id }};
     
-    // Mark announcement as read when viewing details
     try {
         await API.put(`/announcements/${announcementId}/read`, {});
     } catch (error) {

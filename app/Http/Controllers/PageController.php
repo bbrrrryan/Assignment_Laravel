@@ -1,7 +1,6 @@
 <?php
 /**
  * Author: Liew Zi Li
- * Module: User Management Module
  */
 
 namespace App\Http\Controllers;
@@ -22,7 +21,6 @@ class PageController extends Controller
         $users = User::all(); 
         return view('users.index', compact('users'));
     }
-    // ------------------
 
     public function create()
     {
@@ -52,7 +50,6 @@ class PageController extends Controller
         }
     }
 
-    // Authentication Views
     public function showLogin()
     {
         return view('auth.login');
@@ -65,17 +62,14 @@ class PageController extends Controller
 
     public function showVerifyOtp(Request $request)
     {
-        // Ensure email is passed and valid
         $email = $request->query('email');
         
         if (!$email) {
-            // If no email in URL, redirect to register
             return redirect()->route('register')
                 ->with('toast_message', 'Please register first to verify your email.')
                 ->with('toast_type', 'info');
         }
         
-        // Validate email format
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return redirect()->route('register')
                 ->with('toast_message', 'Invalid email address.')
@@ -85,13 +79,11 @@ class PageController extends Controller
         return view('auth.verify-otp', ['email' => $email]);
     }
 
-    // Dashboard
     public function dashboard()
     {
         return view('dashboard');
     }
 
-    // Facilities
     public function facilities()
     {
         return view('facilities.index');
@@ -102,7 +94,6 @@ class PageController extends Controller
         return view('facilities.show', compact('id'));
     }
 
-    // Bookings (User)
     public function bookings()
     {
         return view('bookings.index');
@@ -118,13 +109,11 @@ class PageController extends Controller
         return view('bookings.show', compact('id'));
     }
     
-    // Admin Bookings
     public function adminBookings()
     {
         return view('admin.bookings.index');
     }
 
-    // Notifications
     public function notifications()
     {
         return view('notifications.index');
@@ -135,22 +124,18 @@ class PageController extends Controller
         return view('notifications.show', compact('id'));
     }
 
-    // Admin Notifications
     public function adminNotifications()
     {
         return view('admin.notifications.index');
     }
 
-    // Announcements
     public function showAnnouncement($id)
     {
         return view('announcements.show', compact('id'));
     }
 
-    // Loyalty
     public function loyalty()
     {
-        // Redirect admins to admin loyalty management
         if (auth()->check() && auth()->user()->isAdmin()) {
             return redirect()->route('admin.loyalty.index');
         }
@@ -162,7 +147,6 @@ class PageController extends Controller
         return view('admin.loyalty.index');
     }
 
-    // Feedback
     public function feedbacks()
     {
         return view('feedbacks.index');
@@ -173,7 +157,6 @@ class PageController extends Controller
         return view('feedbacks.show', compact('id'));
     }
 
-    // Profile
     public function profile()
     {
         return view('profile.index');

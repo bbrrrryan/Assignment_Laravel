@@ -1,3 +1,7 @@
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -22,7 +26,6 @@ async function loadProfile() {
 }
 
 function displayProfile(user) {
-    // Display header info
     document.getElementById('profileName').textContent = user.name || 'N/A';
     document.getElementById('profileEmail').textContent = user.email || 'N/A';
     
@@ -30,7 +33,6 @@ function displayProfile(user) {
     document.getElementById('profileRole').textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
     document.getElementById('profileRole').className = 'role-badge role-' + roleName.toLowerCase();
 
-    // Show personal_id if user is a student or staff
     const studentIdElement = document.getElementById('profileStudentId');
     if ((user.role === 'student' || user.role === 'staff') && user.personal_id) {
         studentIdElement.textContent = user.personal_id;
@@ -40,7 +42,6 @@ function displayProfile(user) {
         studentIdElement.style.display = 'none';
     }
 
-    // Fill form fields
     document.getElementById('profileNameInput').value = user.name || '';
     document.getElementById('profileEmailInput').value = user.email || '';
     document.getElementById('profilePhoneInput').value = user.phone_number || '';
@@ -48,7 +49,6 @@ function displayProfile(user) {
     document.getElementById('profileRoleInput').value = roleName;
     document.getElementById('profileStatusInput').value = user.status || 'N/A';
 
-    // Clear password fields
     document.getElementById('newPasswordInput').value = '';
     document.getElementById('confirmPasswordInput').value = '';
 }
@@ -91,11 +91,9 @@ async function updateProfile() {
         }
         loadProfile();
         
-        // Update localStorage user data
         const updatedUser = result.data.data;
         localStorage.setItem('user', JSON.stringify(updatedUser));
         
-        // Update header name
         const headerName = document.querySelector('#authLinks span');
         if (headerName) {
             headerName.textContent = updatedUser.name || 'User';
