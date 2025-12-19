@@ -6,6 +6,7 @@ use App\Models\Facility;
 use App\Models\User;
 use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
+use App\Strategies\FacilityValidationContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
@@ -75,28 +76,29 @@ class FacilityController extends AdminBaseController
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:facilities,code',
-            'type' => 'required|in:classroom,laboratory,sports,auditorium,library',
-            'location' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'description' => 'nullable|string',
-            'status' => 'nullable|in:available,maintenance,unavailable,reserved',
+        // Step 1: Validate basic fields including type
+        $basicValidated = $request->validate([
+            'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'max_booking_hours' => 'nullable|integer|min:1|max:24',
-            'enable_multi_attendees' => 'nullable|boolean',
-            'max_attendees' => 'nullable|integer|min:1|lte:capacity|required_if:enable_multi_attendees,1',
-            'available_day' => 'nullable|array',
-            'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'available_time' => 'nullable|array',
-            'available_time.start' => 'nullable|string|date_format:H:i',
-            'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
-            'equipment' => 'nullable|string',
-            'equipment_json' => 'nullable|string',
-            'equipment.*' => 'nullable|string|max:255',
-            'rules' => 'nullable|string',
         ]);
+
+        // Step 2: Create strategy context based on facility type
+        $context = new FacilityValidationContext($basicValidated['type']);
+
+        // Step 3: Get all request data and validate using strategy
+        $data = $request->all();
+        $validation = $context->validate($data);
+        
+        if (!$validation['valid']) {
+            return back()->withErrors($validation['errors'])->withInput();
+        }
+
+        // Step 4: Get default values from strategy and merge with request data
+        $defaults = $context->getDefaultValues();
+        $validated = array_merge($defaults, $data);
+
+        // Step 5: Process data before save using strategy
+        $validated = $context->processBeforeSave($validated);
 
         // Handle image upload
         if ($request->hasFile('image')) {
@@ -156,14 +158,8 @@ class FacilityController extends AdminBaseController
             $validated['equipment'] = null;
         }
 
-        // Set default values
+        // Set status default if not provided
         $validated['status'] = $validated['status'] ?? 'available';
-        $validated['max_booking_hours'] = $validated['max_booking_hours'] ?? 4;
-        $validated['enable_multi_attendees'] = $validated['enable_multi_attendees'] ?? false;
-        // If multi-attendees is disabled, set max_attendees to null
-        if (!($validated['enable_multi_attendees'] ?? false)) {
-            $validated['max_attendees'] = null;
-        }
 
         // Set created_by and updated_by to current admin user
         $currentUserId = auth()->id();
@@ -225,28 +221,26 @@ class FacilityController extends AdminBaseController
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:facilities,code,' . $id,
-            'type' => 'required|in:classroom,laboratory,sports,auditorium,library',
-            'location' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'description' => 'nullable|string',
-            'status' => 'nullable|in:available,maintenance,unavailable,reserved',
+        // Step 1: Validate basic fields including type
+        $basicValidated = $request->validate([
+            'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'max_booking_hours' => 'nullable|integer|min:1|max:24',
-            'enable_multi_attendees' => 'nullable|boolean',
-            'max_attendees' => 'nullable|integer|min:1|lte:capacity|required_if:enable_multi_attendees,1',
-            'available_day' => 'nullable|array',
-            'available_day.*' => 'nullable|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'available_time' => 'nullable|array',
-            'available_time.start' => 'nullable|string|date_format:H:i',
-            'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
-            'equipment' => 'nullable|string',
-            'equipment_json' => 'nullable|string',
-            'equipment.*' => 'nullable|string|max:255',
-            'rules' => 'nullable|string',
         ]);
+
+        // Step 2: Determine facility type (use new type if changed, otherwise use existing)
+        $facilityType = $basicValidated['type'] ?? $facility->type;
+        $context = new FacilityValidationContext($facilityType);
+
+        // Step 3: Get all request data and validate using strategy (pass existing facility for uniqueness check)
+        $data = $request->all();
+        $validation = $context->validate($data, $facility);
+        
+        if (!$validation['valid']) {
+            return back()->withErrors($validation['errors'])->withInput();
+        }
+
+        // Step 4: Process data before save using strategy
+        $validated = $context->processBeforeSave($data);
 
         // Handle image upload
         if ($request->hasFile('image')) {
@@ -313,13 +307,6 @@ class FacilityController extends AdminBaseController
         // Ensure equipment is null if empty array
         if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
             $validated['equipment'] = null;
-        }
-
-        // Handle enable_multi_attendees and max_attendees
-        $validated['enable_multi_attendees'] = $validated['enable_multi_attendees'] ?? false;
-        // If multi-attendees is disabled, set max_attendees to null
-        if (!($validated['enable_multi_attendees'] ?? false)) {
-            $validated['max_attendees'] = null;
         }
 
         // Check if status is being changed

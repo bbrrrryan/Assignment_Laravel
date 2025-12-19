@@ -174,11 +174,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [FacilityController::class, 'show']);
         Route::get('/{id}/availability', [FacilityController::class, 'availability']);
         
-        // Admin only routes
+        // Admin only routes - CRUD operations handled by Admin\FacilityController via web routes
         Route::middleware('admin')->group(function () {
-            Route::post('/', [FacilityController::class, 'store']);
-            Route::put('/{id}', [FacilityController::class, 'update']);
-            Route::delete('/{id}', [FacilityController::class, 'destroy']);
             Route::get('/reports/summary', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getFacilityReports']);
             Route::get('/{id}/utilization', [\App\Http\Controllers\Admin\FacilityController::class, 'utilization']);
             Route::get('/{id}/utilization/export-csv', [\App\Http\Controllers\Admin\FacilityController::class, 'exportUtilizationCsv']);
