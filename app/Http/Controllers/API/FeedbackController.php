@@ -537,6 +537,74 @@ class FeedbackController extends Controller
     }
 
     /**
+     * Web Service API: Get feedbacks by facility ID
+     * This endpoint is exposed for consumption by other modules (e.g., Facility Management Module)
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     */
+    public function getFeedbacksByFacilityId(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        // Validate facility_id
+        $request->validate([
+            'facility_id' => 'required|integer|exists:facilities,id',
+        ]);
+
+        $facilityId = $request->input('facility_id');
+        $limit = $request->input('limit', 10); // Default limit
+
+        // Get feedbacks for the facility
+        $feedbacks = Feedback::with(['user'])
+            ->where('facility_id', $facilityId)
+            ->where('is_blocked', false) // Only show non-blocked feedbacks
+            ->where('status', '!=', 'rejected') // Exclude rejected feedbacks
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($feedback) {
+                return [
+                    'id' => $feedback->id,
+                    'user_id' => $feedback->user_id,
+                    'user_name' => $feedback->user->name ?? 'Anonymous',
+                    'user_email' => $feedback->user->email ?? null,
+                    'facility_id' => $feedback->facility_id,
+                    'type' => $feedback->type,
+                    'subject' => $feedback->subject,
+                    'message' => $feedback->message,
+                    'rating' => $feedback->rating,
+                    'status' => $feedback->status,
+                    'image' => $feedback->image,
+                    'created_at' => $feedback->created_at ? $feedback->created_at->format('Y-m-d H:i:s') : null,
+                ];
+            });
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S',
+            'message' => 'Feedbacks retrieved successfully',
+            'data' => [
+                'facility_id' => $facilityId,
+                'feedbacks' => $feedbacks,
+                'count' => $feedbacks->count(),
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * Get booking details for a feedback (if feedback is related to booking)
      * This endpoint uses Booking Module's web service to retrieve booking information
      * 

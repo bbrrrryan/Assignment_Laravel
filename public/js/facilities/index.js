@@ -547,10 +547,15 @@ async function loadFacilityFeedbacks(id) {
     if (!container || !section) return;
     
     try {
-        const result = await API.get(`/feedbacks/facility/${id}`);
+        // Use Web Service to get feedbacks by facility_id (IFA Standard)
+        const result = await API.post('/feedbacks/service/get-by-facility', {
+            facility_id: id,
+            timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '), // YYYY-MM-DD HH:MM:SS format
+            limit: 10
+        });
         
-        if (result.success) {
-            const feedbacks = result.data.data?.data || result.data.data || [];
+        if (result.success && result.data.status === 'S') {
+            const feedbacks = result.data.data?.feedbacks || [];
             section.style.display = 'block';
             
             if (feedbacks.length === 0) {

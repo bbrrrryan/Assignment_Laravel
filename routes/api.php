@@ -34,6 +34,7 @@ Route::post('/users/service/get-ids', [UserController::class, 'getUserIds']);
 Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
 Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
 Route::post('/bookings/service/get-info', [BookingController::class, 'getBookingInfo']);
+Route::post('/feedbacks/service/get-by-facility', [FeedbackController::class, 'getFeedbacksByFacilityId']);
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
