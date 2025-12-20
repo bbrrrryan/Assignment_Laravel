@@ -451,20 +451,15 @@ class BookingController extends Controller
                 }
             }
             
-            // Validation 3: Check if each passport ID exists in the system via Web Service
+            
             foreach ($trimmedPassports as $index => $passport) {
-                // Skip if already has error (own student_id)
                 if (isset($passportErrors["attendees_passports.{$index}"])) {
                     continue;
                 }
-                
-                // First validate format
                 if (!$this->validationService->validateStudentIdFormat($passport)) {
                     $passportErrors["attendees_passports.{$index}"] = ['Invalid format. Must be YYWMR##### (e.g., 25WMR00001).'];
                     continue;
                 }
-                
-                // Then check if user exists via Web Service
                 try {
                     $result = $this->userWebService->checkByPersonalId($passport);
                     
@@ -473,7 +468,6 @@ class BookingController extends Controller
                         continue;
                     }
                     
-                    // Optional: Verify the user is a student
                     if ($result['user'] && isset($result['user']['role']) && $result['user']['role'] !== 'student') {
                         $passportErrors["attendees_passports.{$index}"] = ["User with passport ID '{$passport}' is not a student. Only students can be added as attendees."];
                         continue;
@@ -485,12 +479,10 @@ class BookingController extends Controller
                         'error' => $e->getMessage(),
                     ]);
                     
-                    // For Web Service errors, show on specific input
                     $passportErrors["attendees_passports.{$index}"] = ['Unable to verify this passport. The user service is currently unavailable. Please try again later.'];
                 }
             }
             
-            // If there are any passport errors, return them BEFORE creating booking
             if (!empty($passportErrors)) {
                 return response()->json([
                     'status' => 'F', 
@@ -886,19 +878,16 @@ class BookingController extends Controller
     }
 
 
-    /**
-     * Check facility availability for booking
-     */
+
     public function checkAvailability(string $facilityId, Request $request)
     {
         $request->validate([
-            'date' => 'required|date|after:today', // Users can only book from tomorrow onwards
+            'date' => 'required|date|after:today', 
             'start_time' => 'required|date_format:Y-m-d H:i:s',
             'end_time' => 'required|date_format:Y-m-d H:i:s|after:start_time',
             'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
-        // Get facility via Web Service only (no database fallback)
         try {
             $facility = $this->facilityWebService->getFacilityInfo($facilityId);
         } catch (\Exception $e) {
@@ -915,8 +904,6 @@ class BookingController extends Controller
             ], 503);
         }
 
-        // Check if user is student and facility type is not allowed
-        // Staff can check availability for all facility types
         $user = auth()->user();
         if ($user && $user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
             return response()->json([
