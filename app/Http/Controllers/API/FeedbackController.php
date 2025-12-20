@@ -13,6 +13,7 @@ use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+//sasasaasasas
 class FeedbackController extends Controller
 {
     public function index(Request $request)
