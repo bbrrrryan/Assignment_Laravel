@@ -414,7 +414,7 @@ class AnnouncementController extends Controller
         // Filter by is_active
         if ($request->has('is_active')) {
             $query->where('is_active', $request->is_active);
-        }
+            }
 
         // Filter by type
         if ($request->has('type')) {
@@ -455,7 +455,7 @@ class AnnouncementController extends Controller
                     $q->whereNull('expires_at')
                       ->orWhere('expires_at', '>', now());
                 });
-            }
+    }
         }
 
         // Get only IDs
@@ -471,6 +471,6 @@ class AnnouncementController extends Controller
             ],
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
         ]);
-    }
+        }
 
 }

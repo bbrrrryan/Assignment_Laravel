@@ -160,8 +160,8 @@ class NotificationController extends Controller
         }
 
         try {
-            // Determine target users based on audience
-            $targetUsers = $this->getTargetUsers($notification);
+        // Determine target users based on audience
+        $targetUsers = $this->getTargetUsers($notification);
         } catch (\Exception $e) {
             Log::error('Failed to get target users for notification', [
                 'notification_id' => $id,
