@@ -288,10 +288,6 @@ class LoyaltyController extends Controller
                 ]);
             }
             
-<<<<<<< Updated upstream
-            $query = User::with('loyaltyPoints')
-                ->whereIn('id', $userIds);
-=======
                 $userData = $userResponse->json();
             
             if (!isset($userData['status']) || $userData['status'] !== 'S' || !isset($userData['data']['user_ids'])) {
@@ -312,7 +308,6 @@ class LoyaltyController extends Controller
                 'error' => $e->getMessage(),
                 'url' => $apiUrl,
             ]);
->>>>>>> Stashed changes
             
             if ($request->has('search') && $request->search) {
                 $search = $request->search;
