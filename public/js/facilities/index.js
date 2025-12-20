@@ -544,11 +544,19 @@ async function loadFacilityFeedbacks(id) {
     
     try {
         // Use Web Service to get feedbacks by facility_id (IFA Standard)
-        const result = await API.post('/feedbacks/service/get-by-facility', {
+        const user = API.getUser();
+        const requestData = {
             facility_id: id,
             timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '), // YYYY-MM-DD HH:MM:SS format
             limit: 10
-        });
+        };
+        
+        // Include user_id if user is logged in (to show own pending feedbacks)
+        if (user && user.id) {
+            requestData.user_id = user.id;
+        }
+        
+        const result = await API.post('/feedbacks/service/get-by-facility', requestData);
         
         if (result.success && result.data.status === 'S') {
             const feedbacks = result.data.data?.feedbacks || [];
