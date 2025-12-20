@@ -186,11 +186,11 @@
                 </div>
                 <div class="detail-item">
                     <label>Created By</label>
-                    <p>{{ $facility->creator ? $facility->creator->name : 'N/A' }}</p>
+                    <p>{{ $creatorInfo['name'] ?? 'N/A' }}</p>
                 </div>
                 <div class="detail-item">
                     <label>Updated By</label>
-                    <p>{{ $facility->updater ? $facility->updater->name : 'N/A' }}</p>
+                    <p>{{ $updaterInfo['name'] ?? 'N/A' }}</p>
                 </div>
             </div>
         </div>

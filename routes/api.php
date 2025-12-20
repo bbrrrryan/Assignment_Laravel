@@ -31,6 +31,8 @@ Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
 // Inter-module Web Service Routes (for module-to-module communication)
 // These routes are accessible for backend modules to communicate with each other
 Route::post('/users/service/get-ids', [UserController::class, 'getUserIds']);
+Route::post('/users/service/get-info', [UserController::class, 'getUserInfo']);
+Route::post('/users/service/get-users-info', [UserController::class, 'getUsersInfo']);
 Route::post('/users/service/check-by-personal-id', [UserController::class, 'checkByPersonalId']);
 Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
 Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
