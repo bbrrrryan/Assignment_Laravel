@@ -129,25 +129,59 @@ class FeedbackController extends Controller
             }
         }
 
-        $feedback = FeedbackFactory::makeFeedback(
-            auth()->id(),
-            $validated['type'],
-            $validated['subject'],
-            $validated['message'],
-            $validated['rating'],
-            $validated['facility_id'] ?? null,
-            $validated['booking_id'] ?? null,
-            $validated['image'] ?? null,
-            'pending'
-        );
-        
-        $this->notifyAdminsAboutFeedback($feedback);
-        
-        return response()->json([
-            'status' => 'S',
-            'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ], 201);
+        try {
+            $feedback = FeedbackFactory::makeFeedback(
+                auth()->id(),
+                $validated['type'],
+                $validated['subject'],
+                $validated['message'],
+                $validated['rating'],
+                $validated['facility_id'] ?? null,
+                $validated['booking_id'] ?? null,
+                $validated['image'] ?? null,
+                'pending'
+            );
+            
+            if (!$feedback->id) {
+                Log::error('Feedback creation failed: No ID returned', [
+                    'user_id' => auth()->id(),
+                    'validated_data' => $validated,
+                ]);
+                
+                return response()->json([
+                    'status' => 'E',
+                    'message' => 'Failed to create feedback. Please try again.',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 500);
+            }
+            
+            Log::info('Feedback created successfully', [
+                'feedback_id' => $feedback->id,
+                'user_id' => auth()->id(),
+            ]);
+            
+            $this->notifyAdminsAboutFeedback($feedback);
+            
+            return response()->json([
+                'status' => 'S',
+                'message' => 'Feedback submitted successfully',
+                'data' => $feedback,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 201);
+            
+        } catch (\Exception $e) {
+            Log::error('Error creating feedback: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'validated_data' => $validated,
+                'exception' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'status' => 'E',
+                'message' => 'Failed to create feedback: ' . $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 500);
+        }
     }
 
     public function show(Request $request, string $id)

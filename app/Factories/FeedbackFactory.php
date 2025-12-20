@@ -22,7 +22,7 @@ class FeedbackFactory
      * @param int|null $facilityId
      * @param int|null $bookingId
      * @param string|null $image (base64 image string)
-     * @param string|null $status ('pending', 'reviewed', 'resolved', 'rejected')
+     * @param string|null $status ('pending', 'under_review', 'resolved', 'rejected', 'blocked')
      * @return Feedback
      */
     public static function makeFeedback($userId, $type, $subject, $message, $rating, $facilityId = null, $bookingId = null, $image = null, $status = 'pending')
@@ -44,18 +44,18 @@ class FeedbackFactory
             $typeName = 'general';
         }
 
-        // Normalize status
         $normalizedStatus = strtolower(trim($status));
         
-        // Validate status - using simple if-else
         if ($normalizedStatus === 'pending') {
             $statusName = 'pending';
-        } elseif ($normalizedStatus === 'reviewed') {
-            $statusName = 'reviewed';
+        } elseif ($normalizedStatus === 'under_review' || $normalizedStatus === 'reviewed') {
+            $statusName = 'under_review';
         } elseif ($normalizedStatus === 'resolved') {
             $statusName = 'resolved';
         } elseif ($normalizedStatus === 'rejected') {
             $statusName = 'rejected';
+        } elseif ($normalizedStatus === 'blocked') {
+            $statusName = 'blocked';
         } else {
             // Default to pending if invalid
             $statusName = 'pending';

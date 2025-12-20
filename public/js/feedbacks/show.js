@@ -1,6 +1,18 @@
 let currentFeedback = null;
 const feedbackId = window.feedbackId || null; // Should be set via data attribute in blade
 
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
 // Helper function to switch port from 8001 to 8000
 function switchToPort8000(url) {
     const currentPort = window.location.port;
@@ -100,14 +112,19 @@ function displayFeedbackDetails(feedback) {
                     ${feedback.message || 'No message'}
                 </div>
                 ${feedback.image ? `
-                <div class="feedback-image-container" style="margin-top: 15px;">
-                    <h3 style="font-size: 1rem; margin-bottom: 10px; color: #555;">Attached Image:</h3>
-                    <div class="feedback-image-wrapper" style="position: relative; display: inline-block; max-width: 100%;">
-                        <img src="${feedback.image}" alt="Feedback Image" class="feedback-image" style="max-width: 100%; max-height: 500px; border-radius: 8px; border: 2px solid #ddd; cursor: pointer; transition: all 0.3s ease;" onclick="viewFeedbackImage('${feedback.image}')">
-                        <div class="image-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0); border-radius: 8px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all 0.3s ease; cursor: pointer;" onclick="viewFeedbackImage('${feedback.image}')">
+                <div class="feedback-image-container" style="margin-top: 20px;">
+                    <h3 style="font-size: 1rem; margin-bottom: 10px; color: #555; font-weight: 600;">
+                        <i class="fas fa-image"></i> Attached Image:
+                    </h3>
+                    <div class="feedback-image-wrapper" style="position: relative; display: inline-block; max-width: 100%;" data-image-url="${encodeURIComponent(feedback.image)}">
+                        <img src="${feedback.image}" alt="Feedback Image" class="feedback-image" style="max-width: 100%; max-height: 500px; border-radius: 8px; border: 2px solid #ddd; cursor: pointer; transition: all 0.3s ease; display: block;">
+                        <div class="image-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0); border-radius: 8px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all 0.3s ease; cursor: pointer;">
                             <i class="fas fa-search-plus" style="color: white; font-size: 2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></i>
                         </div>
                     </div>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #666;">
+                        <i class="fas fa-info-circle"></i> Click on the image to view in full size
+                    </p>
                 </div>
                 ` : ''}
             </div>
@@ -700,5 +717,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    document.addEventListener('click', function(e) {
+        const imageWrapper = e.target.closest('.feedback-image-wrapper');
+        if (imageWrapper) {
+            const imageUrl = imageWrapper.getAttribute('data-image-url');
+            if (imageUrl) {
+                e.preventDefault();
+                e.stopPropagation();
+                const decodedUrl = decodeURIComponent(imageUrl);
+                viewFeedbackImage(decodedUrl);
+                return false;
+            }
+        }
+    }, true);
 });
 
