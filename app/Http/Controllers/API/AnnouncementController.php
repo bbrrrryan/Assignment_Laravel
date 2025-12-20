@@ -9,13 +9,19 @@ use App\Http\Controllers\Controller;
 use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use App\Models\User;
+use App\Services\AnnouncementWebService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AnnouncementController extends Controller
 {
+    protected $announcementWebService;
+
+    public function __construct(AnnouncementWebService $announcementWebService)
+    {
+        $this->announcementWebService = $announcementWebService;
+    }
     public function index(Request $request)
     {
         $query = Announcement::with('creator')
@@ -152,7 +158,25 @@ class AnnouncementController extends Controller
             ], 400);
         }
 
-        $targetUsers = $this->getTargetUsers($announcement);
+        try {
+            // Get target user IDs via Web Service only (no database fallback)
+            $targetUsers = $this->announcementWebService->getTargetUserIds(
+                $announcement->target_audience,
+                $announcement->target_user_ids
+            );
+        } catch (\Exception $e) {
+            Log::error('Failed to get target users for announcement via Web Service', [
+                'announcement_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Unable to retrieve target users. The user service is currently unavailable. Please try again later.',
+                'error_details' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
+        }
 
         $syncData = [];
         foreach ($targetUsers as $userId) {
@@ -310,99 +334,143 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    private function getTargetUsers(Announcement $announcement): array
+    /**
+     * Web Service API: Get announcement information by ID
+     * This endpoint is designed for inter-module communication
+     * Used by other modules to query announcement details
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAnnouncementInfo(Request $request)
     {
-        try {
-            $baseUrl = config('app.url', 'http://localhost:8000');
-            $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
-
-            $params = [
-                'status' => 'active',
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
                 'timestamp' => now()->format('Y-m-d H:i:s'),
-            ];
-
-            switch ($announcement->target_audience) {
-                case 'all':
-                    break;
-
-                case 'students':
-                    $params['role'] = 'student';
-                    break;
-
-                case 'staff':
-                    $params['role'] = 'staff';
-                    break;
-
-                case 'admins':
-                    $params['role'] = 'admin';
-                    break;
-
-                case 'specific':
-                    $targetUserIds = $announcement->target_user_ids ?? [];
-                    if (empty($targetUserIds)) {
-                        return [];
-                    }
-                    $params['user_ids'] = $targetUserIds;
-                    break;
-
-                default:
-                    return [];
-            }
-
-            $response = Http::timeout(10)->post($apiUrl, $params);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['data']['user_ids']) && is_array($data['data']['user_ids'])) {
-                    return $data['data']['user_ids'];
-                }
-            } else {
-                Log::warning('Failed to get user IDs from User Management Module', [
-                    'status' => $response->status(),
-                    'response' => $response->body(),
-                    'announcement_id' => $announcement->id,
-                ]);
-                
-                return $this->getTargetUsersFallback($announcement);
-            }
-        } catch (\Exception $e) {
-            Log::error('Exception when calling User Management Module', [
-                'message' => $e->getMessage(),
-                'announcement_id' => $announcement->id,
-            ]);
-            
-            return $this->getTargetUsersFallback($announcement);
+            ], 422);
         }
 
-        return [];
+        $request->validate([
+            'announcement_id' => 'required|exists:announcements,id',
+        ]);
+
+        $announcement = Announcement::with(['creator', 'users'])
+            ->findOrFail($request->announcement_id);
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'Announcement information retrieved successfully',
+            'data' => [
+                'announcement' => $announcement,
+                'target_audience' => $announcement->target_audience,
+                'target_user_ids' => $announcement->target_user_ids,
+                'is_active' => $announcement->is_active,
+                'published_at' => $announcement->published_at,
+                'expires_at' => $announcement->expires_at,
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
     }
 
-    private function getTargetUsersFallback(Announcement $announcement): array
+    /**
+     * Web Service API: Get announcement IDs by criteria
+     * This endpoint is designed for inter-module communication
+     * Used by other modules to query announcements by various criteria
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAnnouncementIds(Request $request)
     {
-        switch ($announcement->target_audience) {
-            case 'all':
-                return User::where('status', 'active')->pluck('id')->toArray();
-
-            case 'students':
-                return User::where('status', 'active')
-                    ->where('role', 'student')
-                    ->pluck('id')->toArray();
-
-            case 'staff':
-                return User::where('status', 'active')
-                    ->where('role', 'staff')
-                    ->pluck('id')->toArray();
-
-            case 'admins':
-                return User::where('status', 'active')
-                    ->where('role', 'admin')
-                    ->pluck('id')->toArray();
-
-            case 'specific':
-                return $announcement->target_user_ids ?? [];
-
-            default:
-                return [];
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
         }
+
+        $query = Announcement::query();
+
+        // Filter by is_active
+        if ($request->has('is_active')) {
+            $query->where('is_active', $request->is_active);
+        }
+
+        // Filter by type
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by priority
+        if ($request->has('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        // Filter by target_audience
+        if ($request->has('target_audience')) {
+            $query->where('target_audience', $request->target_audience);
+        }
+
+        // Filter by specific announcement IDs
+        if ($request->has('announcement_ids') && is_array($request->announcement_ids)) {
+            $query->whereIn('id', $request->announcement_ids);
+        }
+
+        // Filter by published status
+        if ($request->has('published')) {
+            if ($request->published) {
+                $query->whereNotNull('published_at');
+            } else {
+                $query->whereNull('published_at');
+            }
+        }
+
+        // Filter by expiration
+        if ($request->has('expired')) {
+            if ($request->expired) {
+                $query->whereNotNull('expires_at')
+                      ->where('expires_at', '<=', now());
+            } else {
+                $query->where(function($q) {
+                    $q->whereNull('expires_at')
+                      ->orWhere('expires_at', '>', now());
+                });
+            }
+        }
+
+        // Get only IDs
+        $announcementIds = $query->pluck('id')->toArray();
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'Announcement IDs retrieved successfully',
+            'data' => [
+                'announcement_ids' => $announcementIds,
+                'count' => count($announcementIds),
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
     }
+
 }

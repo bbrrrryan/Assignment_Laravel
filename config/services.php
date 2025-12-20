@@ -69,4 +69,23 @@ return [
         'timeout' => env('USER_SERVICE_TIMEOUT', 5),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Announcement Management Module Web Service
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the Announcement Management Module Web Service API.
+    | This allows you to specify a different URL/port for testing purposes.
+    |
+    | If ANNOUNCEMENT_SERVICE_URL is not set, it will use USER_SERVICE_URL or APP_URL.
+    | If ANNOUNCEMENT_SERVICE_PORT is set, it will override the port in the URL.
+    |
+    */
+
+    'announcement_service' => [
+        'url' => env('ANNOUNCEMENT_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
+        'port' => env('ANNOUNCEMENT_SERVICE_PORT', null), // e.g., 8001
+        'timeout' => env('ANNOUNCEMENT_SERVICE_TIMEOUT', 10),
+    ],
+
 ];

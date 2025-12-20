@@ -279,27 +279,58 @@ class LoyaltyController extends Controller
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
             
-            if ($userResponse->successful()) {
-                $userData = $userResponse->json();
-                if ($userData['status'] === 'S' && isset($userData['data']['user_ids'])) {
-                    $userIds = $userData['data']['user_ids'];
-                    $query = User::with('loyaltyPoints')
-                        ->whereIn('id', $userIds);
-                } else {
-                    $query = User::with('loyaltyPoints')
-                        ->where('role', 'student');
-                }
-            } else {
-                Log::warning('Failed to get user IDs from User Management Module', [
+            if (!$userResponse->successful()) {
+                Log::error('Failed to get user IDs from User Management Module', [
                     'status' => $userResponse->status(),
+                    'response' => $userResponse->body(),
+                    'url' => $apiUrl,
                 ]);
-                $query = User::with('loyaltyPoints')
-                    ->where('role', 'student');
+                
+                throw new \Exception(
+                    "User Web Service unavailable. HTTP Status: {$userResponse->status()}. " .
+                    "Response: {$userResponse->body()}"
+                );
             }
-        } catch (\Exception $e) {
-            Log::error('Exception when calling User Management Module: ' . $e->getMessage());
+            
+            $userData = $userResponse->json();
+            
+            if (!isset($userData['status']) || $userData['status'] !== 'S' || !isset($userData['data']['user_ids'])) {
+                Log::error('User Web Service returned invalid response', [
+                    'response' => $userData,
+                    'url' => $apiUrl,
+                ]);
+                
+                throw new \Exception("User Web Service returned invalid response format");
+            }
+            
+            $userIds = $userData['data']['user_ids'];
             $query = User::with('loyaltyPoints')
-                ->where('role', 'student');
+                ->whereIn('id', $userIds);
+                
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('User Web Service connection exception', [
+                'error' => $e->getMessage(),
+                'url' => $apiUrl,
+            ]);
+            
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
+                'error_details' => "Unable to connect to User Web Service: {$e->getMessage()}",
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
+        } catch (\Exception $e) {
+            Log::error('User Web Service exception in getAllUsersPoints', [
+                'error' => $e->getMessage(),
+                'url' => $apiUrl ?? 'unknown',
+            ]);
+            
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
+                'error_details' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
         }
         
         if ($request->has('search') && $request->search) {

@@ -159,8 +159,22 @@ class NotificationController extends Controller
             ], 400);
         }
 
-        // Determine target users based on audience
-        $targetUsers = $this->getTargetUsers($notification);
+        try {
+            // Determine target users based on audience
+            $targetUsers = $this->getTargetUsers($notification);
+        } catch (\Exception $e) {
+            Log::error('Failed to get target users for notification', [
+                'notification_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Unable to retrieve target users. The user service is currently unavailable. Please try again later.',
+                'error_details' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
+        }
 
         // Attach notification to users
         $syncData = [];
@@ -565,66 +579,61 @@ class NotificationController extends Controller
             // Make HTTP request to User Management Module (Inter-module Web Service call)
             $response = Http::timeout(10)->post($apiUrl, $params);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['data']['user_ids']) && is_array($data['data']['user_ids'])) {
-                    return $data['data']['user_ids'];
-                }
-            } else {
-                // Log error but don't fail completely
-                Log::warning('Failed to get user IDs from User Management Module', [
+            if (!$response->successful()) {
+                // HTTP request failed
+                Log::error('Failed to get user IDs from User Management Module', [
                     'status' => $response->status(),
                     'response' => $response->body(),
                     'notification_id' => $notification->id,
+                    'url' => $apiUrl,
                 ]);
                 
-                // Fallback to direct database query if HTTP call fails
-                return $this->getTargetUsersFallback($notification);
+                throw new \Exception(
+                    "User Web Service unavailable. HTTP Status: {$response->status()}. " .
+                    "Response: {$response->body()}"
+                );
             }
-        } catch (\Exception $e) {
-            // Log exception and fallback to direct query
-            Log::error('Exception when calling User Management Module', [
-                'message' => $e->getMessage(),
+            
+            $data = $response->json();
+            
+            if (!isset($data['data']['user_ids']) || !is_array($data['data']['user_ids'])) {
+                Log::error('User Web Service returned invalid response', [
+                    'notification_id' => $notification->id,
+                    'response' => $data,
+                    'url' => $apiUrl,
+                ]);
+                
+                throw new \Exception("User Web Service returned invalid response format");
+            }
+            
+            return $data['data']['user_ids'];
+            
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // Network/connection error
+            Log::error('User Web Service connection exception', [
                 'notification_id' => $notification->id,
+                'error' => $e->getMessage(),
+                'url' => $apiUrl,
             ]);
             
-            // Fallback to direct database query
-            return $this->getTargetUsersFallback($notification);
-        }
-
-        return [];
-    }
-
-    /**
-     * Fallback method: Direct database query when HTTP call fails
-     * This maintains backward compatibility and ensures system reliability
-     */
-    private function getTargetUsersFallback(Notification $notification): array
-    {
-        switch ($notification->target_audience) {
-            case 'all':
-                return User::where('status', 'active')->pluck('id')->toArray();
-
-            case 'students':
-                return User::where('status', 'active')
-                    ->where('role', 'student')
-                    ->pluck('id')->toArray();
-
-            case 'staff':
-                return User::where('status', 'active')
-                    ->where('role', 'staff')
-                    ->pluck('id')->toArray();
-
-            case 'admins':
-                return User::where('status', 'active')
-                    ->where('role', 'admin')
-                    ->pluck('id')->toArray();
-
-            case 'specific':
-                return $notification->target_user_ids ?? [];
-
-            default:
-                return [];
+            throw new \Exception(
+                "Unable to connect to User Web Service: {$e->getMessage()}"
+            );
+        } catch (\Exception $e) {
+            // Re-throw if it's already our custom exception
+            if (strpos($e->getMessage(), 'User Web Service') !== false || 
+                strpos($e->getMessage(), 'Unable to connect') !== false) {
+                throw $e;
+            }
+            
+            // Other exceptions
+            Log::error('User Web Service exception', [
+                'notification_id' => $notification->id,
+                'error' => $e->getMessage(),
+                'url' => $apiUrl ?? 'unknown',
+            ]);
+            
+            throw new \Exception("User Web Service error: {$e->getMessage()}");
         }
     }
 

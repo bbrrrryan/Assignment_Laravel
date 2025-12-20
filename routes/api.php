@@ -34,6 +34,8 @@ Route::post('/users/service/get-ids', [UserController::class, 'getUserIds']);
 Route::post('/users/service/check-by-personal-id', [UserController::class, 'checkByPersonalId']);
 Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
 Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
+Route::post('/announcements/service/get-info', [AnnouncementController::class, 'getAnnouncementInfo']);
+Route::post('/announcements/service/get-ids', [AnnouncementController::class, 'getAnnouncementIds']);
 Route::post('/bookings/service/get-info', [BookingController::class, 'getBookingInfo']);
 Route::post('/feedbacks/service/get-by-facility', [FeedbackController::class, 'getFeedbacksByFacilityId']);
 Route::post('/loyalty/service/get-user-info', [LoyaltyController::class, 'getUserLoyaltyInfo']);
