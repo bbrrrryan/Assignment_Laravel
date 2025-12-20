@@ -184,13 +184,18 @@ async function loadRewards() {
                         </div>
                         ${isOutOfStock ? '<p style="color: #dc3545; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-exclamation-circle"></i> Out of Stock</p>' : ''}
                         ${!hasEnoughPoints && !isOutOfStock ? '<p style="color: #ff9800; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-info-circle"></i> Insufficient Points</p>' : ''}
-                        <button id="${buttonId}" class="${buttonClass}" 
-                                ${isDisabled ? 'disabled' : ''} 
-                                data-reward-id="${reward.id}"
-                                data-points-required="${reward.points_required}"
-                                style="${isDisabled ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;'}">
-                            Redeem
-                        </button>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button onclick="viewRewardDetail(${reward.id})" class="btn-secondary" style="flex: 1;">
+                                <i class="fas fa-eye"></i> View Details
+                            </button>
+                            <button id="${buttonId}" class="${buttonClass}" 
+                                    ${isDisabled ? 'disabled' : ''} 
+                                    data-reward-id="${reward.id}"
+                                    data-points-required="${reward.points_required}"
+                                    style="${isDisabled ? 'cursor: not-allowed; opacity: 0.6; flex: 1;' : 'cursor: pointer; flex: 1;'}">
+                                Redeem
+                            </button>
+                        </div>
                 </div>
             `;
                 }).join('')}
@@ -216,44 +221,46 @@ async function loadMyRewards() {
         }
 
         container.innerHTML = `
-            <div class="rewards-grid">
-                ${rewards.map(reward => {
-                    const status = (reward.status || '').toLowerCase();
-                    let statusLabel = 'Pending';
-                    let statusClass = 'badge-warning';
-                    
-                    if (status === 'approved' || status === 'redeemed') {
-                        statusLabel = 'Approved';
-                        statusClass = 'badge-success';
-                    } else if (status === 'cancelled') {
-                        statusLabel = 'Cancelled';
-                        statusClass = 'badge-secondary';
-                    }
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Reward Name</th>
+                        <th>Type</th>
+                        <th>Points Used</th>
+                        <th>Redeemed Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rewards.map(reward => {
+                        const status = (reward.status || '').toLowerCase();
+                        let statusLabel = 'Pending';
+                        let statusClass = 'badge-warning';
+                        
+                        if (status === 'approved' || status === 'redeemed') {
+                            statusLabel = 'Approved';
+                            statusClass = 'badge-success';
+                        } else if (status === 'cancelled') {
+                            statusLabel = 'Cancelled';
+                            statusClass = 'badge-secondary';
+                        }
 
-                    const typeLabel = reward.reward_type
-                        ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1)
-                        : 'Reward';
+                        const typeLabel = reward.reward_type
+                            ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1)
+                            : 'Reward';
 
-                    return `
-                    <div class="reward-card">
-                        <h3>${reward.name}</h3>
-                        <p>${reward.description || ''}</p>
-                        <div class="reward-points">
-                            <strong>${reward.points_used || reward.points_required} Points Used</strong>
-                        </div>
-                        <p style="margin: 5px 0; color: #636e72;">
-                            <strong>Type:</strong> ${typeLabel}
-                        </p>
-                        <p style="margin: 5px 0; color: #636e72;">
-                            <strong>Redeemed At:</strong> ${reward.redeemed_at ? formatDate(reward.redeemed_at) : 'N/A'}
-                        </p>
-                        <span class="badge ${statusClass}">
-                            ${statusLabel}
-                        </span>
-                    </div>
-                `;
-                }).join('')}
-            </div>
+                        return `
+                        <tr>
+                            <td>${reward.name}</td>
+                            <td>${typeLabel}</td>
+                            <td>${reward.points_used || reward.points_required}</td>
+                            <td>${reward.redeemed_at ? formatDate(reward.redeemed_at) : 'N/A'}</td>
+                            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
         `;
     } else {
         showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load my rewards');
@@ -342,6 +349,105 @@ function formatDescription(actionType, description) {
     // For other types, use the provided description or default
     return description || '-';
 }
+
+// View reward detail function
+window.viewRewardDetail = async function(rewardId) {
+    try {
+        const result = await API.get(`/loyalty/rewards/${rewardId}`);
+        
+        if (result.success) {
+            const reward = result.data.data;
+            showRewardModal(reward);
+        } else {
+            const errorMsg = result.error || result.message || 'Failed to load reward details';
+            if (typeof showToast === 'function') {
+                showToast(errorMsg, 'error');
+            } else {
+                alert(errorMsg);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading reward details:', error);
+        const errorMsg = error.message || 'An error occurred while loading reward details';
+        if (typeof showToast === 'function') {
+            showToast(errorMsg, 'error');
+        } else {
+            alert(errorMsg);
+        }
+    }
+};
+
+function showRewardModal(reward) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('rewardDetailModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'rewardDetailModal';
+        modal.className = 'modal';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <span class="close" onclick="closeRewardModal()">&times;</span>
+                <div id="rewardDetailContent"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Close modal when clicking outside
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeRewardModal();
+            }
+        });
+    }
+    
+    // Populate modal content
+    const content = document.getElementById('rewardDetailContent');
+    const rewardType = reward.reward_type ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1) : 'Reward';
+    const stockInfo = reward.stock_quantity !== null 
+        ? `<p><strong>Stock:</strong> ${reward.stock_quantity} available</p>`
+        : '<p><strong>Stock:</strong> Unlimited</p>';
+    
+    content.innerHTML = `
+        <h2 style="margin-top: 0;">${reward.name}</h2>
+        ${reward.image_url ? `
+            <div style="margin: 20px 0; text-align: center;">
+                <img src="${reward.image_url}" alt="${reward.name}" 
+                     style="max-width: 100%; max-height: 400px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            </div>
+        ` : ''}
+        <div style="margin: 20px 0;">
+            <p><strong>Type:</strong> ${rewardType}</p>
+            <p><strong>Points Required:</strong> <span style="color: #007bff; font-size: 1.2em; font-weight: bold;">${reward.points_required}</span></p>
+            ${stockInfo}
+            ${reward.description ? `<p><strong>Description:</strong></p><p style="line-height: 1.6; color: #555;">${reward.description}</p>` : ''}
+        </div>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <button onclick="redeemRewardFromModal(${reward.id}, ${reward.points_required})" 
+                    class="btn-primary" 
+                    style="width: 100%; padding: 12px; font-size: 1.1em;">
+                <i class="fas fa-gift"></i> Redeem This Reward
+            </button>
+        </div>
+    `;
+    
+    // Show modal
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeRewardModal() {
+    const modal = document.getElementById('rewardDetailModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+}
+
+window.redeemRewardFromModal = function(rewardId, pointsRequired) {
+    closeRewardModal();
+    window.redeemReward(rewardId, pointsRequired);
+};
 
 // Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {

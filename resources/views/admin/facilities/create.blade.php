@@ -150,17 +150,6 @@
                 <h3><i class="fas fa-calendar-alt"></i> Booking Settings</h3>
                 
                 <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="requires_approval" 
-                               name="requires_approval" value="1" 
-                               {{ old('requires_approval') ? 'checked' : '' }}
-                               style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
-                        Requires Approval
-                    </label>
-                    <small>If checked, bookings for this facility require admin approval</small>
-                </div>
-
-                <div class="form-group">
                     <label for="max_booking_hours">Max Booking Hours</label>
                     <input type="number" id="max_booking_hours" 
                            name="max_booking_hours" value="{{ old('max_booking_hours', 4) }}" 

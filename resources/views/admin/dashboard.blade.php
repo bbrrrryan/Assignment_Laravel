@@ -342,7 +342,7 @@
                     <i class="fas fa-comment-alt"></i>
                     <h2>Recent Feedbacks</h2>
                 </div>
-                <a href="{{ route('feedbacks.index') }}" class="btn-primary btn-primary-outline">View All</a>
+                <a href="{{ route('admin.feedbacks.index') }}" class="btn-primary btn-primary-outline">View All</a>
             </div>
             <div class="table-container">
                 <table class="data-table data-table-compact">

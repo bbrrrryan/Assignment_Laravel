@@ -22,9 +22,9 @@ class LoyaltyController extends Controller
     {
         $points = auth()->user()->loyaltyPoints()->sum('points');
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => ['total_points' => $points],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -34,18 +34,37 @@ class LoyaltyController extends Controller
             ->latest()
             ->paginate(15);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $history,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
     public function getRewards()
     {
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => Reward::where('is_active', true)->get(),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function showReward($id)
+    {
+        $reward = Reward::findOrFail($id);
+        
+        if (!$reward->is_active && !auth()->user()->isAdmin()) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Reward not found',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 404);
+        }
+        
+        return response()->json([
+            'status' => 'S',
+            'data' => $reward,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -60,13 +79,12 @@ class LoyaltyController extends Controller
 
         if (!$reward->is_active) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'This reward is not available',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 400);
         }
 
-        // For certificate-type rewards, each user can only redeem once (pending/approved/redeemed)
         if ($reward->reward_type === 'certificate') {
             $alreadyRedeemed = DB::table('user_reward')
                 ->where('user_id', $user->id)
@@ -76,9 +94,9 @@ class LoyaltyController extends Controller
 
             if ($alreadyRedeemed) {
                 return response()->json([
-                    'status' => 'F', // IFA Standard: F (Fail)
+                    'status' => 'F',
                     'message' => 'You have already redeemed this certificate reward.',
-                    'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
                 ], 400);
             }
         }
@@ -86,17 +104,17 @@ class LoyaltyController extends Controller
         $totalPoints = $user->loyaltyPoints()->sum('points');
         if ($totalPoints < $reward->points_required) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Insufficient points. Required: ' . $reward->points_required . ', Available: ' . $totalPoints,
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 400);
         }
 
         if ($reward->stock_quantity !== null && $reward->stock_quantity <= 0) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'This reward is out of stock',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 400);
         }
 
@@ -121,22 +139,22 @@ class LoyaltyController extends Controller
             DB::commit();
 
             return response()->json([
-                'status' => 'S', // IFA Standard
+                'status' => 'S',
                 'message' => 'Reward redeemed successfully. Awaiting approval.',
                 'data' => [
                     'reward' => $reward,
                     'points_used' => $reward->points_required,
                     'remaining_points' => $totalPoints - $reward->points_required,
                 ],
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'status' => 'E', // IFA Standard: E (Error)
+                'status' => 'E',
                 'message' => 'Failed to redeem reward',
                 'error' => $e->getMessage(),
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 500);
         }
     }
@@ -144,55 +162,63 @@ class LoyaltyController extends Controller
     public function getCertificates()
     {
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => auth()->user()->certificates,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get current user's redeemed rewards (badges, certificates, privileges, etc.)
-     */
     public function myRewards(Request $request)
     {
         $user = auth()->user();
 
-        $query = $user->rewards()
-            ->withPivot('points_used', 'status', 'approved_by', 'redeemed_at', 'created_at')
+        $query = DB::table('user_reward')
+            ->leftJoin('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+            ->where('user_reward.user_id', $user->id)
+            ->select(
+                'user_reward.id as redemption_id',
+                'user_reward.reward_id',
+                'user_reward.points_used',
+                'user_reward.status',
+                'user_reward.approved_by',
+                'user_reward.redeemed_at',
+                'user_reward.created_at',
+                'rewards.name',
+                'rewards.description',
+                'rewards.points_required',
+                'rewards.reward_type',
+                'rewards.image_url'
+            )
             ->orderBy('user_reward.created_at', 'desc');
 
         if ($request->has('status') && $request->status !== null && $request->status !== '') {
-            $query->wherePivot('status', $request->status);
+            $query->where('user_reward.status', $request->status);
         }
 
-        $rewards = $query->get()->map(function ($reward) {
+        $rewards = $query->get()->map(function ($item) {
             return [
-                'id' => $reward->id,
-                'name' => $reward->name,
-                'description' => $reward->description,
-                'points_required' => $reward->points_required,
-                'reward_type' => $reward->reward_type,
-                'image_url' => $reward->image_url,
-                'points_used' => $reward->pivot->points_used,
-                'status' => $reward->pivot->status,
-                'approved_by' => $reward->pivot->approved_by,
-                'redeemed_at' => $reward->pivot->redeemed_at,
-                'created_at' => $reward->pivot->created_at,
+                'id' => $item->reward_id,
+                'redemption_id' => $item->redemption_id,
+                'name' => $item->name ?? 'Deleted Reward',
+                'description' => $item->description ?? '',
+                'points_required' => $item->points_required ?? $item->points_used,
+                'reward_type' => $item->reward_type ?? 'unknown',
+                'image_url' => $item->image_url,
+                'points_used' => $item->points_used,
+                'status' => $item->status,
+                'approved_by' => $item->approved_by,
+                'redeemed_at' => $item->redeemed_at,
+                'created_at' => $item->created_at,
             ];
         });
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $rewards,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    // ==================== ADMIN METHODS ====================
-
-    /**
-     * Award points to a user (Admin only)
-     */
     public function awardPoints(Request $request)
     {
         $request->validate([
@@ -210,16 +236,13 @@ class LoyaltyController extends Controller
         );
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Points awarded successfully',
             'data' => $point->load('user'),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Deduct points from a user (Admin only)
-     */
     public function deductPoints(Request $request)
     {
         $request->validate([
@@ -237,20 +260,15 @@ class LoyaltyController extends Controller
         );
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Points deducted successfully',
             'data' => $point->load('user'),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Get all users' points (Admin only)
-     * Only shows students, excludes staff and admin users
-     */
     public function getAllUsersPoints(Request $request)
     {
-        // ✅ Service Consumption: Get user IDs via HTTP from User Management Module
         try {
             $baseUrl = config('app.url', 'http://localhost:8000');
             $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
@@ -258,23 +276,20 @@ class LoyaltyController extends Controller
             $userResponse = Http::timeout(10)->post($apiUrl, [
                 'role' => 'student',
                 'status' => 'active',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
             
             if ($userResponse->successful()) {
                 $userData = $userResponse->json();
                 if ($userData['status'] === 'S' && isset($userData['data']['user_ids'])) {
                     $userIds = $userData['data']['user_ids'];
-                    // Use the user IDs to query loyalty points
                     $query = User::with('loyaltyPoints')
                         ->whereIn('id', $userIds);
                 } else {
-                    // Fallback to direct query
                     $query = User::with('loyaltyPoints')
                         ->where('role', 'student');
                 }
             } else {
-                // Fallback to direct query
                 Log::warning('Failed to get user IDs from User Management Module', [
                     'status' => $userResponse->status(),
                 ]);
@@ -282,7 +297,6 @@ class LoyaltyController extends Controller
                     ->where('role', 'student');
             }
         } catch (\Exception $e) {
-            // Fallback to direct query
             Log::error('Exception when calling User Management Module: ' . $e->getMessage());
             $query = User::with('loyaltyPoints')
                 ->where('role', 'student');
@@ -309,46 +323,37 @@ class LoyaltyController extends Controller
         })->sortByDesc('total_points')->values();
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $users,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get specific user's points (Admin only)
-     */
     public function getUserPoints($userId)
     {
         $user = User::with('loyaltyPoints')->findOrFail($userId);
         
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => [
                 'user' => $user,
                 'total_points' => $user->loyaltyPoints()->sum('points'),
                 'points_history' => $user->loyaltyPoints()->latest()->paginate(15),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get all loyalty rules (Admin only)
-     */
     public function getRules()
     {
         $rules = LoyaltyRule::latest()->get();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $rules,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Create loyalty rule (Admin only)
-     */
     public function createRule(Request $request)
     {
         $validated = $request->validate([
@@ -369,16 +374,13 @@ class LoyaltyController extends Controller
             $validated['conditions'] ?? null
         );
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Rule created successfully',
             'data' => $rule,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Update loyalty rule (Admin only)
-     */
     public function updateRule(Request $request, $id)
     {
         $rule = LoyaltyRule::findOrFail($id);
@@ -394,43 +396,34 @@ class LoyaltyController extends Controller
 
         $rule->update($validated);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Rule updated successfully',
             'data' => $rule,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Delete loyalty rule (Admin only)
-     */
     public function deleteRule($id)
     {
         $rule = LoyaltyRule::findOrFail($id);
         $rule->delete();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Rule deleted successfully',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get all rewards (Admin only - includes inactive)
-     */
     public function getAllRewards()
     {
         $rewards = Reward::latest()->get();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $rewards,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Create reward (Admin only)
-     */
     public function createReward(Request $request)
     {
         $validated = $request->validate([
@@ -438,21 +431,18 @@ class LoyaltyController extends Controller
             'description' => 'nullable|string',
             'points_required' => 'required|integer|min:1',
             'reward_type' => 'required|in:certificate,physical',
-            'image_url' => 'nullable|string', // Can be base64 image string or URL
+            'image_url' => 'nullable|string',
             'stock_quantity' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
 
-        // Validate base64 image if provided
         if ($request->has('image_url') && $request->image_url) {
-            // Check if it's a base64 image string
             if (preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image_url)) {
-                // Check base64 string length (limit to ~1.5MB base64, which is ~1MB actual image)
                 if (strlen($request->image_url) > 1500000) {
                     return response()->json([
-                        'status' => 'F', // IFA Standard: F (Fail)
+                        'status' => 'F',
                         'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.',
-                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                        'timestamp' => now()->format('Y-m-d H:i:s'),
                     ], 422);
                 }
             }
@@ -468,16 +458,13 @@ class LoyaltyController extends Controller
             $validated['is_active'] ?? true
         );
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Reward created successfully',
             'data' => $reward,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Update reward (Admin only)
-     */
     public function updateReward(Request $request, $id)
     {
         $reward = Reward::findOrFail($id);
@@ -492,16 +479,13 @@ class LoyaltyController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        // Validate base64 image if provided
         if ($request->has('image_url') && $request->image_url) {
-            // Check if it's a base64 image string
             if (preg_match('/^data:image\/(jpeg|jpg|png|gif);base64,/', $request->image_url)) {
-                // Check base64 string length (limit to ~1.5MB base64, which is ~1MB actual image)
                 if (strlen($request->image_url) > 1500000) {
                     return response()->json([
-                        'status' => 'F', // IFA Standard: F (Fail)
+                        'status' => 'F',
                         'message' => 'Image is too large. Maximum size is 1MB. Please compress your image before uploading.',
-                        'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                        'timestamp' => now()->format('Y-m-d H:i:s'),
                     ], 422);
                 }
             }
@@ -509,30 +493,24 @@ class LoyaltyController extends Controller
 
         $reward->update($validated);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Reward updated successfully',
             'data' => $reward,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Delete reward (Admin only)
-     */
     public function deleteReward($id)
     {
         $reward = Reward::findOrFail($id);
         $reward->delete();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Reward deleted successfully',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get all redemptions (Admin only)
-     */
     public function getRedemptions(Request $request)
     {
         $query = DB::table('user_reward')
@@ -552,30 +530,26 @@ class LoyaltyController extends Controller
 
         $redemptions = $query->latest('user_reward.created_at')->paginate(15);
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $redemptions,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Approve redemption (Admin only)
-     */
     public function approveRedemption(Request $request, $id)
     {
         $redemption = DB::table('user_reward')->where('id', $id)->first();
         
         if (!$redemption) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Redemption not found',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
         DB::beginTransaction();
         try {
-            // Update redemption status
             DB::table('user_reward')
                 ->where('id', $id)
                 ->update([
@@ -584,10 +558,8 @@ class LoyaltyController extends Controller
                     'updated_at' => now(),
                 ]);
 
-            // Automatically issue certificate if this is a certificate-type reward
             $reward = Reward::find($redemption->reward_id);
             if ($reward && $reward->reward_type === 'certificate') {
-                // Optional: prevent duplicate certificates for the same reward/user on the same day
                 $existing = Certificate::where('user_id', $redemption->user_id)
                     ->where('reward_id', $reward->id)
                     ->whereDate('issued_date', now()->toDateString())
@@ -609,37 +581,33 @@ class LoyaltyController extends Controller
             DB::commit();
 
             return response()->json([
-                'status' => 'S', // IFA Standard
+                'status' => 'S',
                 'message' => 'Redemption approved successfully',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'status' => 'E', // IFA Standard: E (Error)
+                'status' => 'E',
                 'message' => 'Failed to approve redemption',
                 'error' => $e->getMessage(),
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 500);
         }
     }
 
-    /**
-     * Reject redemption (Admin only)
-     */
     public function rejectRedemption(Request $request, $id)
     {
         $redemption = DB::table('user_reward')->where('id', $id)->first();
         
         if (!$redemption) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Redemption not found',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
-        // Refund points
         $user = User::find($redemption->user_id);
         if ($user) {
             $user->loyaltyPoints()->create([
@@ -657,28 +625,22 @@ class LoyaltyController extends Controller
             ]);
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Redemption rejected and points refunded',
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get all certificates (Admin only)
-     */
     public function getAllCertificates()
     {
         $certificates = Certificate::with('user')->latest()->get();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $certificates,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Issue a certificate to a user (Admin only)
-     */
     public function issueCertificate(Request $request)
     {
         $request->validate([
@@ -698,23 +660,19 @@ class LoyaltyController extends Controller
             $request->description,
             $request->issued_date ?? null,
             auth()->id(),
-            'approved' // Certificate is approved when issued
+            'approved'
         );
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'message' => 'Certificate issued successfully',
             'data' => $certificate->load('user'),
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ], 201);
     }
 
-    /**
-     * Get participation report (Admin only)
-     */
     public function getParticipationReport(Request $request)
     {
-        // 默认按当前月份统计（可通过 start_date / end_date 覆盖）
         $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
         $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
 
@@ -739,18 +697,14 @@ class LoyaltyController extends Controller
         ];
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $report,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get points distribution report (Admin only)
-     */
     public function getPointsDistribution(Request $request)
     {
-        // 按日期范围统计每个学生在该期间内获取的积分
         $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
         $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
 
@@ -770,18 +724,14 @@ class LoyaltyController extends Controller
             ->values();
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $distribution,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Get rewards statistics (Admin only)
-     */
     public function getRewardsStats(Request $request)
     {
-        // 日期范围主要影响兑换相关统计
         $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
         $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
 
@@ -810,21 +760,17 @@ class LoyaltyController extends Controller
         ];
 
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $stats,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),    
         ]);
     }
 
-    /**
-     * 导出 Loyalty Program 报表为 PDF（Admin）
-     */
     public function exportReportsPdf(Request $request)
     {
         $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
         $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
 
-        // 复用与 API 报表一致的统计逻辑
         $participation = [
             'total_users' => User::where('role', 'student')->count(),
             'active_users' => LoyaltyPoint::whereBetween('created_at', [$startDate, $endDate])
@@ -885,5 +831,102 @@ class LoyaltyController extends Controller
         $fileName = 'loyalty-reports-' . $startDate . '-to-' . $endDate . '.pdf';
 
         return $pdf->download($fileName);
+    }
+
+    public function getUserLoyaltyInfo(Request $request)
+    {
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $userId = $request->input('user_id');
+        $includeHistory = $request->input('include_history', false);
+        
+        try {
+            $user = User::with(['loyaltyPoints', 'certificates', 'rewards'])->findOrFail($userId);
+            
+            $totalPoints = $user->loyaltyPoints()->sum('points');
+            
+            $pointsByAction = LoyaltyPoint::where('user_id', $userId)
+                ->select('action_type', DB::raw('sum(points) as total_points'), DB::raw('count(*) as count'))
+                ->groupBy('action_type')
+                ->get();
+            
+            $recentRewards = DB::table('user_reward')
+                ->join('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+                ->where('user_reward.user_id', $userId)
+                ->whereIn('user_reward.status', ['approved', 'redeemed'])
+                ->select(
+                    'rewards.id',
+                    'rewards.name',
+                    'rewards.reward_type',
+                    'user_reward.points_used',
+                    'user_reward.status',
+                    'user_reward.redeemed_at'
+                )
+                ->orderBy('user_reward.redeemed_at', 'desc')
+                ->limit(10)
+                ->get();
+            
+            $certificatesCount = $user->certificates()->count();
+            
+            $responseData = [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_email' => $user->email,
+                'total_points' => $totalPoints,
+                'points_by_action' => $pointsByAction,
+                'recent_rewards' => $recentRewards,
+                'certificates_count' => $certificatesCount,
+            ];
+            
+            if ($includeHistory) {
+                $history = $user->loyaltyPoints()
+                    ->orderBy('created_at', 'desc')
+                    ->limit(50)
+                    ->get()
+                    ->map(function ($point) {
+                        return [
+                            'id' => $point->id,
+                            'points' => $point->points,
+                            'action_type' => $point->action_type,
+                            'description' => $point->description,
+                            'created_at' => $point->created_at ? $point->created_at->format('Y-m-d H:i:s') : null,
+                        ];
+                    });
+                $responseData['points_history'] = $history;
+            }
+            
+            return response()->json([
+                'status' => 'S',
+                'message' => 'User loyalty information retrieved successfully',
+                'data' => $responseData,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to get user loyalty info: " . $e->getMessage(), [
+                'user_id' => $userId,
+                'exception' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'status' => 'E',
+                'message' => 'Failed to retrieve user loyalty information',
+                'error' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 500);
+        }
     }
 }

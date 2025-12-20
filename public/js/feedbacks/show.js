@@ -7,7 +7,7 @@ async function loadFeedbackDetails() {
         document.getElementById('feedbackDetails').innerHTML = `
             <div class="error-message">
                 <p>Error: Feedback ID not available</p>
-                <a href="/feedbacks" class="btn-primary">Back to Feedbacks</a>
+                <a href="${API.isAdmin() ? '/admin/feedbacks' : '/feedbacks'}" class="btn-primary">Back to Feedbacks</a>
             </div>
         `;
         return;
@@ -23,7 +23,7 @@ async function loadFeedbackDetails() {
         document.getElementById('feedbackDetails').innerHTML = `
             <div class="error-message">
                 <p>Error loading feedback details: ${result.error || 'Unknown error'}</p>
-                <a href="/feedbacks" class="btn-primary">Back to Feedbacks</a>
+                <a href="${API.isAdmin() ? '/admin/feedbacks' : '/feedbacks'}" class="btn-primary">Back to Feedbacks</a>
             </div>
         `;
     }
@@ -78,12 +78,12 @@ function displayFeedbackDetails(feedback) {
                 ` : ''}
             </div>
 
-            ${feedback.facility ? `
+            ${feedback.facility_type ? `
             <div class="details-section">
                 <h2>Related Facility</h2>
                 <div class="detail-row">
-                    <span class="detail-label">Facility:</span>
-                    <span class="detail-value">${feedback.facility.name || 'N/A'}</span>
+                    <span class="detail-label">Facility Type:</span>
+                    <span class="detail-value">${formatFacilityType(feedback.facility_type)}</span>
                 </div>
             </div>
             ` : ''}
@@ -226,6 +226,12 @@ function formatStatus(status) {
         'blocked': 'Blocked'
     };
     return statusMap[status] || status;
+}
+
+// Format facility type name (capitalize first letter)
+function formatFacilityType(type) {
+    if (!type) return 'N/A';
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 }
 
 // Admin function to reply to feedback

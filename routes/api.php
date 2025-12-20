@@ -35,6 +35,8 @@ Route::post('/users/service/check-by-personal-id', [UserController::class, 'chec
 Route::post('/facilities/service/get-info', [FacilityController::class, 'getFacilityInfo']);
 Route::post('/facilities/service/check-availability', [FacilityController::class, 'checkAvailabilityService']);
 Route::post('/bookings/service/get-info', [BookingController::class, 'getBookingInfo']);
+Route::post('/feedbacks/service/get-by-facility', [FeedbackController::class, 'getFeedbacksByFacilityId']);
+Route::post('/loyalty/service/get-user-info', [LoyaltyController::class, 'getUserLoyaltyInfo']);
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -101,7 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Loyalty Management Routes
     Route::prefix('loyalty')->group(function () {
-        // User routes
+        // User routes - specific routes first
         Route::get('/points', [LoyaltyController::class, 'getPoints']);
         Route::get('/points/history', [LoyaltyController::class, 'pointsHistory']);
         Route::get('/rewards', [LoyaltyController::class, 'getRewards']);
@@ -123,7 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/rules/{id}', [LoyaltyController::class, 'updateRule']);
             Route::delete('/rules/{id}', [LoyaltyController::class, 'deleteRule']);
             
-            // Rewards Management
+            // Rewards Management - specific routes before parameterized routes
             Route::get('/rewards/all', [LoyaltyController::class, 'getAllRewards']);
             Route::post('/rewards', [LoyaltyController::class, 'createReward']);
             Route::put('/rewards/{id}', [LoyaltyController::class, 'updateReward']);
@@ -143,6 +145,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/reports/points-distribution', [LoyaltyController::class, 'getPointsDistribution']);
             Route::get('/reports/rewards-stats', [LoyaltyController::class, 'getRewardsStats']);
         });
+        
+        // Parameterized routes must be last (after all specific routes)
+        Route::get('/rewards/{id}', [LoyaltyController::class, 'showReward']);
     });
 
     // Feedback Management Routes
@@ -158,7 +163,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('/', [FeedbackController::class, 'index']);
             Route::get('/pending', [FeedbackController::class, 'getPendingFeedbacks']);
-            Route::put('/{id}', [FeedbackController::class, 'update']);
             Route::delete('/{id}', [FeedbackController::class, 'destroy']);
             Route::put('/{id}/respond', [FeedbackController::class, 'respond']);
             Route::put('/{id}/block', [FeedbackController::class, 'block']);
@@ -173,11 +177,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [FacilityController::class, 'show']);
         Route::get('/{id}/availability', [FacilityController::class, 'availability']);
         
-        // Admin only routes
+        // Admin only routes - CRUD operations handled by Admin\FacilityController via web routes
         Route::middleware('admin')->group(function () {
-            Route::post('/', [FacilityController::class, 'store']);
-            Route::put('/{id}', [FacilityController::class, 'update']);
-            Route::delete('/{id}', [FacilityController::class, 'destroy']);
             Route::get('/reports/summary', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getFacilityReports']);
             Route::get('/{id}/utilization', [\App\Http\Controllers\Admin\FacilityController::class, 'utilization']);
             Route::get('/{id}/utilization/export-csv', [\App\Http\Controllers\Admin\FacilityController::class, 'exportUtilizationCsv']);

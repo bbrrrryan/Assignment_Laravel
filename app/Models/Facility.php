@@ -24,16 +24,16 @@ class Facility extends Model
         'rules',
         'status',
         'image_url',
-        'requires_approval',
         'max_booking_hours',
         'is_deleted',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [
         'available_day' => 'array',
         'available_time' => 'array',
         'equipment' => 'array',
-        'requires_approval' => 'boolean',
         'enable_multi_attendees' => 'boolean',
         'is_deleted' => 'boolean',
     ];
@@ -47,5 +47,16 @@ class Facility extends Model
     public function feedbacks()
     {
         return $this->hasMany(Feedback::class);
+    }
+
+    // Relationships for created_by and updated_by
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

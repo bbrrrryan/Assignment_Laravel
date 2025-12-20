@@ -68,22 +68,6 @@ class FacilityController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
-        $facility = Facility::create($request->validate([
-            'name' => 'required',
-            'code' => 'required|unique:facilities',
-            'type' => 'required',
-            'location' => 'required',
-            'capacity' => 'required|integer',
-        ]));
-        return response()->json([
-            'status' => 'S', // IFA Standard
-            'data' => $facility,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-        ], 201);
-    }
-
     public function show(string $id, Request $request)
     {
         $facility = Facility::where('is_deleted', false)->with('bookings')->findOrFail($id);
@@ -102,27 +86,6 @@ class FacilityController extends Controller
         return response()->json([
             'status' => 'S', // IFA Standard
             'data' => $facility,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-        ]);
-    }
-
-    public function update(Request $request, string $id)
-    {
-        $facility = Facility::findOrFail($id);
-        $facility->update($request->all());
-        return response()->json([
-            'status' => 'S', // IFA Standard
-            'data' => $facility,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
-        ]);
-    }
-
-    public function destroy(string $id)
-    {
-        Facility::findOrFail($id)->delete();
-        return response()->json([
-            'status' => 'S', // IFA Standard
-            'message' => 'Deleted',
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
         ]);
     }
@@ -198,7 +161,7 @@ class FacilityController extends Controller
             if ($facility->enable_multi_attendees) {
                 $isAvailable = $overlappingBookings->count() === 0;
                 $availableCapacity = $isAvailable ? $facility->capacity : 0;
-                $totalAfterBooking = $isAvailable ? $facility->capacity : $facility->capacity;
+                $totalAfterBooking = $facility->capacity; // Always equals capacity when multi_attendees is enabled
             } else {
                 $totalAfterBooking = $totalAttendees + $newBookingAttendees;
                 $isAvailable = $totalAfterBooking <= $facility->capacity;
@@ -270,16 +233,6 @@ class FacilityController extends Controller
         ]);
     }
 
-
-    /**
-     * Web Service API: Get facility information
-     * This endpoint is designed for inter-module communication
-     * Used by other modules (e.g., Booking Module) to query facility information
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     */
     public function getFacilityInfo(Request $request)
     {
         // IFA Standard: Validate mandatory fields (timestamp or requestID)
@@ -311,15 +264,10 @@ class FacilityController extends Controller
                 'capacity' => $facility->capacity,
                 'status' => $facility->status,
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'), 
         ]);
     }
 
-    /**
-     * Web Service API: Check facility availability
-     * This endpoint is designed for inter-module communication
-     * Used by other modules (e.g., Booking Module) to check facility availability
-     */
     public function checkAvailabilityService(Request $request)
     {
         // IFA Standard: Validate mandatory fields
