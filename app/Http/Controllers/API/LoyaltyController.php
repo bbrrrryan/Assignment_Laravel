@@ -11,9 +11,9 @@ use App\Models\User;
 use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use App\Services\UserWebService;
 
 class LoyaltyController extends Controller
 {
@@ -270,29 +270,25 @@ class LoyaltyController extends Controller
     public function getAllUsersPoints(Request $request)
     {
         try {
-            $baseUrl = config('app.url', 'http://localhost:8000');
-            $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
+            $userWebService = new UserWebService();
             
-            $userResponse = Http::timeout(10)->post($apiUrl, [
+            $criteria = [
                 'role' => 'student',
                 'status' => 'active',
-                'timestamp' => now()->format('Y-m-d H:i:s'),
-            ]);
+            ];
             
-            if (!$userResponse->successful()) {
-                Log::error('Failed to get user IDs from User Management Module', [
-                    'status' => $userResponse->status(),
-                    'response' => $userResponse->body(),
-                    'url' => $apiUrl,
+            $userIdsResult = $userWebService->getUserIds($criteria);
+            $userIds = $userIdsResult['user_ids'] ?? [];
+            
+            if (empty($userIds)) {
+                return response()->json([
+                    'status' => 'S',
+                    'data' => [],
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
                 ]);
-                
-                throw new \Exception(
-                    "User Web Service unavailable. HTTP Status: {$userResponse->status()}. " .
-                    "Response: {$userResponse->body()}"
-                );
             }
             
-            $userData = $userResponse->json();
+                $userData = $userResponse->json();
             
             if (!isset($userData['status']) || $userData['status'] !== 'S' || !isset($userData['data']['user_ids'])) {
                 Log::error('User Web Service returned invalid response', [
@@ -303,9 +299,9 @@ class LoyaltyController extends Controller
                 throw new \Exception("User Web Service returned invalid response format");
             }
             
-            $userIds = $userData['data']['user_ids'];
-            $query = User::with('loyaltyPoints')
-                ->whereIn('id', $userIds);
+                    $userIds = $userData['data']['user_ids'];
+                    $query = User::with('loyaltyPoints')
+                        ->whereIn('id', $userIds);
                 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error('User Web Service connection exception', [
@@ -313,51 +309,44 @@ class LoyaltyController extends Controller
                 'url' => $apiUrl,
             ]);
             
+            if ($request->has('search') && $request->search) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('personal_id', 'like', "%{$search}%");
+                });
+            }
+
+            $users = $query->get()->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'personal_id' => $user->personal_id ?? null,
+                    'total_points' => $user->loyaltyPoints()->sum('points'),
+                    'points_count' => $user->loyaltyPoints()->count(),
+                ];
+            })->sortByDesc('total_points')->values();
+
             return response()->json([
-                'status' => 'F',
-                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
-                'error_details' => "Unable to connect to User Web Service: {$e->getMessage()}",
+                'status' => 'S',
+                'data' => $users,
                 'timestamp' => now()->format('Y-m-d H:i:s'),
-            ], 503);
+            ]);
+            
         } catch (\Exception $e) {
-            Log::error('User Web Service exception in getAllUsersPoints', [
-                'error' => $e->getMessage(),
-                'url' => $apiUrl ?? 'unknown',
+            Log::error('Failed to get all users points: ' . $e->getMessage(), [
+                'exception' => $e->getTraceAsString(),
             ]);
             
             return response()->json([
-                'status' => 'F',
-                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
+                'status' => 'E',
+                'message' => 'Unable to retrieve user information. The user service is currently unavailable.',
                 'error_details' => $e->getMessage(),
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 503);
         }
-        
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('personal_id', 'like', "%{$search}%");
-            });
-        }
-
-        $users = $query->get()->map(function($user) {
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'personal_id' => $user->personal_id ?? null,
-                'total_points' => $user->loyaltyPoints()->sum('points'),
-                'points_count' => $user->loyaltyPoints()->count(),
-            ];
-        })->sortByDesc('total_points')->values();
-
-        return response()->json([
-            'status' => 'S',
-            'data' => $users,
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ]);
     }
 
     public function getUserPoints($userId)
@@ -544,27 +533,69 @@ class LoyaltyController extends Controller
 
     public function getRedemptions(Request $request)
     {
-        $query = DB::table('user_reward')
-            ->join('users', 'user_reward.user_id', '=', 'users.id')
-            ->join('rewards', 'user_reward.reward_id', '=', 'rewards.id')
-            ->select(
-                'user_reward.*',
-                'users.name as user_name',
-                'users.email as user_email',
-                'rewards.name as reward_name',
-                'rewards.description as reward_description'
-            );
+        try {
+            $userWebService = new UserWebService();
+            
+            $criteria = [
+                'status' => 'active',
+            ];
+            
+            if ($request->has('role') && $request->role) {
+                $criteria['role'] = $request->role;
+            }
+            
+            $userIdsResult = $userWebService->getUserIds($criteria);
+            $userIds = $userIdsResult['user_ids'] ?? [];
+            
+            if (empty($userIds)) {
+                return response()->json([
+                    'status' => 'S',
+                    'data' => [
+                        'data' => [],
+                        'current_page' => 1,
+                        'last_page' => 1,
+                        'per_page' => 15,
+                        'total' => 0,
+                    ],
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ]);
+            }
+            
+            $query = DB::table('user_reward')
+                ->join('users', 'user_reward.user_id', '=', 'users.id')
+                ->join('rewards', 'user_reward.reward_id', '=', 'rewards.id')
+                ->whereIn('user_reward.user_id', $userIds)
+                ->select(
+                    'user_reward.*',
+                    'users.name as user_name',
+                    'users.email as user_email',
+                    'rewards.name as reward_name',
+                    'rewards.description as reward_description'
+                );
 
-        if ($request->has('status') && $request->status) {
-            $query->where('user_reward.status', $request->status);
+            if ($request->has('status') && $request->status) {
+                $query->where('user_reward.status', $request->status);
+            }
+
+            $redemptions = $query->latest('user_reward.created_at')->paginate(15);
+            return response()->json([
+                'status' => 'S',
+                'data' => $redemptions,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to get redemptions: ' . $e->getMessage(), [
+                'exception' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'status' => 'E',
+                'message' => 'Unable to retrieve redemption information. The user service is currently unavailable.',
+                'error_details' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
         }
-
-        $redemptions = $query->latest('user_reward.created_at')->paginate(15);
-        return response()->json([
-            'status' => 'S',
-            'data' => $redemptions,
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ]);
     }
 
     public function approveRedemption(Request $request, $id)

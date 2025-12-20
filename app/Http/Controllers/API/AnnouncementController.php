@@ -69,10 +69,37 @@ class AnnouncementController extends Controller
             'target_audience' => 'required|in:all,students,staff,admins,specific',
             'target_user_ids' => 'nullable|array',
             'target_user_ids.*' => 'exists:users,id',
+            'target_personal_ids' => 'nullable|array',
+            'target_personal_ids.*' => 'string',
             'published_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:published_at',
             'is_active' => 'nullable|boolean',
         ]);
+
+        // If target_personal_ids is provided, convert to user_ids via Web Service
+        $targetUserIds = $validated['target_user_ids'] ?? null;
+        if ($validated['target_audience'] === 'specific' && !empty($validated['target_personal_ids'])) {
+            try {
+                $userIdsResult = $this->announcementWebService->getTargetUserIds(
+                    'specific',
+                    null,
+                    $validated['target_personal_ids']
+                );
+                $targetUserIds = $userIdsResult;
+            } catch (\Exception $e) {
+                Log::error('Failed to convert personal_ids to user_ids via Web Service', [
+                    'personal_ids' => $validated['target_personal_ids'],
+                    'error' => $e->getMessage(),
+                ]);
+                
+                return response()->json([
+                    'status' => 'F',
+                    'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
+                    'error_details' => $e->getMessage(),
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 503);
+            }
+        }
 
         $announcement = AnnouncementFactory::makeAnnouncement(
             $validated['type'],
@@ -81,7 +108,7 @@ class AnnouncementController extends Controller
             $validated['target_audience'],
             auth()->id(),
             $validated['priority'] ?? null,
-            $validated['target_user_ids'] ?? null,
+            $targetUserIds,
             $validated['published_at'] ?? null,
             $validated['expires_at'] ?? null,
             $request->is_active ?? true
@@ -162,7 +189,8 @@ class AnnouncementController extends Controller
             // Get target user IDs via Web Service only (no database fallback)
             $targetUsers = $this->announcementWebService->getTargetUserIds(
                 $announcement->target_audience,
-                $announcement->target_user_ids
+                $announcement->target_user_ids,
+                null // personal_ids not stored, only user_ids
             );
         } catch (\Exception $e) {
             Log::error('Failed to get target users for announcement via Web Service', [
@@ -414,7 +442,7 @@ class AnnouncementController extends Controller
         // Filter by is_active
         if ($request->has('is_active')) {
             $query->where('is_active', $request->is_active);
-        }
+            }
 
         // Filter by type
         if ($request->has('type')) {
@@ -455,7 +483,7 @@ class AnnouncementController extends Controller
                     $q->whereNull('expires_at')
                       ->orWhere('expires_at', '>', now());
                 });
-            }
+    }
         }
 
         // Get only IDs
@@ -471,6 +499,6 @@ class AnnouncementController extends Controller
             ],
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
         ]);
-    }
+        }
 
 }

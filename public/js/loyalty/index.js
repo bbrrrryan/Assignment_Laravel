@@ -150,61 +150,221 @@ async function loadPointsHistory() {
     }
 }
 
+let allRewards = [];
+
 async function loadRewards() {
     showLoading(document.getElementById('loyaltyContent'));
     
     const result = await API.get('/loyalty/rewards');
     
     if (result.success) {
-        const rewards = result.data.data || [];
+        allRewards = result.data.data || [];
 
         const container = document.getElementById('loyaltyContent');
-        if (rewards.length === 0) {
+        if (allRewards.length === 0) {
             container.innerHTML = '<p>No rewards available</p>';
             return;
         }
 
-        container.innerHTML = `
-            <div class="rewards-grid">
-                ${rewards.map(reward => {
-                    const totalPoints = getTotalPoints();
-                    const hasEnoughPoints = totalPoints >= reward.points_required;
-                    const isOutOfStock = reward.stock_quantity !== null && reward.stock_quantity <= 0;
-                    const isDisabled = !hasEnoughPoints || isOutOfStock;
-                    
-                    const buttonClass = isDisabled ? 'btn-primary btn-disabled' : 'btn-primary';
-                    const buttonId = `redeemBtn_${reward.id}`;
-                    
-                    return `
-                    <div class="reward-card">
-                        <h3>${reward.name}</h3>
-                        <p>${reward.description || ''}</p>
-                        <div class="reward-points">
-                            <strong>${reward.points_required} Points</strong>
-                        </div>
-                        ${isOutOfStock ? '<p style="color: #dc3545; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-exclamation-circle"></i> Out of Stock</p>' : ''}
-                        ${!hasEnoughPoints && !isOutOfStock ? '<p style="color: #ff9800; font-size: 0.9rem; margin: 10px 0;"><i class="fas fa-info-circle"></i> Insufficient Points</p>' : ''}
-                        <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <button onclick="viewRewardDetail(${reward.id})" class="btn-secondary" style="flex: 1;">
-                                <i class="fas fa-eye"></i> View Details
-                            </button>
-                            <button id="${buttonId}" class="${buttonClass}" 
-                                    ${isDisabled ? 'disabled' : ''} 
-                                    data-reward-id="${reward.id}"
-                                    data-points-required="${reward.points_required}"
-                                    style="${isDisabled ? 'cursor: not-allowed; opacity: 0.6; flex: 1;' : 'cursor: pointer; flex: 1;'}">
-                                Redeem
-                            </button>
-                        </div>
-                </div>
-            `;
-                }).join('')}
-            </div>
-        `;
+        renderRewardsSection(allRewards);
     } else {
         showError(document.getElementById('loyaltyContent'), result.error || 'Failed to load rewards');
     }
 }
+
+function renderRewardsSection(rewards) {
+    const container = document.getElementById('loyaltyContent');
+    
+    container.innerHTML = `
+        <div class="filters-section" style="margin-bottom: 20px;">
+            <div class="filters-card">
+                <div class="filters-form">
+                    <div class="filter-input-wrapper" style="flex: 1;">
+                        <div class="filter-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" 
+                               id="rewardSearchInput" 
+                               class="filter-input" 
+                               placeholder="Search by name, type, or description..." 
+                               value=""
+                               oninput="filterRewards()"
+                               onkeyup="filterRewards()">
+                        <button type="button" 
+                                class="filter-clear-btn" 
+                                id="rewardSearchClear" 
+                                style="display: none;" 
+                                onclick="clearRewardSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="rewardsTableContainer" style="overflow-x: auto;">
+        </div>
+    `;
+    
+    updateRewardsTable(rewards);
+    
+    const searchInput = document.getElementById('rewardSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const clearBtn = document.getElementById('rewardSearchClear');
+            if (clearBtn) {
+                clearBtn.style.display = this.value.length > 0 ? 'flex' : 'none';
+            }
+        });
+    }
+}
+
+function updateRewardsTable(rewards) {
+    const tableContainer = document.getElementById('rewardsTableContainer');
+    if (!tableContainer) {
+        renderRewardsSection(rewards);
+        return;
+    }
+    
+    const totalPoints = getTotalPoints();
+    
+    if (rewards.length === 0) {
+        tableContainer.innerHTML = '<p>No rewards found matching your search.</p>';
+        return;
+    }
+
+    tableContainer.innerHTML = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Reward Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Points Required</th>
+                    <th>Stock Status</th>
+                    <th>Availability</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rewards.map(reward => {
+                    const hasEnoughPoints = totalPoints >= reward.points_required;
+                    const isOutOfStock = reward.stock_quantity !== null && reward.stock_quantity <= 0;
+                    const isDisabled = !hasEnoughPoints || isOutOfStock;
+                    
+                    const typeLabel = reward.reward_type 
+                        ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1)
+                        : 'Reward';
+                    
+                    let stockStatus = '';
+                    let availabilityStatus = '';
+                    let availabilityClass = '';
+                    
+                    if (reward.stock_quantity === null) {
+                        stockStatus = 'Unlimited';
+                        availabilityStatus = 'Available';
+                        availabilityClass = 'badge-success';
+                    } else {
+                        stockStatus = `${reward.stock_quantity} available`;
+                        if (reward.stock_quantity <= 0) {
+                            availabilityStatus = 'Out of Stock';
+                            availabilityClass = 'badge-secondary';
+                        } else if (reward.stock_quantity <= 5) {
+                            availabilityStatus = 'Low Stock';
+                            availabilityClass = 'badge-warning';
+                        } else {
+                            availabilityStatus = 'Available';
+                            availabilityClass = 'badge-success';
+                        }
+                    }
+                    
+                    if (!hasEnoughPoints && !isOutOfStock) {
+                        availabilityStatus = 'Insufficient Points';
+                        availabilityClass = 'badge-warning';
+                    }
+                    
+                    const description = reward.description || 'No description';
+                    const truncatedDescription = description.length > 80 
+                        ? description.substring(0, 80) + '...' 
+                        : description;
+                    
+                    return `
+                    <tr>
+                        <td><strong>${reward.name}</strong></td>
+                        <td>${typeLabel}</td>
+                        <td title="${description}">${truncatedDescription}</td>
+                        <td style="color: #a31f37; font-weight: bold;">${reward.points_required}</td>
+                        <td>${stockStatus}</td>
+                        <td><span class="badge ${availabilityClass}">${availabilityStatus}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button onclick="viewRewardDetail(${reward.id})" 
+                                        class="btn-secondary" 
+                                        style="padding: 6px 12px; font-size: 0.85rem;">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button onclick="window.redeemReward(${reward.id}, ${reward.points_required})" 
+                                        class="btn-primary" 
+                                        ${isDisabled ? 'disabled' : ''} 
+                                        data-reward-id="${reward.id}"
+                                        data-points-required="${reward.points_required}"
+                                        style="padding: 6px 12px; font-size: 0.85rem; ${isDisabled ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;'}">
+                                    <i class="fas fa-gift"></i> Redeem
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+
+window.filterRewards = function() {
+    const searchInput = document.getElementById('rewardSearchInput');
+    if (!searchInput) return;
+    
+    const clearBtn = document.getElementById('rewardSearchClear');
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    
+    if (clearBtn) {
+        clearBtn.style.display = searchInput.value.length > 0 ? 'flex' : 'none';
+    }
+    
+    if (!searchTerm) {
+        updateRewardsTable(allRewards);
+        return;
+    }
+    
+    const filtered = allRewards.filter(reward => {
+        const name = (reward.name || '').toLowerCase();
+        const description = (reward.description || '').toLowerCase();
+        const type = (reward.reward_type || '').toLowerCase();
+        const points = String(reward.points_required || '');
+        
+        return name.includes(searchTerm) || 
+               description.includes(searchTerm) || 
+               type.includes(searchTerm) ||
+               points.includes(searchTerm);
+    });
+    
+    updateRewardsTable(filtered);
+};
+
+window.clearRewardSearch = function() {
+    const searchInput = document.getElementById('rewardSearchInput');
+    const clearBtn = document.getElementById('rewardSearchClear');
+    
+    if (searchInput) {
+        searchInput.value = '';
+        if (clearBtn) {
+            clearBtn.style.display = 'none';
+        }
+        updateRewardsTable(allRewards);
+        searchInput.focus();
+    }
+};
 
 async function loadMyRewards() {
     showLoading(document.getElementById('loyaltyContent'));

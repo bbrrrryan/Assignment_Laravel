@@ -318,7 +318,7 @@ function displayFeedbacks(feedbacksToShow) {
                             <button class="btn-sm btn-info" onclick="viewFeedback(${feedback.id})" title="View">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            ${isAdmin && feedback.status !== 'resolved' && !feedback.is_blocked ? `
+                            ${isAdmin && feedback.status !== 'rejected' && feedback.status !== 'resolved' && !feedback.is_blocked ? `
                                 <button class="btn-sm btn-success" onclick="replyToFeedback(${feedback.id})" title="Reply">
                                     <i class="fas fa-reply"></i>
                                 </button>
@@ -482,7 +482,9 @@ window.closeModal = function() {
 
 window.viewFeedback = function(id) {
     const basePath = API.isAdmin() ? '/admin/feedbacks' : '/feedbacks';
-    window.location.href = `${basePath}/${id}`;
+    const currentHost = window.location.hostname;
+    const baseUrl = `http://${currentHost}:8001`;
+    window.location.href = `${baseUrl}${basePath}/${id}`;
 };
 
 // Admin function to reply to feedback
@@ -540,6 +542,16 @@ window.closeReplyModal = function() {
     if (replyForm) {
         replyForm.reset();
         delete replyForm.dataset.feedbackId;
+        const submitBtn = replyForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Send Response';
+        }
+    }
+    // Clear reply message
+    const replyMessage = document.getElementById('replyMessage');
+    if (replyMessage) {
+        replyMessage.value = '';
     }
 };
 
@@ -734,10 +746,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle reply form submission
     const replyForm = document.getElementById('replyForm');
     if (replyForm) {
-        replyForm.addEventListener('submit', async function(e) {
+        const newReplyForm = replyForm.cloneNode(true);
+        replyForm.parentNode.replaceChild(newReplyForm, replyForm);
+        
+        newReplyForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            e.stopPropagation();
 
             const feedbackId = this.dataset.feedbackId;
+            if (!feedbackId) {
+                alert('Feedback ID not found');
+                return;
+            }
+
             const responseInput = document.getElementById('replyMessage');
             const response = responseInput ? responseInput.value.trim() : '';
 
@@ -753,6 +774,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Disable submit button
             const submitBtn = this.querySelector('button[type="submit"]');
+            if (!submitBtn) return;
+            
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
@@ -762,13 +785,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (result.success) {
                     closeReplyModal();
-                    loadFeedbacks(currentPage);
+                    
                     // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Response submitted successfully!', 'success');
                     } else {
                         alert('Response submitted successfully!');
                     }
+                    
+                    setTimeout(() => {
+                        loadFeedbacks(currentPage);
+                    }, 100);
                 } else {
                     if (typeof showToast === 'function') {
                         showToast(result.error || 'Error submitting response', 'error');

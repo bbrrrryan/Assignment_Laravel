@@ -7,10 +7,72 @@
 <div class="page-container">
     <div class="page-header">
         <h1>Feedback Details</h1>
-        <a href="{{ route('feedbacks.index') }}" class="btn-secondary">
+        <a href="/feedbacks" id="backToFeedbacksBtn" class="btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Feedbacks
         </a>
     </div>
+
+<script>
+// Helper function to switch port from 8001 to 8000
+function switchToPort8000(url) {
+    const currentPort = window.location.port;
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Handle relative URLs starting with /
+    if (url.startsWith('/')) {
+        if (currentPort === '8001') {
+            return `${protocol}//${hostname}:8000${url}`;
+        }
+        return url;
+    }
+    
+    // Handle absolute URLs
+    if (currentPort === '8001') {
+        try {
+            // Use the origin (protocol + hostname) instead of full current URL to avoid path contamination
+            const baseUrl = `${protocol}//${hostname}:8000`;
+            const urlObj = new URL(url, baseUrl);
+            return urlObj.href;
+        } catch (e) {
+            // Fallback: simple replacement
+            if (url.includes(':8001')) {
+                return url.replace(':8001', ':8000');
+            }
+            return `${protocol}//${hostname}:8000${url}`;
+        }
+    }
+    return url;
+}
+
+// Set up the back button with proper URL
+document.addEventListener('DOMContentLoaded', function() {
+    const backBtn = document.getElementById('backToFeedbacksBtn');
+    if (backBtn) {
+        const isAdmin = {{ auth()->check() && auth()->user()->isAdmin() ? 'true' : 'false' }};
+        const basePath = isAdmin ? '/admin/feedbacks' : '/feedbacks';
+        const currentPort = window.location.port;
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        
+        // Set href directly - if on 8001, switch to 8000
+        if (currentPort === '8001') {
+            backBtn.href = `${protocol}//${hostname}:8000${basePath}`;
+        } else {
+            backBtn.href = basePath;
+        }
+        
+        // Also add click handler to ensure it works
+        backBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const url = switchToPort8000(basePath);
+            window.location.href = url;
+            return false;
+        });
+    }
+});
+</script>
 
     <div id="feedbackDetails" class="details-container" data-feedback-id="{{ $id }}">
         <p>Loading feedback details...</p>

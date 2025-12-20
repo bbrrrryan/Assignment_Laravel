@@ -1128,5 +1128,117 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    
+    <!-- Global Port Switch Script: Switch all navigation links from 8001 to 8000 -->
+    <script>
+        (function() {
+            // Helper function to switch port from 8001 to 8000
+            function switchToPort8000(url) {
+                const currentPort = window.location.port;
+                const hostname = window.location.hostname;
+                const protocol = window.location.protocol;
+                
+                // Handle relative URLs starting with /
+                if (url.startsWith('/')) {
+                    if (currentPort === '8001') {
+                        return `${protocol}//${hostname}:8000${url}`;
+                    }
+                    return url;
+                }
+                
+                // Handle absolute URLs
+                if (currentPort === '8001') {
+                    try {
+                        // Use the origin (protocol + hostname) instead of full current URL to avoid path contamination
+                        const baseUrl = `${protocol}//${hostname}:8000`;
+                        const urlObj = new URL(url, baseUrl);
+                        // Only switch if it's going to same hostname
+                        if (urlObj.hostname === hostname || urlObj.hostname === 'localhost' || urlObj.hostname === '127.0.0.1') {
+                            return urlObj.href;
+                        }
+                    } catch (e) {
+                        // If URL parsing fails, try simple replacement
+                        if (url.includes(':8001')) {
+                            return url.replace(':8001', ':8000');
+                        }
+                        return `${protocol}//${hostname}:8000${url}`;
+                    }
+                }
+                return url;
+            }
+            
+            // Make function globally available
+            window.switchToPort8000 = switchToPort8000;
+            
+            // Intercept all link clicks when on port 8001
+            document.addEventListener('DOMContentLoaded', function() {
+                const currentPort = window.location.port;
+                
+                // Only process if we're on port 8001
+                if (currentPort === '8001') {
+                    // Use event delegation on document to catch all link clicks
+                    document.addEventListener('click', function(e) {
+                        // Find the closest anchor element
+                        let target = e.target;
+                        while (target && target.tagName !== 'A') {
+                            target = target.parentElement;
+                        }
+                        
+                        if (!target || target.tagName !== 'A') return;
+                        
+                        const href = target.getAttribute('href');
+                        if (!href || href === '#') return;
+                        
+                        // Skip if it's a mailto:, tel:, or javascript: link
+                        if (href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
+                            return;
+                        }
+                        
+                        // Skip form submissions
+                        if (target.closest('form')) {
+                            return;
+                        }
+                        
+                        // Skip external links (different hostname) - but still check if they contain 8001 port
+                        let isExternal = false;
+                        if (href.startsWith('http://') || href.startsWith('https://')) {
+                            try {
+                                const urlObj = new URL(href);
+                                const hostname = window.location.hostname;
+                                if (urlObj.hostname !== hostname && urlObj.hostname !== 'localhost' && urlObj.hostname !== '127.0.0.1') {
+                                    isExternal = true;
+                                }
+                                // If it's same host but port 8001, switch it
+                                if (!isExternal && urlObj.port === '8001') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+                                    urlObj.port = '8000';
+                                    window.location.href = urlObj.href;
+                                    return false;
+                                }
+                            } catch (e) {
+                                // Invalid URL, skip
+                                return;
+                            }
+                        }
+                        
+                        // Skip external links
+                        if (isExternal) {
+                            return;
+                        }
+                        
+                        // For all internal links when on port 8001, switch to port 8000
+                        const newUrl = switchToPort8000(href);
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        window.location.href = newUrl;
+                        return false;
+                    }, true); // Use capture phase to catch early
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

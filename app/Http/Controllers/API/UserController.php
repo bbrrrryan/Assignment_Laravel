@@ -519,6 +519,11 @@ class UserController extends Controller
             $query->whereIn('id', $request->user_ids);
         }
 
+        // Filter by personal IDs (for specific user selection via personal_id)
+        if ($request->has('personal_ids') && is_array($request->personal_ids)) {
+            $query->whereIn('personal_id', $request->personal_ids);
+        }
+
         // Get only IDs
         $userIds = $query->pluck('id')->toArray();
 
@@ -529,6 +534,90 @@ class UserController extends Controller
             'data' => [
                 'user_ids' => $userIds,
                 'count' => count($userIds),
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
+    }
+
+    
+    public function getUserInfo(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $user = User::find($request->user_id);
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'User information retrieved successfully',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                    'personal_id' => $user->personal_id,
+                ],
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
+    }
+
+    public function getUsersInfo(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'integer|exists:users,id',
+        ]);
+
+        $users = User::whereIn('id', $request->user_ids)->get();
+
+        // Format users data
+        $usersData = $users->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'status' => $user->status,
+                'personal_id' => $user->personal_id,
+            ];
+        })->toArray();
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => 'Users information retrieved successfully',
+            'data' => [
+                'users' => $usersData,
+                'count' => count($usersData),
             ],
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
         ]);

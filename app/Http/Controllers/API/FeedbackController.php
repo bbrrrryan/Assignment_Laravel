@@ -12,8 +12,8 @@ use App\Factories\FeedbackFactory;
 use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 
+//sasasaasasas
 class FeedbackController extends Controller
 {
     public function index(Request $request)
@@ -129,25 +129,59 @@ class FeedbackController extends Controller
             }
         }
 
-        $feedback = FeedbackFactory::makeFeedback(
-            auth()->id(),
-            $validated['type'],
-            $validated['subject'],
-            $validated['message'],
-            $validated['rating'],
-            $validated['facility_id'] ?? null,
-            $validated['booking_id'] ?? null,
-            $validated['image'] ?? null,
-            'pending'
-        );
-        
-        $this->notifyAdminsAboutFeedback($feedback);
-        
-        return response()->json([
-            'status' => 'S',
-            'data' => $feedback,
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ], 201);
+        try {
+            $feedback = FeedbackFactory::makeFeedback(
+                auth()->id(),
+                $validated['type'],
+                $validated['subject'],
+                $validated['message'],
+                $validated['rating'],
+                $validated['facility_id'] ?? null,
+                $validated['booking_id'] ?? null,
+                $validated['image'] ?? null,
+                'pending'
+            );
+            
+            if (!$feedback->id) {
+                Log::error('Feedback creation failed: No ID returned', [
+                    'user_id' => auth()->id(),
+                    'validated_data' => $validated,
+                ]);
+                
+                return response()->json([
+                    'status' => 'E',
+                    'message' => 'Failed to create feedback. Please try again.',
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ], 500);
+            }
+            
+            Log::info('Feedback created successfully', [
+                'feedback_id' => $feedback->id,
+                'user_id' => auth()->id(),
+            ]);
+            
+            $this->notifyAdminsAboutFeedback($feedback);
+            
+            return response()->json([
+                'status' => 'S',
+                'message' => 'Feedback submitted successfully',
+                'data' => $feedback,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 201);
+            
+        } catch (\Exception $e) {
+            Log::error('Error creating feedback: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'validated_data' => $validated,
+                'exception' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'status' => 'E',
+                'message' => 'Failed to create feedback: ' . $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 500);
+        }
     }
 
     public function show(Request $request, string $id)
@@ -182,7 +216,7 @@ class FeedbackController extends Controller
     public function myFeedbacks(Request $request)
     {
         $feedbacks = Feedback::where('user_id', $request->user()->id)
-            ->with(['booking.facility'])
+            ->with(['booking.facility', 'facility'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->search, fn($q) => $q->where(function($query) use ($request) {
@@ -193,9 +227,13 @@ class FeedbackController extends Controller
             ->paginate(10)->withQueryString();
         
         $feedbacks->getCollection()->transform(function ($feedback) {
-            $facilityName = $feedback->booking && $feedback->booking->facility 
-                ? $feedback->booking->facility->name 
-                : null;
+            // Check facility name from booking relationship first, then direct facility relationship
+            $facilityName = null;
+            if ($feedback->booking && $feedback->booking->facility) {
+                $facilityName = $feedback->booking->facility->name;
+            } elseif ($feedback->facility) {
+                $facilityName = $feedback->facility->name;
+            }
             
             $feedback->facility_name = $facilityName;
             
@@ -211,10 +249,21 @@ class FeedbackController extends Controller
 
     public function getFacilityFeedbacks(Request $request, string $facilityType)
     {
+        $userId = $request->user() ? $request->user()->id : null;
+        
         $feedbacks = Feedback::with(['user'])
             ->where('facility_type', $facilityType)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
+            ->where(function($query) use ($userId) {
+                $query->where('status', 'resolved');
+                if ($userId) {
+                    $query->orWhere(function($q) use ($userId) {
+                        $q->whereIn('status', ['pending', 'under_review'])
+                          ->where('user_id', $userId);
+                    });
+                }
+            })
             ->orderBy('created_at', 'desc')
             ->paginate(10);
         
@@ -517,11 +566,26 @@ class FeedbackController extends Controller
 
         $facilityId = $request->input('facility_id');
         $limit = $request->input('limit', 10);
+        
+        // Get user_id from request (optional - for showing own pending feedbacks)
+        $userId = $request->input('user_id');
 
         $feedbacks = Feedback::with(['user'])
             ->where('facility_id', $facilityId)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
+            ->where(function($query) use ($userId) {
+                // Show resolved feedbacks to everyone
+                $query->where('status', 'resolved');
+                
+                // Show pending/under_review feedbacks only to the creator
+                if ($userId) {
+                    $query->orWhere(function($q) use ($userId) {
+                        $q->whereIn('status', ['pending', 'under_review'])
+                          ->where('user_id', $userId);
+                    });
+                }
+            })
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
@@ -593,54 +657,10 @@ class FeedbackController extends Controller
             ], 404);
         }
         
-        $baseUrl = config('app.url', 'http://localhost:8000');
-        $apiUrl = rtrim($baseUrl, '/') . '/api/bookings/service/get-info';
-        
         try {
-            $response = Http::timeout(10)->post($apiUrl, [
-                'booking_id' => $feedback->booking_id,
-                'timestamp' => now()->format('Y-m-d H:i:s'),
-            ]);
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                if ($data['status'] === 'S') {
-                    return response()->json([
-                        'status' => 'S',
-                        'message' => 'Booking details retrieved successfully',
-                        'data' => [
-                            'feedback' => [
-                                'id' => $feedback->id,
-                                'subject' => $feedback->subject,
-                                'type' => $feedback->type,
-                                'rating' => $feedback->rating,
-                                'status' => $feedback->status,
-                                'created_at' => $feedback->created_at ? $feedback->created_at->format('Y-m-d H:i:s') : null,
-                            ],
-                            'booking' => $data['data']['booking'],
-                        ],
-                        'timestamp' => now()->format('Y-m-d H:i:s'),
-                    ]);
-                } else {
-                    Log::warning("Booking service returned error for booking #{$feedback->booking_id}", [
-                        'feedback_id' => $feedback->id,
-                        'booking_response' => $data,
-                    ]);
-                }
-            } else {
-                Log::warning("Failed to get booking info from Booking Module", [
-                    'feedback_id' => $feedback->id,
-                    'booking_id' => $feedback->booking_id,
-                    'status' => $response->status(),
-                    'response' => $response->body(),
-                ]);
-            }
-            
-            Log::info("Falling back to direct query for booking #{$feedback->booking_id}");
             $booking = \App\Models\Booking::with(['user', 'facility', 'attendees', 'slots'])
                 ->findOrFail($feedback->booking_id);
             
-            // Format slots for display (same format as web service)
             $formattedSlots = [];
             if ($booking->slots && $booking->slots->count() > 0) {
                 $formattedSlots = $booking->slots->map(function($slot) {
@@ -659,7 +679,7 @@ class FeedbackController extends Controller
             
             return response()->json([
                 'status' => 'S',
-                'message' => 'Booking details retrieved successfully (via direct query)',
+                'message' => 'Booking details retrieved successfully',
                 'data' => [
                     'feedback' => [
                         'id' => $feedback->id,
