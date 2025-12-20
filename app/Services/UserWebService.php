@@ -178,7 +178,7 @@ class UserWebService
      * Get user IDs by criteria via Web Service only
      * Throws exception if Web Service is unavailable
      * 
-     * @param array $criteria Optional criteria: 'status', 'role', 'user_ids'
+     * @param array $criteria Optional criteria: 'status', 'role', 'user_ids', 'personal_ids'
      * @return array Returns ['user_ids' => array, 'count' => int]
      * @throws \Exception
      */
@@ -202,6 +202,10 @@ class UserWebService
             
             if (isset($criteria['user_ids']) && is_array($criteria['user_ids'])) {
                 $requestData['user_ids'] = $criteria['user_ids'];
+            }
+            
+            if (isset($criteria['personal_ids']) && is_array($criteria['personal_ids'])) {
+                $requestData['personal_ids'] = $criteria['personal_ids'];
             }
             
             $response = Http::timeout($this->timeout)->post($apiUrl, $requestData);

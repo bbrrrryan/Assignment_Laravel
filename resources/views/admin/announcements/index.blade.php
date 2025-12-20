@@ -165,6 +165,21 @@
                     <option value="urgent">Urgent</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Target Audience <span class="required">*</span></label>
+                <select id="announcementTargetAudience" required onchange="toggleAnnouncementTargetUsers()">
+                    <option value="all">All Users</option>
+                    <option value="students">Students Only</option>
+                    <option value="staff">Staff Only</option>
+                    <option value="admins">Admins Only</option>
+                    <option value="specific">Specific Users</option>
+                </select>
+            </div>
+            <div class="form-group" id="announcementTargetUsersGroup" style="display: none;">
+                <label for="announcementTargetPersonalIds">Select Users by Personal ID</label>
+                <input type="text" id="announcementTargetPersonalIds" class="form-control" placeholder="Enter personal IDs separated by commas">
+                <small class="form-text">Example: 25WMR00001,p0001 (Personal IDs will be converted to user IDs via Web Service)</small>
+            </div>
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Create & Publish</button>
@@ -600,7 +615,19 @@ function formatDateTime(dateString) {
 
 window.showCreateModal = function() {
     document.getElementById('announcementForm').reset();
+    document.getElementById('announcementTargetUsersGroup').style.display = 'none';
+    document.getElementById('announcementTargetPersonalIds').value = '';
     document.getElementById('announcementModal').style.display = 'block';
+};
+
+window.toggleAnnouncementTargetUsers = function() {
+    const targetAudience = document.getElementById('announcementTargetAudience').value;
+    const targetUsersGroup = document.getElementById('announcementTargetUsersGroup');
+    if (targetAudience === 'specific') {
+        targetUsersGroup.style.display = 'block';
+    } else {
+        targetUsersGroup.style.display = 'none';
+    }
 };
 
 window.closeModal = function() {
@@ -934,8 +961,14 @@ document.getElementById('announcementForm').addEventListener('submit', async fun
         content: document.getElementById('announcementContent').value,
         type: document.getElementById('announcementType').value,
         priority: document.getElementById('announcementPriority').value,
-        target_audience: 'all',
+        target_audience: document.getElementById('announcementTargetAudience').value,
     };
+    
+    const targetPersonalIds = document.getElementById('announcementTargetPersonalIds').value;
+    if (data.target_audience === 'specific' && targetPersonalIds) {
+        // Send personal_ids, backend will convert to user_ids via Web Service
+        data.target_personal_ids = targetPersonalIds.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    }
 
     const result = await API.post('/announcements', data);
 
@@ -1369,6 +1402,17 @@ a.btn-header-white {
 
 .form-group textarea {
     resize: vertical;
+}
+
+.required {
+    color: #dc3545;
+}
+
+.form-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.85rem;
+    color: #6c757d;
 }
 
 .form-actions {

@@ -288,58 +288,70 @@ class LoyaltyController extends Controller
                 ]);
             }
             
+<<<<<<< Updated upstream
             $query = User::with('loyaltyPoints')
                 ->whereIn('id', $userIds);
+=======
+                $userData = $userResponse->json();
+            
+            if (!isset($userData['status']) || $userData['status'] !== 'S' || !isset($userData['data']['user_ids'])) {
+                Log::error('User Web Service returned invalid response', [
+                    'response' => $userData,
+                    'url' => $apiUrl,
+                ]);
+                
+                throw new \Exception("User Web Service returned invalid response format");
+            }
+            
+                    $userIds = $userData['data']['user_ids'];
+                    $query = User::with('loyaltyPoints')
+                        ->whereIn('id', $userIds);
                 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error('User Web Service connection exception', [
                 'error' => $e->getMessage(),
+                'url' => $apiUrl,
+            ]);
+>>>>>>> Stashed changes
+            
+            if ($request->has('search') && $request->search) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('personal_id', 'like', "%{$search}%");
+                });
+            }
+
+            $users = $query->get()->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'personal_id' => $user->personal_id ?? null,
+                    'total_points' => $user->loyaltyPoints()->sum('points'),
+                    'points_count' => $user->loyaltyPoints()->count(),
+                ];
+            })->sortByDesc('total_points')->values();
+
+            return response()->json([
+                'status' => 'S',
+                'data' => $users,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
             
-            return response()->json([
-                'status' => 'F',
-                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
-                'error_details' => "Unable to connect to User Web Service: {$e->getMessage()}",
-                'timestamp' => now()->format('Y-m-d H:i:s'),
-            ], 503);
         } catch (\Exception $e) {
             Log::error('Failed to get all users points: ' . $e->getMessage(), [
                 'exception' => $e->getTraceAsString(),
             ]);
             
             return response()->json([
-                'status' => 'F',
-                'message' => 'Unable to retrieve user information. The user service is currently unavailable. Please try again later.',
+                'status' => 'E',
+                'message' => 'Unable to retrieve user information. The user service is currently unavailable.',
                 'error_details' => $e->getMessage(),
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 503);
         }
-        
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('personal_id', 'like', "%{$search}%");
-            });
-        }
-
-        $users = $query->get()->map(function($user) {
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'personal_id' => $user->personal_id ?? null,
-                'total_points' => $user->loyaltyPoints()->sum('points'),
-                'points_count' => $user->loyaltyPoints()->count(),
-            ];
-        })->sortByDesc('total_points')->values();
-
-        return response()->json([
-            'status' => 'S',
-            'data' => $users,
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ]);
     }
 
     public function getUserPoints($userId)

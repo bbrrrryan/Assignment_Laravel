@@ -104,10 +104,11 @@ class AnnouncementWebService
      * 
      * @param string $targetAudience Target audience type: 'all', 'students', 'staff', 'admins', 'specific'
      * @param array|null $targetUserIds Specific user IDs (required if targetAudience is 'specific')
+     * @param array|null $targetPersonalIds Specific personal IDs (alternative to targetUserIds for 'specific' audience)
      * @return array Returns array of user IDs
      * @throws \Exception
      */
-    public function getTargetUserIds(string $targetAudience, ?array $targetUserIds = null): array
+    public function getTargetUserIds(string $targetAudience, ?array $targetUserIds = null, ?array $targetPersonalIds = null): array
     {
         $apiUrl = rtrim($this->baseUrl, '/') . '/api/users/service/get-ids';
         
@@ -137,11 +138,14 @@ class AnnouncementWebService
                     break;
 
                 case 'specific':
-                    // For specific users, use the provided user IDs
-                    if (empty($targetUserIds)) {
+                    // For specific users, use personal_ids if provided, otherwise use user_ids
+                    if (!empty($targetPersonalIds) && is_array($targetPersonalIds)) {
+                        $params['personal_ids'] = $targetPersonalIds;
+                    } elseif (!empty($targetUserIds) && is_array($targetUserIds)) {
+                        $params['user_ids'] = $targetUserIds;
+                    } else {
                         return [];
                     }
-                    $params['user_ids'] = $targetUserIds;
                     break;
 
                 default:

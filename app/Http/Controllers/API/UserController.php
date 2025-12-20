@@ -519,6 +519,11 @@ class UserController extends Controller
             $query->whereIn('id', $request->user_ids);
         }
 
+        // Filter by personal IDs (for specific user selection via personal_id)
+        if ($request->has('personal_ids') && is_array($request->personal_ids)) {
+            $query->whereIn('personal_id', $request->personal_ids);
+        }
+
         // Get only IDs
         $userIds = $query->pluck('id')->toArray();
 
