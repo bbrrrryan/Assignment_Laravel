@@ -175,6 +175,102 @@ class UserWebService
     }
 
     /**
+     * Get user IDs by criteria via Web Service only
+     * Throws exception if Web Service is unavailable
+     * 
+     * @param array $criteria Optional criteria: 'status', 'role', 'user_ids'
+     * @return array Returns ['user_ids' => array, 'count' => int]
+     * @throws \Exception
+     */
+    public function getUserIds(array $criteria = []): array
+    {
+        $apiUrl = rtrim($this->baseUrl, '/') . '/api/users/service/get-ids';
+        
+        try {
+            $requestData = [
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ];
+            
+            // Add optional criteria
+            if (isset($criteria['status'])) {
+                $requestData['status'] = $criteria['status'];
+            }
+            
+            if (isset($criteria['role'])) {
+                $requestData['role'] = $criteria['role'];
+            }
+            
+            if (isset($criteria['user_ids']) && is_array($criteria['user_ids'])) {
+                $requestData['user_ids'] = $criteria['user_ids'];
+            }
+            
+            $response = Http::timeout($this->timeout)->post($apiUrl, $requestData);
+            
+            if (!$response->successful()) {
+                // HTTP request failed
+                Log::error('User Web Service HTTP request failed (getUserIds)', [
+                    'criteria' => $criteria,
+                    'status' => $response->status(),
+                    'response' => $response->body(),
+                    'url' => $apiUrl,
+                ]);
+                
+                throw new \Exception(
+                    "User Web Service unavailable. HTTP Status: {$response->status()}. " .
+                    "Response: {$response->body()}"
+                );
+            }
+            
+            $data = $response->json();
+            
+            if (!isset($data['status']) || $data['status'] !== 'S' || !isset($data['data'])) {
+                // Web Service returned error status
+                $errorMessage = $data['message'] ?? 'User service returned an error.';
+                Log::error('User Web Service returned error status (getUserIds)', [
+                    'criteria' => $criteria,
+                    'response' => $data,
+                    'url' => $apiUrl,
+                ]);
+                
+                throw new \Exception("User Web Service error: {$errorMessage}");
+            }
+            
+            // Return data directly from Web Service response
+            return [
+                'user_ids' => $data['data']['user_ids'] ?? [],
+                'count' => $data['data']['count'] ?? 0,
+            ];
+            
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // Network/connection error
+            Log::error('User Web Service connection exception (getUserIds)', [
+                'criteria' => $criteria,
+                'error' => $e->getMessage(),
+                'url' => $apiUrl,
+            ]);
+            
+            throw new \Exception(
+                "Unable to connect to User Web Service: {$e->getMessage()}"
+            );
+        } catch (\Exception $e) {
+            // Re-throw if it's already our custom exception
+            if (strpos($e->getMessage(), 'User Web Service') !== false || 
+                strpos($e->getMessage(), 'Unable to connect') !== false) {
+                throw $e;
+            }
+            
+            // Other exceptions
+            Log::error('User Web Service exception (getUserIds)', [
+                'criteria' => $criteria,
+                'error' => $e->getMessage(),
+                'url' => $apiUrl,
+            ]);
+            
+            throw new \Exception("User Web Service error: {$e->getMessage()}");
+        }
+    }
+
+    /**
      * Set timeout for HTTP requests
      * 
      * @param int $timeout

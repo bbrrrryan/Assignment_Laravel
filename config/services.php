@@ -88,4 +88,23 @@ return [
         'timeout' => env('ANNOUNCEMENT_SERVICE_TIMEOUT', 10),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Booking Management Module Web Service
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the Booking Management Module Web Service API.
+    | This allows you to specify a different URL/port for testing purposes.
+    |
+    | If BOOKING_SERVICE_URL is not set, it will use APP_URL.
+    | If BOOKING_SERVICE_PORT is set, it will override the port in the URL.
+    |
+    */
+
+    'booking_service' => [
+        'url' => env('BOOKING_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
+        'port' => env('BOOKING_SERVICE_PORT', null), // e.g., 8001
+        'timeout' => env('BOOKING_SERVICE_TIMEOUT', 10),
+    ],
+
 ];

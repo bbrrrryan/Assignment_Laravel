@@ -1,13 +1,46 @@
 let currentFeedback = null;
 const feedbackId = window.feedbackId || null; // Should be set via data attribute in blade
 
+// Helper function to switch port from 8001 to 8000
+function switchToPort8000(url) {
+    const currentPort = window.location.port;
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Handle relative URLs starting with /
+    if (url.startsWith('/')) {
+        if (currentPort === '8001') {
+            return `${protocol}//${hostname}:8000${url}`;
+        }
+        return url;
+    }
+    
+    // Handle absolute URLs
+    if (currentPort === '8001') {
+        try {
+            // Use the origin (protocol + hostname) instead of full current URL to avoid path contamination
+            const baseUrl = `${protocol}//${hostname}:8000`;
+            const urlObj = new URL(url, baseUrl);
+            return urlObj.href;
+        } catch (e) {
+            // Fallback: simple replacement
+            if (url.includes(':8001')) {
+                return url.replace(':8001', ':8000');
+            }
+            return `${protocol}//${hostname}:8000${url}`;
+        }
+    }
+    return url;
+}
+
 async function loadFeedbackDetails() {
     if (!feedbackId) {
         console.error('Feedback ID not found');
+        const backUrl = switchToPort8000(API.isAdmin() ? '/admin/feedbacks' : '/feedbacks');
         document.getElementById('feedbackDetails').innerHTML = `
             <div class="error-message">
                 <p>Error: Feedback ID not available</p>
-                <a href="${API.isAdmin() ? '/admin/feedbacks' : '/feedbacks'}" class="btn-primary">Back to Feedbacks</a>
+                <a href="${backUrl}" class="btn-primary">Back to Feedbacks</a>
             </div>
         `;
         return;
@@ -20,10 +53,11 @@ async function loadFeedbackDetails() {
         window.currentFeedback = currentFeedback;
         displayFeedbackDetails(currentFeedback);
     } else {
+        const backUrl = switchToPort8000(API.isAdmin() ? '/admin/feedbacks' : '/feedbacks');
         document.getElementById('feedbackDetails').innerHTML = `
             <div class="error-message">
                 <p>Error loading feedback details: ${result.error || 'Unknown error'}</p>
-                <a href="${API.isAdmin() ? '/admin/feedbacks' : '/feedbacks'}" class="btn-primary">Back to Feedbacks</a>
+                <a href="${backUrl}" class="btn-primary">Back to Feedbacks</a>
             </div>
         `;
     }
@@ -445,7 +479,7 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
                     </div>
                     ` : ''}
                     <div class="detail-row" style="margin-top: 15px;">
-                        <a href="/bookings/${booking.id}" class="btn-primary" style="display: inline-block; text-decoration: none;">
+                        <a href="${switchToPort8000(`/bookings/${booking.id}`)}" class="btn-primary" style="display: inline-block; text-decoration: none;">
                             <i class="fas fa-external-link-alt"></i> View Full Booking Details
                         </a>
                     </div>

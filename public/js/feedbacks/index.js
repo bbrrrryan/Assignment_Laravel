@@ -482,7 +482,9 @@ window.closeModal = function() {
 
 window.viewFeedback = function(id) {
     const basePath = API.isAdmin() ? '/admin/feedbacks' : '/feedbacks';
-    window.location.href = `${basePath}/${id}`;
+    const currentHost = window.location.hostname;
+    const baseUrl = `http://${currentHost}:8001`;
+    window.location.href = `${baseUrl}${basePath}/${id}`;
 };
 
 // Admin function to reply to feedback
