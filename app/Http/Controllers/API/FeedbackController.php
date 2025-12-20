@@ -661,6 +661,23 @@ class FeedbackController extends Controller
             $booking = \App\Models\Booking::with(['user', 'facility', 'attendees', 'slots'])
                 ->findOrFail($feedback->booking_id);
             
+            // Format slots for display (same format as web service)
+            $formattedSlots = [];
+            if ($booking->slots && $booking->slots->count() > 0) {
+                $formattedSlots = $booking->slots->map(function($slot) {
+                    $slotDate = $slot->slot_date->format('Y-m-d');
+                    $startDateTime = $slotDate . ' ' . $slot->start_time;
+                    $endDateTime = $slotDate . ' ' . $slot->end_time;
+                    
+                    return [
+                        'slot_date' => $slotDate,
+                        'start_time' => $startDateTime,
+                        'end_time' => $endDateTime,
+                        'duration_hours' => $slot->duration_hours,
+                    ];
+                })->toArray();
+            }
+            
             return response()->json([
                 'status' => 'S',
                 'message' => 'Booking details retrieved successfully (via direct query)',
@@ -675,23 +692,15 @@ class FeedbackController extends Controller
                     ],
                     'booking' => [
                         'id' => $booking->id,
-                        'user_id' => $booking->user_id,
-                        'user_name' => $booking->user->name ?? null,
-                        'user_email' => $booking->user->email ?? null,
-                        'facility_id' => $booking->facility_id,
+                        'status' => $booking->status,
                         'facility_name' => $booking->facility->name ?? null,
                         'facility_code' => $booking->facility->code ?? null,
                         'booking_date' => $booking->booking_date ? $booking->booking_date->format('Y-m-d') : null,
-                        'start_time' => $booking->start_time ? $booking->start_time->format('Y-m-d H:i:s') : null,
-                        'end_time' => $booking->end_time ? $booking->end_time->format('Y-m-d H:i:s') : null,
                         'duration_hours' => $booking->duration_hours,
                         'purpose' => $booking->purpose,
-                        'status' => $booking->status,
-                        'expected_attendees' => $booking->expected_attendees,
-                        'created_at' => $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : null,
+                        'user_name' => $booking->user->name ?? null,
+                        'slots' => $formattedSlots,
                     ],
-                    'attendees_count' => $booking->attendees->count(),
-                    'slots_count' => $booking->slots->count(),
                 ],
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);

@@ -200,6 +200,22 @@ function formatDateTime(dateString) {
     return date.toLocaleString();
 }
 
+function formatTimeOnly(timeString) {
+    if (!timeString) return 'N/A';
+    // Handle both "YYYY-MM-DD HH:MM:SS" and "HH:MM:SS" formats
+    const timePart = timeString.includes(' ') ? timeString.split(' ')[1] : 
+                     timeString.includes('T') ? timeString.split('T')[1] : timeString;
+    const time = timePart.split(':');
+    if (time.length >= 2) {
+        let hours = parseInt(time[0]);
+        const minutes = time[1];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${hours}:${minutes} ${ampm}`;
+    }
+    return timePart;
+}
+
 function formatStatus(status) {
     if (!status) return 'N/A';
     const statusMap = {
@@ -359,8 +375,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
         const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const result = await API.get(`/feedbacks/${feedbackId}/booking-details?timestamp=${encodeURIComponent(timestamp)}`);
         
-        console.log('Booking details API response:', result); // Debug log
-        
         if (result.success && result.data) {
             // Response format from API.get():
             // result.data = { status: 'S', data: { feedback: {...}, booking: {...} }, timestamp: '...' }
@@ -368,6 +382,7 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
             const booking = result.data.data?.booking;
             
             if (booking) {
+                
                 container.innerHTML = `
                 <div class="booking-details-card" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
                     <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">
@@ -393,10 +408,16 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
                         <span class="detail-value">${formatDateTime(booking.booking_date)}</span>
                     </div>
                     ` : ''}
-                    ${booking.start_time && booking.end_time ? `
+                    ${booking.slots && Array.isArray(booking.slots) && booking.slots.length > 0 ? `
                     <div class="detail-row" style="margin-bottom: 10px;">
                         <span class="detail-label" style="font-weight: 600;">Time:</span>
-                        <span class="detail-value">${formatDateTime(booking.start_time)} - ${formatDateTime(booking.end_time)}</span>
+                        <span class="detail-value">
+                            ${booking.slots.map(slot => {
+                                const startTime = formatTimeOnly(slot.start_time);
+                                const endTime = formatTimeOnly(slot.end_time);
+                                return `${startTime} - ${endTime}`;
+                            }).join('<br>')}
+                        </span>
                     </div>
                     ` : ''}
                     ${booking.duration_hours ? `
@@ -409,12 +430,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
                     <div class="detail-row" style="margin-bottom: 10px;">
                         <span class="detail-label" style="font-weight: 600;">Purpose:</span>
                         <span class="detail-value">${booking.purpose}</span>
-                    </div>
-                    ` : ''}
-                    ${booking.expected_attendees ? `
-                    <div class="detail-row" style="margin-bottom: 10px;">
-                        <span class="detail-label" style="font-weight: 600;">Expected Attendees:</span>
-                        <span class="detail-value">${booking.expected_attendees}</span>
                     </div>
                     ` : ''}
                     ${booking.user_name ? `

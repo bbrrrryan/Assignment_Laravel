@@ -7,13 +7,14 @@ use App\Models\Attendee;
 use App\Models\Booking;
 use App\Models\BookingSlot;
 use App\Models\Facility;
-use App\Factories\BookingFactory;
+use App\Builders\BookingBuilder;
 use App\Services\BookingValidationService;
 use App\Services\BookingCapacityService;
 use App\Services\BookingNotificationService;
+use App\Services\FacilityWebService;
+use App\Services\UserWebService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 
 class BookingController extends Controller
@@ -21,15 +22,21 @@ class BookingController extends Controller
     protected $validationService;
     protected $capacityService;
     protected $notificationService;
+    protected $facilityWebService;
+    protected $userWebService;
 
     public function __construct(
         BookingValidationService $validationService,
         BookingCapacityService $capacityService,
-        BookingNotificationService $notificationService
+        BookingNotificationService $notificationService,
+        FacilityWebService $facilityWebService,
+        UserWebService $userWebService
     ) {
         $this->validationService = $validationService;
         $this->capacityService = $capacityService;
         $this->notificationService = $notificationService;
+        $this->facilityWebService = $facilityWebService;
+        $this->userWebService = $userWebService;
     }
     public function index(Request $request)
     {
@@ -90,35 +97,21 @@ class BookingController extends Controller
             }
             
 
-            $baseUrl = config('app.url', 'http://localhost:8000');
-            $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
-            
-            $facilityResponse = Http::timeout(10)->post($apiUrl, [
-                'facility_id' => $facilityId,
-                'timestamp' => now()->format('Y-m-d H:i:s'), 
-            ]);
-            
-            if (!$facilityResponse->successful()) {
-                Log::warning('Failed to get facility from Facility Management Module', [
-                    'status' => $facilityResponse->status(),
-                    'response' => $facilityResponse->body(),
+            // Get facility via Web Service only (no database fallback)
+            try {
+                $facility = $this->facilityWebService->getFacilityInfo($facilityId);
+            } catch (\Exception $e) {
+                Log::error('Failed to get facility from Web Service', [
+                    'facility_id' => $facilityId,
+                    'error' => $e->getMessage(),
                 ]);
-                $facility = Facility::find($facilityId);
-            } else {
-                $facilityData = $facilityResponse->json();
-                if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
-                    $facility = Facility::find($facilityId);
-                } else {
-                    $facility = Facility::find($facilityId);
-                }
-            }
-            
-            if (!$facility) {
+                
                 return response()->json([
                     'status' => 'F', 
-                    'message' => 'Facility not found',
+                    'message' => 'Unable to retrieve facility information. The facility service is currently unavailable. Please try again later.',
+                    'error_details' => $e->getMessage(),
                     'timestamp' => now()->format('Y-m-d H:i:s'), 
-                ], 404);
+                ], 503);
             }
             
             $timeSlots = $request->input('time_slots', []);
@@ -149,6 +142,7 @@ class BookingController extends Controller
                         $slotDate = $slot['date'];
                         $slotStart = \Carbon\Carbon::parse($slot['start_time']);
                         $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
+                     
                         
                         if ($slotEnd->lte($slotStart)) {
                             return response()->json([
@@ -158,6 +152,7 @@ class BookingController extends Controller
                             ], 422);
                         }
                         
+                        // Calculate duration for this slot and add to total
                         $duration = $slotStart->diffInHours($slotEnd);
                         $totalDuration += $duration;
                         
@@ -217,7 +212,36 @@ class BookingController extends Controller
                     'facility_id' => 'required|exists:facilities,id',
                     'purpose' => 'required|string|max:500',
                     'expected_attendees' => $expectedAttendeesRule,
-                    'attendees_passports' => 'nullable|array',
+                    'attendees_passports' => [
+                        'nullable',
+                        'array',
+                        function ($attribute, $value, $fail) {
+                            if (is_array($value) && !empty($value)) {
+                                $user = auth()->user();
+                                $userPersonalId = $user->personal_id ?? null;
+                                
+                                // Filter out empty values and trim all passports
+                                $trimmedPassports = array_filter(array_map('trim', $value), function($passport) {
+                                    return !empty($passport);
+                                });
+                                
+                                // Check for duplicate passports
+                                $uniquePassports = array_unique($trimmedPassports);
+                                if (count($trimmedPassports) !== count($uniquePassports)) {
+                                    $fail('Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.');
+                                }
+                                
+                                // Check if user is trying to add their own student_id
+                                if (!empty($userPersonalId)) {
+                                    foreach ($trimmedPassports as $passport) {
+                                        if (strcasecmp($passport, $userPersonalId) === 0) {
+                                            $fail('You cannot add your own student ID as an attendee passport. The booking owner is automatically included.');
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    ],
                     'attendees_passports.*' => [
                         'nullable',
                         'string',
@@ -239,7 +263,47 @@ class BookingController extends Controller
                 $validated['duration_hours'] = $totalDuration;
             } else {
                 // Old format: use existing validation
-                $validated = $request->validate($this->validationService->getValidationRules($facility));
+                $validationRules = $this->validationService->getValidationRules($facility);
+                
+                // Add custom validation for attendees_passports array
+                $existingAttendeesRule = $validationRules['attendees_passports'] ?? ['nullable', 'array'];
+                if (!is_array($existingAttendeesRule)) {
+                    $existingAttendeesRule = [$existingAttendeesRule];
+                }
+                
+                $validationRules['attendees_passports'] = array_merge(
+                    $existingAttendeesRule,
+                    [
+                        function ($attribute, $value, $fail) {
+                            if (is_array($value) && !empty($value)) {
+                                $user = auth()->user();
+                                $userPersonalId = $user->personal_id ?? null;
+                                
+                                // Filter out empty values and trim all passports
+                                $trimmedPassports = array_filter(array_map('trim', $value), function($passport) {
+                                    return !empty($passport);
+                                });
+                                
+                                // Check for duplicate passports
+                                $uniquePassports = array_unique($trimmedPassports);
+                                if (count($trimmedPassports) !== count($uniquePassports)) {
+                                    $fail('Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.');
+                                }
+                                
+                                // Check if user is trying to add their own student_id
+                                if (!empty($userPersonalId)) {
+                                    foreach ($trimmedPassports as $passport) {
+                                        if (strcasecmp($passport, $userPersonalId) === 0) {
+                                            $fail('You cannot add your own student ID as an attendee passport. The booking owner is automatically included.');
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    ]
+                );
+                
+                $validated = $request->validate($validationRules);
 
                 // Parse and normalize datetime formats
                 try {
@@ -350,6 +414,93 @@ class BookingController extends Controller
             ], 400);
         }
 
+        // Validate attendees_passports BEFORE creating booking (to prevent partial booking creation)
+        if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
+            $user = auth()->user();
+            $userPersonalId = $user->personal_id;
+            
+            // Filter out empty values and trim all passports, preserve original indices
+            $trimmedPassports = [];
+            foreach ($request->attendees_passports as $index => $passport) {
+                $trimmed = trim($passport);
+                if (!empty($trimmed)) {
+                    $trimmedPassports[$index] = $trimmed;
+                }
+            }
+            
+            // Validation 1: Check for duplicate passports in the array
+            $uniquePassports = array_unique($trimmedPassports);
+            if (count($trimmedPassports) !== count($uniquePassports)) {
+                return response()->json([
+                    'status' => 'F', 
+                    'message' => 'Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.',
+                    'errors' => [
+                        'attendees_passports' => ['Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.'],
+                    ],
+                    'timestamp' => now()->format('Y-m-d H:i:s'), 
+                ], 422);
+            }
+            
+            // Validation 2: Check if user is trying to add their own student_id as passport
+            $passportErrors = [];
+            if (!empty($userPersonalId)) {
+                foreach ($trimmedPassports as $index => $passport) {
+                    if (strcasecmp($passport, $userPersonalId) === 0) {
+                        $passportErrors["attendees_passports.{$index}"] = ['You cannot add your own student ID as an attendee passport. The booking owner is automatically included.'];
+                    }
+                }
+            }
+            
+            // Validation 3: Check if each passport ID exists in the system via Web Service
+            foreach ($trimmedPassports as $index => $passport) {
+                // Skip if already has error (own student_id)
+                if (isset($passportErrors["attendees_passports.{$index}"])) {
+                    continue;
+                }
+                
+                // First validate format
+                if (!$this->validationService->validateStudentIdFormat($passport)) {
+                    $passportErrors["attendees_passports.{$index}"] = ['Invalid format. Must be YYWMR##### (e.g., 25WMR00001).'];
+                    continue;
+                }
+                
+                // Then check if user exists via Web Service
+                try {
+                    $result = $this->userWebService->checkByPersonalId($passport);
+                    
+                    if (!$result['exists']) {
+                        $passportErrors["attendees_passports.{$index}"] = ["Passport ID '{$passport}' does not exist or is not active. Please check the ID and try again."];
+                        continue;
+                    }
+                    
+                    // Optional: Verify the user is a student
+                    if ($result['user'] && isset($result['user']['role']) && $result['user']['role'] !== 'student') {
+                        $passportErrors["attendees_passports.{$index}"] = ["User with passport ID '{$passport}' is not a student. Only students can be added as attendees."];
+                        continue;
+                    }
+                    
+                } catch (\Exception $e) {
+                    Log::error('Failed to verify attendee personal ID via Web Service', [
+                        'personal_id' => $passport,
+                        'error' => $e->getMessage(),
+                    ]);
+                    
+                    // For Web Service errors, show on specific input
+                    $passportErrors["attendees_passports.{$index}"] = ['Unable to verify this passport. The user service is currently unavailable. Please try again later.'];
+                }
+            }
+            
+            // If there are any passport errors, return them BEFORE creating booking
+            if (!empty($passportErrors)) {
+                return response()->json([
+                    'status' => 'F', 
+                    'message' => 'Some attendee passport IDs are invalid or do not exist.',
+                    'errors' => $passportErrors,
+                    'timestamp' => now()->format('Y-m-d H:i:s'), 
+                ], 422);
+            }
+        }
+
         // Security: Use database transaction with row-level locking to prevent race conditions
         // This ensures atomic capacity check and booking creation
         return DB::transaction(function () use ($parsedSlots, $validated, $facility, $expectedAttendees, $request) {
@@ -414,64 +565,53 @@ class BookingController extends Controller
                 $endTime = \Carbon\Carbon::parse($endTime)->format('H:i');
             }
 
-            // Use BookingFactory to create the booking
-            $booking = BookingFactory::makeBooking(
-                userId: auth()->id(),
-                facilityId: $validated['facility_id'],
-                bookingDate: $validated['booking_date'],
-                startTime: $startTime,
-                endTime: $endTime,
-                purpose: $validated['purpose'],
-                status: $bookingStatus,
-                expectedAttendees: $expectedAttendees
-            );
+            // Use BookingBuilder to create the booking with slots (Builder Pattern)
+            $builder = BookingBuilder::create()
+                ->forUser(auth()->id())
+                ->forFacility($validated['facility_id'])
+                ->onDate($validated['booking_date'])
+                ->fromTime($startTime)
+                ->toTime($endTime)
+                ->withPurpose($validated['purpose'])
+                ->withStatus($bookingStatus)
+                ->withExpectedAttendees($expectedAttendees)
+                ->withDuration($validated['duration_hours']); 
 
-            // Log activity for user who created the booking
+
+            $builder->addSlots($parsedSlots);
+
+
+            $booking = $builder->build();
+
+
             try {
                 $user->activityLogs()->create([
                     'action' => 'create_booking',
                     'description' => "Created booking for facility: {$facility->name} on {$validated['booking_date']}",
                 ]);
             } catch (\Exception $e) {
-                // Activity log is optional, continue even if it fails
                 Log::warning('Failed to create booking activity log: ' . $e->getMessage());
             }
 
-            // Create booking slots
-            foreach ($parsedSlots as $slot) {
-                $slotStart = \Carbon\Carbon::parse($slot['start_time']);
-                $slotEnd = \Carbon\Carbon::parse($slot['end_time']);
-                
-                BookingSlot::create([
-                    'booking_id' => $booking->id,
-                    'slot_date' => $slot['date'],
-                    'start_time' => $slotStart->format('H:i:s'),
-                    'end_time' => $slotEnd->format('H:i:s'),
-                    'duration_hours' => $slot['duration'],
-                ]);
-            }
-
-            // Save attendees if provided
+            // Create attendees (validation already done before transaction)
             if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
-                foreach ($request->attendees_passports as $passport) {
-                    $trimmedPassport = trim($passport);
-                    if (!empty($trimmedPassport)) {
-                        // Additional validation check (should already be validated above, but safety check)
-                        if (!$this->validationService->validateStudentIdFormat($trimmedPassport)) {
-                            return response()->json([
-                                'status' => 'F', 
-                                'message' => 'Invalid attendee passport format. Must be in format YYWMR##### (e.g., 25WMR00001).',
-                                'timestamp' => now()->format('Y-m-d H:i:s'), 
-                            ], 422);
-                        }
-                        $booking->attendees()->create([
-                            'student_passport' => $trimmedPassport,
-                        ]);
+                // Filter out empty values and trim all passports
+                $trimmedPassports = [];
+                foreach ($request->attendees_passports as $index => $passport) {
+                    $trimmed = trim($passport);
+                    if (!empty($trimmed)) {
+                        $trimmedPassports[] = $trimmed;
                     }
+                }
+                
+                // Create attendees after all validations pass
+                foreach ($trimmedPassports as $passport) {
+                    $booking->attendees()->create([
+                        'student_passport' => $passport,
+                    ]);
                 }
             }
 
-            // Send notification to user
             if ($booking->status === 'approved') {
                 $this->notificationService->sendBookingNotification($booking, 'approved', 'Your booking has been created and approved!');
             } else {
@@ -539,20 +679,6 @@ class BookingController extends Controller
                 'timestamp' => now()->format('Y-m-d H:i:s'), 
             ], 500);
         }
-    }
-
-
-    /**
-     * Delete booking - Disabled for admin
-     * Admin should use reject or cancel instead
-     */
-    public function destroy(string $id)
-    {
-        return response()->json([
-            'status' => 'F', 
-            'message' => 'Delete functionality is disabled. Please use reject or cancel instead.',
-            'timestamp' => now()->format('Y-m-d H:i:s'), 
-        ], 403);
     }
 
     /**
@@ -772,28 +898,21 @@ class BookingController extends Controller
             'expected_attendees' => 'nullable|integer|min:1',
         ]);
 
-        //Service Consumption Get facility info via HTTP from Facility Management Module
-        $baseUrl = config('app.url', 'http://localhost:8000');
-        $apiUrl = rtrim($baseUrl, '/') . '/api/facilities/service/get-info';
-        
-        $facilityResponse = Http::timeout(10)->post($apiUrl, [
-            'facility_id' => $facilityId,
-            'timestamp' => now()->format('Y-m-d H:i:s'), 
-        ]);
-        
-        if (!$facilityResponse->successful()) {
-            Log::warning('Failed to get facility from Facility Management Module', [
-                'status' => $facilityResponse->status(),
+        // Get facility via Web Service only (no database fallback)
+        try {
+            $facility = $this->facilityWebService->getFacilityInfo($facilityId);
+        } catch (\Exception $e) {
+            Log::error('Failed to get facility from Web Service in availability check', [
+                'facility_id' => $facilityId,
+                'error' => $e->getMessage(),
             ]);
-            // Fallback to direct query
-            $facility = Facility::findOrFail($facilityId);
-        } else {
-            $facilityData = $facilityResponse->json();
-            if ($facilityData['status'] === 'S' && isset($facilityData['data']['facility'])) {
-                $facility = Facility::findOrFail($facilityId);
-            } else {
-                $facility = Facility::findOrFail($facilityId);
-            }
+            
+            return response()->json([
+                'status' => 'F', 
+                'message' => 'Unable to retrieve facility information. The facility service is currently unavailable. Please try again later.',
+                'error_details' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s'), 
+            ], 503);
         }
 
         // Check if user is student and facility type is not allowed
@@ -997,6 +1116,21 @@ class BookingController extends Controller
         $booking = Booking::with(['user', 'facility', 'attendees', 'slots', 'approver'])
             ->findOrFail($request->booking_id);
 
+        $formattedSlots = [];
+        if ($booking->slots && $booking->slots->count() > 0) {
+            $formattedSlots = $booking->slots->map(function($slot) {
+                $slotDate = $slot->slot_date->format('Y-m-d');
+                $startDateTime = $slotDate . ' ' . $slot->start_time;
+                $endDateTime = $slotDate . ' ' . $slot->end_time;
+                
+                return [
+                    'slot_date' => $slotDate,
+                    'start_time' => $startDateTime,
+                    'end_time' => $endDateTime,
+                    'duration_hours' => $slot->duration_hours,
+                ];
+            })->toArray();
+        }
 
         return response()->json([
             'status' => 'S',    
@@ -1004,29 +1138,19 @@ class BookingController extends Controller
             'data' => [
                 'booking' => [
                     'id' => $booking->id,
-                    'user_id' => $booking->user_id,
-                    'user_name' => $booking->user->name ?? null,
-                    'user_email' => $booking->user->email ?? null,
-                    'facility_id' => $booking->facility_id,
+                    'status' => $booking->status,
                     'facility_name' => $booking->facility->name ?? null,
                     'facility_code' => $booking->facility->code ?? null,
                     'booking_date' => $booking->booking_date ? $booking->booking_date->format('Y-m-d') : null,
-                    'start_time' => $booking->start_time ? $booking->start_time->format('Y-m-d H:i:s') : null,
-                    'end_time' => $booking->end_time ? $booking->end_time->format('Y-m-d H:i:s') : null,
                     'duration_hours' => $booking->duration_hours,
                     'purpose' => $booking->purpose,
-                    'status' => $booking->status,
-                    'expected_attendees' => $booking->expected_attendees,
-                    'approved_by' => $booking->approved_by,
-                    'approved_at' => $booking->approved_at ? $booking->approved_at->format('Y-m-d H:i:s') : null,
-                    'cancelled_at' => $booking->cancelled_at ? $booking->cancelled_at->format('Y-m-d H:i:s') : null,
-                    'created_at' => $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : null,
+                    'user_name' => $booking->user->name ?? null,
+                    'slots' => $formattedSlots,
                 ],
-                'attendees_count' => $booking->attendees->count(),
-                'slots_count' => $booking->slots->count(),
             ],
             'timestamp' => now()->format('Y-m-d H:i:s'), 
         ]);
     }
 
 }
+

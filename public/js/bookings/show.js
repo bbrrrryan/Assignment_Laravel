@@ -151,11 +151,10 @@ function displayBookingDetails(booking) {
                     <span class="detail-label">Purpose:</span>
                     <span class="detail-value">${booking.purpose || 'N/A'}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Expected Attendees:</span>
-                    <span class="detail-value">${booking.expected_attendees || 'N/A'}</span>
-                </div>
-                ${booking.attendees && booking.attendees.length > 0 ? `
+                ${booking.attendees && booking.attendees.length > 0 && 
+                  booking.facility && 
+                  booking.facility.type && 
+                  (booking.facility.type.toLowerCase() === 'sport' || booking.facility.type.toLowerCase() === 'library') ? `
                 <div class="detail-row">
                     <span class="detail-label">Attendees Passport:</span>
                     <span class="detail-value">

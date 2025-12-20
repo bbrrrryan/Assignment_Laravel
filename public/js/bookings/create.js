@@ -1533,18 +1533,20 @@ window.addAttendeeField = function() {
     if (input) {
         input.setAttribute('data-validation-attached', 'true');
         input.addEventListener('blur', function() {
-            validatePassportInput(this);
+            // Validate all passports (format and duplicates) on blur
+            validateAllAttendeePassports();
         });
         input.addEventListener('input', function() {
-            // Clear error on input if format becomes valid
-            if (validateStudentIdFormat(this.value)) {
-                showPassportError(this, null);
-            }
+            // Validate all passports in real-time as user types
+            validateAllAttendeePassports();
         });
     }
     
     // Update field numbers and enable/disable remove buttons
     updateAttendeeFieldNumbers();
+    
+    // Validate all passports after adding new field
+    validateAllAttendeePassports();
 }
 
 // Remove attendee passport input field
@@ -1553,7 +1555,72 @@ window.removeAttendeeField = function(button) {
     if (attendeeField) {
         attendeeField.remove();
         updateAttendeeFieldNumbers();
+        // Re-validate all passports after removal
+        validateAllAttendeePassports();
     }
+}
+
+// Validate all attendee passports (format and duplicates)
+function validateAllAttendeePassports() {
+    const passportInputs = document.querySelectorAll('.attendee-passport-input');
+    const passportValues = [];
+    let hasErrors = false;
+    
+    // First pass: validate format and collect valid values
+    passportInputs.forEach((input, index) => {
+        const trimmedValue = input.value.trim();
+        const upperValue = trimmedValue.toUpperCase();
+        
+        // Clear previous errors first
+        const existingError = input.parentElement.parentElement.querySelector('.passport-error');
+        if (existingError) {
+            existingError.remove();
+        }
+        input.classList.remove('is-invalid');
+        
+        if (trimmedValue) {
+            // Check format
+            if (!validateStudentIdFormat(trimmedValue)) {
+                showPassportError(input, 'Invalid format. Must be YYWMR##### (e.g., 25WMR00001)');
+                hasErrors = true;
+            } else {
+                // Format is valid, add to values for duplicate check
+                passportValues.push({
+                    value: upperValue,
+                    original: trimmedValue,
+                    input: input,
+                    index: index
+                });
+            }
+        }
+    });
+    
+    // Second pass: check for duplicates (only on valid format values)
+    const duplicates = new Set();
+    const valueCounts = new Map();
+    
+    passportValues.forEach(item => {
+        const count = valueCounts.get(item.value) || 0;
+        valueCounts.set(item.value, count + 1);
+        if (count > 0) {
+            duplicates.add(item.value);
+        }
+    });
+    
+    // Show duplicate errors
+    passportValues.forEach(item => {
+        if (duplicates.has(item.value)) {
+            showPassportError(item.input, 'This passport number is already used. Each attendee must have a unique passport number.');
+            hasErrors = true;
+        }
+    });
+    
+    return !hasErrors && duplicates.size === 0;
+}
+
+// Check for duplicate passport numbers (legacy function, kept for backward compatibility)
+function checkDuplicatePassports() {
+    return validateAllAttendeePassports();
 }
 
 // Attach validation to all passport inputs
@@ -1570,13 +1637,12 @@ function attachPassportValidation() {
         
         // Add validation event listeners
         input.addEventListener('blur', function() {
-            validatePassportInput(this);
+            // Validate all passports (format and duplicates) on blur
+            validateAllAttendeePassports();
         });
         input.addEventListener('input', function() {
-            // Clear error on input if format becomes valid
-            if (validateStudentIdFormat(this.value)) {
-                showPassportError(this, null);
-            }
+            // Validate all passports in real-time as user types
+            validateAllAttendeePassports();
         });
     });
 }
@@ -1888,32 +1954,26 @@ function bindBookingForm() {
     const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
     
     if (enableMultiAttendees) {
-        // Validate all passport inputs before submission
-        const passportInputs = document.querySelectorAll('.attendee-passport-input');
-        let hasErrors = false;
-        
-        passportInputs.forEach(input => {
-            const passport = input.value.trim();
-            if (passport) {
-                if (!validateStudentIdFormat(passport)) {
-                    showPassportError(input, 'Invalid format. Must be YYWMR##### (e.g., 25WMR00001)');
-                    hasErrors = true;
-                } else {
-                    attendeesPassports.push(passport);
-                }
-            }
-        });
-        
-        if (hasErrors) {
+        // Validate all passports (format and duplicates) before submission
+        if (!validateAllAttendeePassports()) {
             if (typeof showToast !== 'undefined') {
-                showToast('Please fix the invalid passport format(s) before submitting.', 'warning');
+                showToast('Please fix the passport errors (invalid format or duplicates) before submitting.', 'warning');
             } else {
-                alert('Please fix the invalid passport format(s) before submitting.');
+                alert('Please fix the passport errors (invalid format or duplicates) before submitting.');
             }
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
             return;
         }
+        
+        // Collect valid passport values
+        const passportInputs = document.querySelectorAll('.attendee-passport-input');
+        passportInputs.forEach(input => {
+            const passport = input.value.trim();
+            if (passport && validateStudentIdFormat(passport)) {
+                attendeesPassports.push(passport);
+            }
+        });
         
         if (attendeesPassports.length === 0) {
             if (typeof showToast !== 'undefined') {
@@ -1993,20 +2053,48 @@ function bindBookingForm() {
                 // Show detailed error message including validation errors
                 let errorMsg = result.error || result.data?.message || 'Unknown error';
                 if (result.data?.errors) {
-                    // Handle validation errors for attendees_passports
-                    if (result.data.errors['attendees_passports.0'] || result.data.errors['attendees_passports.1'] || result.data.errors['attendees_passports.*']) {
+                    // Handle validation errors for attendees_passports array-level errors (duplicate, own student_id, etc.)
+                    if (result.data.errors['attendees_passports']) {
+                        const arrayError = Array.isArray(result.data.errors['attendees_passports']) 
+                            ? result.data.errors['attendees_passports'][0] 
+                            : result.data.errors['attendees_passports'];
+                        
+                        // Show error on all passport input fields
+                        const passportInputs = document.querySelectorAll('.attendee-passport-input');
+                        passportInputs.forEach((input) => {
+                            if (input.value.trim()) {
+                                showPassportError(input, arrayError);
+                            }
+                        });
+                        
+                        // Also show as toast/alert for better visibility
+                        if (typeof showToast !== 'undefined') {
+                            showToast(arrayError, 'error');
+                        }
+                    }
+                    
+                    // Handle validation errors for individual attendees_passports fields
+                    // Check if there are any attendees_passports.* errors
+                    const hasAttendeeErrors = Object.keys(result.data.errors).some(key => 
+                        key.startsWith('attendees_passports.')
+                    );
+                    
+                    if (hasAttendeeErrors) {
                         // Map errors to specific input fields
                         const passportInputs = document.querySelectorAll('.attendee-passport-input');
                         passportInputs.forEach((input, index) => {
                             const errorKey = `attendees_passports.${index}`;
                             const errorKeyWildcard = 'attendees_passports.*';
                             
+                            // Check for specific index error
                             if (result.data.errors[errorKey]) {
                                 const errorMessage = Array.isArray(result.data.errors[errorKey]) 
                                     ? result.data.errors[errorKey][0] 
                                     : result.data.errors[errorKey];
                                 showPassportError(input, errorMessage);
-                            } else if (result.data.errors[errorKeyWildcard] && input.value.trim()) {
+                            } 
+                            // Check for wildcard error (applies to all inputs with values)
+                            else if (result.data.errors[errorKeyWildcard] && input.value.trim()) {
                                 const errorMessage = Array.isArray(result.data.errors[errorKeyWildcard]) 
                                     ? result.data.errors[errorKeyWildcard][0] 
                                     : result.data.errors[errorKeyWildcard];
@@ -2015,8 +2103,21 @@ function bindBookingForm() {
                         });
                     }
                     
-                    const validationErrors = Object.values(result.data.errors).flat().join(', ');
-                    errorMsg = validationErrors || errorMsg;
+                    // Collect all validation errors for display
+                    const validationErrors = [];
+                    Object.keys(result.data.errors).forEach(key => {
+                        const errorValue = result.data.errors[key];
+                        if (Array.isArray(errorValue)) {
+                            validationErrors.push(...errorValue);
+                        } else {
+                            validationErrors.push(errorValue);
+                        }
+                    });
+                    
+                    // Use the most specific error message
+                    if (validationErrors.length > 0) {
+                        errorMsg = validationErrors.join('. ');
+                    }
                 }
               
                 errors.push(errorMsg);

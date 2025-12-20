@@ -534,4 +534,55 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Web Service API: Check if user exists by personal_id
+     * This endpoint is designed for inter-module communication
+     * Used by other modules (e.g., Booking Module) to verify attendee personal IDs
+     * 
+     * IFA Standard Compliance:
+     * - Request must include timestamp or requestID (mandatory)
+     * - Response includes status and timestamp (mandatory)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkByPersonalId(Request $request)
+    {
+        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+        if (!$request->has('timestamp') && !$request->has('requestID')) {
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Validation error: timestamp or requestID is mandatory',
+                'errors' => [
+                    'timestamp' => 'Either timestamp or requestID must be provided',
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 422);
+        }
+
+        $request->validate([
+            'personal_id' => 'required|string',
+        ]);
+
+        $user = User::where('personal_id', $request->personal_id)
+            ->where('status', 'active')
+            ->first();
+
+        // IFA Standard Response Format
+        return response()->json([
+            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'message' => $user ? 'User found' : 'User not found',
+            'data' => [
+                'exists' => $user !== null,
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'personal_id' => $user->personal_id,
+                    'role' => $user->role,
+                ] : null,
+            ],
+            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+        ]);
+    }
 }

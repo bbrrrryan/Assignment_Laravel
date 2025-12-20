@@ -31,4 +31,42 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Facility Management Module Web Service
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the Facility Management Module Web Service API.
+    | This allows you to specify a different URL/port for testing purposes.
+    |
+    | If FACILITY_SERVICE_URL is not set, it will use APP_URL.
+    | If FACILITY_SERVICE_PORT is set, it will override the port in the URL.
+    |
+    */
+
+    'facility_service' => [
+        'url' => env('FACILITY_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
+        'port' => env('FACILITY_SERVICE_PORT', null), // e.g., 8001
+        'timeout' => env('FACILITY_SERVICE_TIMEOUT', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Management Module Web Service
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the User Management Module Web Service API.
+    | This allows you to specify a different URL/port for testing purposes.
+    |
+    | If USER_SERVICE_URL is not set, it will use APP_URL.
+    | If USER_SERVICE_PORT is set, it will override the port in the URL.
+    |
+    */
+
+    'user_service' => [
+        'url' => env('USER_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
+        'port' => env('USER_SERVICE_PORT', null), // e.g., 8001
+        'timeout' => env('USER_SERVICE_TIMEOUT', 5),
+    ],
+
 ];

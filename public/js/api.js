@@ -126,6 +126,14 @@ const API = {
                     const errorMessages = Object.values(data.errors).flat().join(', ');
                     return { success: false, error: errorMessages, data };
                 }
+                // Handle 400 Bad Request errors
+                if (response.status === 400) {
+                    return { success: false, error: data.message || 'Bad Request', data };
+                }
+                // Handle 503 Service Unavailable errors
+                if (response.status === 503) {
+                    return { success: false, error: data.message || 'Service Unavailable', data };
+                }
                 return { success: false, error: data.message || `Request failed (${response.status})`, data };
             }
             
