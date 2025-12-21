@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Low Kim Hong
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +16,6 @@ class Attendee extends Model
         'student_passport',
     ];
 
-    // Relationships
     public function booking()
     {
         return $this->belongsTo(Booking::class);
