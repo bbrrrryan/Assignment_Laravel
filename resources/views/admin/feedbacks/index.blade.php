@@ -1,3 +1,6 @@
+{{-- Author: [BOO KAI JIE] --}}
+
+
 @extends('layouts.app')
 
 @section('title', 'Feedback Management - TARUMT FMS')
@@ -12,7 +15,6 @@
         </div>
     </div>
 
-    <!-- Search and Filters -->
     <div class="filters-section">
         <div class="filters-card">
             <div class="filters-form">
@@ -54,16 +56,13 @@
         </div>
     </div>
 
-    <!-- Feedbacks Table -->
     <div id="feedbacksList" class="table-container">
         <p>Loading feedbacks...</p>
     </div>
 
-    <!-- Pagination -->
     <div id="paginationContainer" class="pagination-wrapper"></div>
 </div>
 
-<!-- Reply Feedback Modal -->
 <div id="replyModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeReplyModal()">&times;</span>
@@ -84,7 +83,6 @@
     </div>
 </div>
 
-<!-- Block Feedback Modal -->
 <div id="blockModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeBlockModal()">&times;</span>

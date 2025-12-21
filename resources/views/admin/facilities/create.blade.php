@@ -1,6 +1,4 @@
-/**
- * Author: Ng Jhun Hou
- */ 
+{{-- Author: [Ng Jhun Hou] --}}
 @extends('layouts.app')
 
 @section('title', 'Add Facility - TARUMT FMS')

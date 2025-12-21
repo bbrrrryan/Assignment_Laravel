@@ -1,3 +1,5 @@
+{{-- Author: [BOO KAI JIE] --}}
+
 @extends('layouts.app')
 
 @section('title', 'Feedback Details - TARUMT FMS')
@@ -18,11 +20,9 @@
 </div>
 
 <script>
-// Pass feedback ID to JavaScript
 window.feedbackId = {{ $id }};
 </script>
 
-<!-- Reply Feedback Modal -->
 <div id="replyModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeReplyModal()">&times;</span>
@@ -43,7 +43,6 @@ window.feedbackId = {{ $id }};
     </div>
 </div>
 
-<!-- Block Feedback Modal -->
 <div id="blockModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeBlockModal()">&times;</span>
@@ -64,7 +63,6 @@ window.feedbackId = {{ $id }};
     </div>
 </div>
 
-<!-- Image View Modal -->
 <div id="imageViewModal" class="image-modal" style="display: none;">
     <span class="image-modal-close" onclick="closeImageViewModal()">&times;</span>
     <div class="image-modal-content">

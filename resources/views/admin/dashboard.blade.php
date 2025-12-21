@@ -301,7 +301,7 @@
                     <i class="fas fa-history"></i>
                     <h2>Recent Bookings</h2>
                 </div>
-                <a href="{{ route('bookings.index') }}" class="btn-primary btn-primary-outline">View All</a>
+                <a href="{{ route('admin.bookings.index') }}" class="btn-primary btn-primary-outline">View All</a>
             </div>
             <div class="table-container">
                 <table class="data-table data-table-compact">

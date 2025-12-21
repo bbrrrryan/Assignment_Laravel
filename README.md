@@ -64,3 +64,53 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+
+## FOR .env please the provided below
+APP_NAME=Laravel
+APP_ENV=local
+APP_KEY=base64:aCcjyp7XqqBDdafTgvN7/xtdqaJ8FFKG4mPQeSpGj90=
+APP_DEBUG=true
+APP_URL=http://localhost
+
+LOG_CHANNEL=stack
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_DATABASE=student_system
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=file
+FILESYSTEM_DISK=local
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+
+MEMCACHED_HOST=127.0.0.1
+
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=liewzl-wm22@student.tarc.edu.my
+MAIL_PASSWORD=exkxssyorldlfjdx
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS="liewzl-wm22@student.tarc.edu.my"
+MAIL_FROM_NAME="TARUMT FMS"
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=
+
+APP_URL=http://127.0.0.1:8000
+BOOKING_SERVICE_URL=http://127.0.0.1:8001
+FACILITY_SERVICE_URL=http://127.0.0.1:8002
+USER_SERVICE_URL=http://127.0.0.1:8003
+FEEDBACK_SERVICE_URL=http://127.0.0.1:8004
+
+## FOR Database configuration, use this file path below
+sql\student_system.sql
