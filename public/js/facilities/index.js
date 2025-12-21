@@ -509,18 +509,7 @@ async function loadFacilityFeedbacks(id) {
     if (!container || !section) return;
     
     try {
-        const user = API.getUser();
-        const requestData = {
-            facility_id: id,
-            timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            limit: 10
-        };
-        
-        if (user && user.id) {
-            requestData.user_id = user.id;
-        }
-        
-        const result = await API.post('/feedbacks/service/get-by-facility', requestData);
+        const result = await API.get(`/facilities/${id}/feedbacks?limit=10`);
         
         if (result.success && result.data.status === 'S') {
             const feedbacks = result.data.data?.feedbacks || [];
@@ -546,8 +535,8 @@ function displayFacilityFeedbacks(feedbacks) {
     
     container.innerHTML = feedbacks.map(feedback => {
         const user = feedback.user || {};
-        const userName = user.name || 'Anonymous';
-        const userEmail = user.email || '';
+        const userName = feedback.user_name || user.name || 'Anonymous';
+        const userEmail = feedback.user_email || user.email || '';
         const date = new Date(feedback.created_at).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',

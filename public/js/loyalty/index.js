@@ -300,8 +300,7 @@ function updateRewardsTable(rewards) {
                                         style="padding: 6px 12px; font-size: 0.85rem;">
                                     <i class="fas fa-eye"></i> View
                                 </button>
-                                <button onclick="window.redeemReward(${reward.id}, ${reward.points_required})" 
-                                        class="btn-primary" 
+                                <button class="btn-primary redeem-reward-btn" 
                                         ${isDisabled ? 'disabled' : ''} 
                                         data-reward-id="${reward.id}"
                                         data-points-required="${reward.points_required}"
@@ -621,8 +620,8 @@ document.addEventListener('DOMContentLoaded', function() {
         rewardsContainer.parentNode.replaceChild(newContainer, rewardsContainer);
         
         document.getElementById('loyaltyContent').addEventListener('click', function(e) {
-            const button = e.target.closest('button[data-reward-id]');
-            if (button && !button.disabled) {
+            const button = e.target.closest('button.redeem-reward-btn, button[data-reward-id]');
+            if (button && !button.disabled && button.classList.contains('redeem-reward-btn')) {
                 e.preventDefault();
                 e.stopPropagation();
                 const rewardId = parseInt(button.getAttribute('data-reward-id'));
