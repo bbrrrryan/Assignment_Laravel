@@ -216,7 +216,7 @@ class FeedbackController extends Controller
     public function myFeedbacks(Request $request)
     {
         $feedbacks = Feedback::where('user_id', $request->user()->id)
-            ->with(['booking.facility'])
+            ->with(['booking.facility', 'facility'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->search, fn($q) => $q->where(function($query) use ($request) {
@@ -227,9 +227,13 @@ class FeedbackController extends Controller
             ->paginate(10)->withQueryString();
         
         $feedbacks->getCollection()->transform(function ($feedback) {
-            $facilityName = $feedback->booking && $feedback->booking->facility 
-                ? $feedback->booking->facility->name 
-                : null;
+            // Check facility name from booking relationship first, then direct facility relationship
+            $facilityName = null;
+            if ($feedback->booking && $feedback->booking->facility) {
+                $facilityName = $feedback->booking->facility->name;
+            } elseif ($feedback->facility) {
+                $facilityName = $feedback->facility->name;
+            }
             
             $feedback->facility_name = $facilityName;
             
@@ -245,10 +249,21 @@ class FeedbackController extends Controller
 
     public function getFacilityFeedbacks(Request $request, string $facilityType)
     {
+        $userId = $request->user() ? $request->user()->id : null;
+        
         $feedbacks = Feedback::with(['user'])
             ->where('facility_type', $facilityType)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
+            ->where(function($query) use ($userId) {
+                $query->where('status', 'resolved');
+                if ($userId) {
+                    $query->orWhere(function($q) use ($userId) {
+                        $q->whereIn('status', ['pending', 'under_review'])
+                          ->where('user_id', $userId);
+                    });
+                }
+            })
             ->orderBy('created_at', 'desc')
             ->paginate(10);
         
@@ -551,11 +566,26 @@ class FeedbackController extends Controller
 
         $facilityId = $request->input('facility_id');
         $limit = $request->input('limit', 10);
+        
+        // Get user_id from request (optional - for showing own pending feedbacks)
+        $userId = $request->input('user_id');
 
         $feedbacks = Feedback::with(['user'])
             ->where('facility_id', $facilityId)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
+            ->where(function($query) use ($userId) {
+                // Show resolved feedbacks to everyone
+                $query->where('status', 'resolved');
+                
+                // Show pending/under_review feedbacks only to the creator
+                if ($userId) {
+                    $query->orWhere(function($q) use ($userId) {
+                        $q->whereIn('status', ['pending', 'under_review'])
+                          ->where('user_id', $userId);
+                    });
+                }
+            })
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()

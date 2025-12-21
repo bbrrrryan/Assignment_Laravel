@@ -7,13 +7,22 @@ use App\Models\User;
 use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use App\Strategies\FacilityValidationContext;
+use App\Services\UserWebService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class FacilityController extends AdminBaseController
 {
+    protected $userWebService;
+
+    public function __construct(UserWebService $userWebService)
+    {
+        $this->userWebService = $userWebService;
+    }
+
     /**
      * Display a listing of facilities
      */
@@ -21,7 +30,6 @@ class FacilityController extends AdminBaseController
     {
         $query = Facility::where('is_deleted', false);
 
-        // Search filter
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -31,21 +39,17 @@ class FacilityController extends AdminBaseController
             });
         }
 
-        // Type filter
         if ($request->has('type') && $request->type) {
             $query->where('type', $request->type);
         }
 
-        // Status filter
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        // Sorting
-        $sortBy = $request->get('sort_by', 'id'); // Default sort by id
-        $sortOrder = $request->get('sort_order', 'asc'); // Default ascending
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
         
-        // Validate sort_by and sort_order
         $allowedSortFields = ['id', 'name', 'type', 'capacity'];
         if (!in_array($sortBy, $allowedSortFields)) {
             $sortBy = 'id';
@@ -57,7 +61,6 @@ class FacilityController extends AdminBaseController
         
         $query->orderBy($sortBy, $sortOrder);
 
-        // Paginate results
         $facilities = $query->paginate(15)->withQueryString();
 
         return view('admin.facilities.index', compact('facilities'));
@@ -76,16 +79,12 @@ class FacilityController extends AdminBaseController
      */
     public function store(Request $request)
     {
-        // Step 1: Validate basic fields including type
         $basicValidated = $request->validate([
             'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
-        // Step 2: Create strategy context based on facility type
         $context = new FacilityValidationContext($basicValidated['type']);
-
-        // Step 3: Get all request data and validate using strategy
         $data = $request->all();
         $validation = $context->validate($data);
         
@@ -93,37 +92,29 @@ class FacilityController extends AdminBaseController
             return back()->withErrors($validation['errors'])->withInput();
         }
 
-        // Step 4: Get default values from strategy and merge with request data
         $defaults = $context->getDefaultValues();
         $validated = array_merge($defaults, $data);
-
-        // Step 5: Process data before save using strategy
         $validated = $context->processBeforeSave($validated);
 
-        // Handle image upload
         if ($request->hasFile('image')) {
             $image = $request->file('image');
             $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
             $destinationPath = public_path('images/facilities');
             
-            // Ensure directory exists
             if (!File::exists($destinationPath)) {
                 File::makeDirectory($destinationPath, 0755, true);
             }
             
-            // Move uploaded file
             $image->move($destinationPath, $imageName);
             $validated['image_url'] = '/images/facilities/' . $imageName;
         }
 
-        // Handle available_day - ensure it's an array or null
         if (isset($validated['available_day']) && is_array($validated['available_day'])) {
             $validated['available_day'] = !empty($validated['available_day']) ? array_values(array_filter($validated['available_day'])) : null;
         } else {
             $validated['available_day'] = null;
         }
 
-        // Handle available_time - ensure it has start and end
         if (isset($validated['available_time']) && is_array($validated['available_time'])) {
             if (empty($validated['available_time']['start']) || empty($validated['available_time']['end'])) {
                 $validated['available_time'] = null;
@@ -132,11 +123,10 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        // Handle equipment - can be array, JSON string, or from hidden input
         if ($request->has('equipment_json') && !empty($request->equipment_json)) {
             $equipmentJson = json_decode($request->equipment_json, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
-                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+                $validated['equipment'] = array_filter($equipmentJson);
             }
         } elseif (isset($validated['equipment'])) {
             if (is_string($validated['equipment'])) {
@@ -147,29 +137,24 @@ class FacilityController extends AdminBaseController
                     $validated['equipment'] = null;
                 }
             } elseif (is_array($validated['equipment'])) {
-                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+                $validated['equipment'] = array_filter($validated['equipment']);
             }
         } else {
             $validated['equipment'] = null;
         }
         
-        // Ensure equipment is null if empty array
         if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
             $validated['equipment'] = null;
         }
 
-        // Set status default if not provided
         $validated['status'] = $validated['status'] ?? 'available';
 
-        // Set created_by and updated_by to current admin user
         $currentUserId = auth()->id();
         $validated['created_by'] = $currentUserId;
         $validated['updated_by'] = $currentUserId;
 
-        // Create the facility
         $facility = Facility::create($validated);
         
-        // Manually set timestamps to Malaysia timezone after creation using DB query
         $now = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s');
         DB::table('facilities')
             ->where('id', $facility->id)
@@ -178,10 +163,8 @@ class FacilityController extends AdminBaseController
                 'updated_at' => $now
             ]);
         
-        // Refresh the model to get updated timestamps
         $facility->refresh();
 
-        // Create announcement for new facility
         $this->createFacilityAnnouncement($facility, 'new');
 
         return redirect()->route('admin.facilities.index')
@@ -194,15 +177,41 @@ class FacilityController extends AdminBaseController
     public function show(string $id)
     {
         $facility = Facility::where('is_deleted', false)
-            ->with(['bookings', 'creator', 'updater'])
+            ->with(['bookings'])
             ->findOrFail($id);
 
-        // Check if facility has any bookings in the current month (for CSV export button)
         $hasBookingsThisMonth = $facility->bookings()
             ->whereBetween('booking_date', [now()->startOfMonth(), now()->endOfMonth()])
             ->exists();
 
-        return view('admin.facilities.show', compact('facility', 'hasBookingsThisMonth'));
+        $creatorInfo = null;
+        $updaterInfo = null;
+
+        if ($facility->created_by) {
+            try {
+                $creatorInfo = $this->userWebService->getUserInfo($facility->created_by);
+            } catch (\Exception $e) {
+                Log::error('Failed to fetch creator info via Web Service in facility show', [
+                    'facility_id' => $id,
+                    'created_by' => $facility->created_by,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($facility->updated_by) {
+            try {
+                $updaterInfo = $this->userWebService->getUserInfo($facility->updated_by);
+            } catch (\Exception $e) {
+                Log::error('Failed to fetch updater info via Web Service in facility show', [
+                    'facility_id' => $id,
+                    'updated_by' => $facility->updated_by,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return view('admin.facilities.show', compact('facility', 'hasBookingsThisMonth', 'creatorInfo', 'updaterInfo'));
     }
 
     /**
@@ -221,17 +230,13 @@ class FacilityController extends AdminBaseController
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
 
-        // Step 1: Validate basic fields including type
         $basicValidated = $request->validate([
             'type' => 'required|in:classroom,laboratory,sports,auditorium,library,cafeteria,other',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
-        // Step 2: Determine facility type (use new type if changed, otherwise use existing)
         $facilityType = $basicValidated['type'] ?? $facility->type;
         $context = new FacilityValidationContext($facilityType);
-
-        // Step 3: Get all request data and validate using strategy (pass existing facility for uniqueness check)
         $data = $request->all();
         $validation = $context->validate($data, $facility);
         
@@ -239,12 +244,9 @@ class FacilityController extends AdminBaseController
             return back()->withErrors($validation['errors'])->withInput();
         }
 
-        // Step 4: Process data before save using strategy
         $validated = $context->processBeforeSave($data);
 
-        // Handle image upload
         if ($request->hasFile('image')) {
-            // Delete old image if exists
             if ($facility->image_url) {
                 $oldImagePath = public_path($facility->image_url);
                 if (File::exists($oldImagePath)) {
@@ -252,29 +254,24 @@ class FacilityController extends AdminBaseController
                 }
             }
 
-            // Upload new image
             $image = $request->file('image');
             $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
             $destinationPath = public_path('images/facilities');
             
-            // Ensure directory exists
             if (!File::exists($destinationPath)) {
                 File::makeDirectory($destinationPath, 0755, true);
             }
             
-            // Move uploaded file
             $image->move($destinationPath, $imageName);
             $validated['image_url'] = '/images/facilities/' . $imageName;
         }
 
-        // Handle available_day - ensure it's an array or null
         if (isset($validated['available_day']) && is_array($validated['available_day'])) {
             $validated['available_day'] = !empty($validated['available_day']) ? array_values(array_filter($validated['available_day'])) : null;
         } else {
             $validated['available_day'] = null;
         }
 
-        // Handle available_time - ensure it has start and end
         if (isset($validated['available_time']) && is_array($validated['available_time'])) {
             if (empty($validated['available_time']['start']) || empty($validated['available_time']['end'])) {
                 $validated['available_time'] = null;
@@ -283,11 +280,10 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        // Handle equipment - can be array, JSON string, or from hidden input
         if ($request->has('equipment_json') && !empty($request->equipment_json)) {
             $equipmentJson = json_decode($request->equipment_json, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
-                $validated['equipment'] = array_filter($equipmentJson); // Remove empty values
+                $validated['equipment'] = array_filter($equipmentJson);
             }
         } elseif (isset($validated['equipment'])) {
             if (is_string($validated['equipment'])) {
@@ -298,48 +294,39 @@ class FacilityController extends AdminBaseController
                     $validated['equipment'] = null;
                 }
             } elseif (is_array($validated['equipment'])) {
-                $validated['equipment'] = array_filter($validated['equipment']); // Remove empty values
+                $validated['equipment'] = array_filter($validated['equipment']);
             }
         } else {
             $validated['equipment'] = null;
         }
         
-        // Ensure equipment is null if empty array
         if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
             $validated['equipment'] = null;
         }
 
-        // Check if status is being changed
         $oldStatus = $facility->status;
         $newStatus = $validated['status'] ?? $oldStatus;
 
-        // Set updated_by to current admin user
         $currentUserId = auth()->id();
         $validated['updated_by'] = $currentUserId;
         
-        // Ensure created_by is set if it's null (shouldn't happen, but safety check)
         if (empty($facility->created_by)) {
             $validated['created_by'] = $currentUserId;
         }
 
-        // Update the facility
         $facility->update($validated);
         
-        // Manually set updated_at to Malaysia timezone after update using DB query
         $now = Carbon::now('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s');
         DB::table('facilities')
             ->where('id', $facility->id)
             ->update(['updated_at' => $now]);
         
-        // Refresh the model to get updated timestamp
         $facility->refresh();
 
-        // Create announcement if status changed to unavailable or maintenance
         if ($oldStatus !== $newStatus && in_array($newStatus, ['unavailable', 'maintenance'])) {
             $this->createFacilityAnnouncement($facility, $newStatus);
         }
         
-        // Create announcement if status changed from unavailable or maintenance to available
         if ($oldStatus !== $newStatus && $newStatus === 'available' && in_array($oldStatus, ['unavailable', 'maintenance'])) {
             $this->createFacilityAnnouncement($facility, 'available');
         }
@@ -371,13 +358,11 @@ class FacilityController extends AdminBaseController
         $startDate = $request->get('start_date', now()->startOfMonth());
         $endDate = $request->get('end_date', now()->endOfMonth());
 
-        // Get utilization statistics using shared logic
         $stats = $this->calculateUtilizationStats($facility, $startDate, $endDate);
 
-        // If this is an API request, return JSON
         if ($request->wantsJson() || $request->expectsJson()) {
             return response()->json([
-                'status' => 'S', // IFA Standard
+                'status' => 'S',
                 'message' => 'Utilization statistics retrieved',
                 'data' => [
                     'facility' => [
@@ -397,12 +382,9 @@ class FacilityController extends AdminBaseController
                         'status_breakdown' => $stats['status_breakdown'],
                     ],
                 ],
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
         }
-
-        // For web requests, you might want to return a view
-        // For now, return JSON as well
         return response()->json([
             'status' => 'S',
             'data' => $stats,
@@ -416,7 +398,6 @@ class FacilityController extends AdminBaseController
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
 
-        // If no dates are provided, default to the current month
         $startInput = $request->get('start_date');
         $endInput = $request->get('end_date');
 
@@ -428,13 +409,26 @@ class FacilityController extends AdminBaseController
             $end = Carbon::parse($endInput)->endOfDay();
         }
 
-        // Get all bookings for this facility within the date range (all statuses)
         $bookings = $facility->bookings()
-            ->with('user')
             ->whereBetween('booking_date', [$start->toDateString(), $end->toDateString()])
             ->orderBy('booking_date')
             ->orderBy('start_time')
             ->get();
+
+        $userIds = $bookings->pluck('user_id')->unique()->filter()->values()->toArray();
+
+        $userInfoMap = [];
+        if (!empty($userIds)) {
+            try {
+                $userInfoMap = $this->userWebService->getUsersInfo($userIds);
+            } catch (\Exception $e) {
+                Log::error('Failed to fetch users info via Web Service in CSV export', [
+                    'facility_id' => $id,
+                    'user_ids' => $userIds,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $filename = 'facility_bookings_' . $facility->id . '_' . $start->format('Ymd') . '_to_' . $end->format('Ymd') . '.csv';
 
@@ -443,10 +437,9 @@ class FacilityController extends AdminBaseController
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($bookings, $facility, $start, $end) {
+        $callback = function () use ($bookings, $facility, $start, $end, $userInfoMap) {
             $handle = fopen('php://output', 'w');
 
-            // CSV header (one row per booking)
             fputcsv($handle, [
                 'booking_id',
                 'facility_id',
@@ -470,14 +463,18 @@ class FacilityController extends AdminBaseController
             ]);
 
             foreach ($bookings as $booking) {
+                $userInfo = $userInfoMap[$booking->user_id] ?? null;
+                $userName = $userInfo['name'] ?? 'N/A';
+                $userEmail = $userInfo['email'] ?? 'N/A';
+
                 fputcsv($handle, [
                     $booking->id,
                     $facility->id,
                     $facility->code,
                     $facility->name,
                     $booking->user_id,
-                    optional($booking->user)->name,
-                    optional($booking->user)->email,
+                    $userName,
+                    $userEmail,
                     $booking->booking_date ? $booking->booking_date->format('Y-m-d') : null,
                     $booking->start_time ? $booking->start_time->format('Y-m-d H:i:s') : null,
                     $booking->end_time ? $booking->end_time->format('Y-m-d H:i:s') : null,
@@ -509,12 +506,9 @@ class FacilityController extends AdminBaseController
      */
     private function calculateUtilizationStats(Facility $facility, $startDate, $endDate): array
     {
-        // Normalize dates to Carbon instances for calculations,
-        // but keep original values so callers can format them as needed.
         $start = $startDate instanceof Carbon ? $startDate : Carbon::parse($startDate);
         $end = $endDate instanceof Carbon ? $endDate : Carbon::parse($endDate);
 
-        // Get all approved bookings in the date range
         $bookings = $facility->bookings()
             ->whereBetween('booking_date', [$start, $end])
             ->where('status', 'approved')
@@ -524,12 +518,10 @@ class FacilityController extends AdminBaseController
         $totalHours = $bookings->sum('duration_hours');
         $uniqueUsers = $bookings->pluck('user_id')->unique()->count();
 
-        // Calculate utilization percentage (assuming facility is available 8 hours/day)
         $daysInRange = $start->copy()->startOfDay()->diffInDays($end->copy()->endOfDay()) + 1;
-        $maxPossibleHours = $daysInRange * 8; // Assuming 8 hours per day
+        $maxPossibleHours = $daysInRange * 8;
         $utilizationPercentage = $maxPossibleHours > 0 ? ($totalHours / $maxPossibleHours) * 100 : 0;
 
-        // Group by status for the same date range (all statuses)
         $statusBreakdown = $facility->bookings()
             ->whereBetween('booking_date', [$start, $end])
             ->selectRaw('status, count(*) as count')
@@ -560,7 +552,6 @@ class FacilityController extends AdminBaseController
         try {
             $adminId = auth()->id();
             
-            // Determine announcement details based on event type
             switch ($eventType) {
                 case 'new':
                     $title = "New Facility Added: {$facility->name}";
@@ -618,28 +609,25 @@ class FacilityController extends AdminBaseController
                     break;
 
                 default:
-                    return; // Unknown event type, don't create announcement
+                    return;
             }
 
-            // Create announcement using factory
             $announcement = AnnouncementFactory::makeAnnouncement(
                 $type,
                 $title,
                 $content,
-                'all', // Target all users
+                'all',
                 $adminId,
                 $priority,
-                null, // No specific user IDs
-                now(), // Publish immediately
-                null, // No expiration
-                true  // Active
+                null,
+                now(),
+                null,
+                true
             );
 
-            // Publish announcement to all users
             $this->publishAnnouncementToAllUsers($announcement);
 
         } catch (\Exception $e) {
-            // Log error but don't fail the facility operation
             \Log::error('Failed to create facility announcement', [
                 'facility_id' => $facility->id,
                 'event_type' => $eventType,
@@ -656,14 +644,12 @@ class FacilityController extends AdminBaseController
     private function publishAnnouncementToAllUsers(Announcement $announcement)
     {
         try {
-            // Get all active users
             $targetUsers = User::where('status', 'active')->pluck('id')->toArray();
 
             if (empty($targetUsers)) {
                 return;
             }
 
-            // Attach announcement to all users
             $syncData = [];
             foreach ($targetUsers as $userId) {
                 $syncData[$userId] = [
@@ -673,7 +659,6 @@ class FacilityController extends AdminBaseController
 
             $announcement->users()->sync($syncData);
 
-            // Ensure published_at is set
             if (!$announcement->published_at) {
                 $announcement->update(['published_at' => now()]);
             }
