@@ -1,4 +1,4 @@
-﻿/* Page Header Styling */
+﻿/*header  */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -29,7 +29,7 @@
     font-weight: 400;
 }
 
-/* Filters Section Styling */
+/*filters*/
 .filters-section {
     margin-bottom: 30px;
 }
@@ -121,7 +121,7 @@
     color: #a01a2a;
 }
 
-/* Table Container Enhancement */
+/*Table*/
 .table-container {
     background: #ffffff;
     border-radius: 12px;
@@ -168,7 +168,7 @@
     background-color: #f8f9fa;
 }
 
-/* Sort arrow styling */
+/*sort arrow*/
 .sort-arrow {
     font-size: 1rem;
     font-weight: 900;
@@ -200,13 +200,13 @@
     align-items: center;
 }
 
-/* Dropdown Menu Styles - Only for booking page dropdowns, not navigation */
+/*dropdown menu*/
 .dropdown-menu-container {
     position: relative;
     display: inline-block;
 }
 
-/* Only style dropdowns inside dropdown-menu-container, not user dropdown in navigation */
+
 .dropdown-menu-container .dropdown-menu {
     display: none;
     position: fixed;
@@ -315,7 +315,7 @@
     background: #e0a800;
 }
 
-/* Modal Styling - Reference Add New Facility */
+/*modal*/
 .modal-large {
     max-width: 1200px !important;
     width: 95% !important;
@@ -338,7 +338,7 @@
     padding: 1.5rem;
 }
 
-/* Ensure form sections match Add New Facility spacing */
+/*form sections*/
 .modal-large .mb-4 {
     margin-bottom: 1.5rem !important;
 }
@@ -373,7 +373,7 @@
     transform: scale(1.1);
 }
 
-/* Time Validation Error Styles */
+/*time validation error*/
 .is-invalid {
     border-color: #dc3545 !important;
 }
@@ -383,7 +383,7 @@
     box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
 }
 
-/* Responsive Design */
+/*responsive*/
 @media (max-width: 768px) {
     .filters-form {
         flex-direction: column;
@@ -423,7 +423,7 @@
     }
 }
 
-/* Simple Modal Styles (matching delete confirmation) */
+/*modal*/
 .modal {
     position: fixed;
     z-index: 1000;
@@ -593,7 +593,7 @@
     transform: none;
 }
 
-/* Cancel Booking Modal Styles (keeping old styles for backward compatibility) */
+/*cancel booking modal*/
 .cancel-modal {
     display: none;
     position: fixed;
@@ -847,7 +847,7 @@
     }
 }
 
-/* Timetable Styles */
+/*timetable*/
 .timetable-container {
     background: white;
     border-radius: 12px;
@@ -905,7 +905,7 @@
     color: #a01a2a;
 }
 
-/* Unavailable day styles */
+/*unavailable day*/
 .timetable-day.unavailable-day {
     background: #e9ecef;
     border-color: #adb5bd;
@@ -1073,7 +1073,7 @@
     font-weight: 700;
 }
 
-/* Unavailable slot styles */
+/*unavailable slot*/
 .timetable-slot.unavailable {
     border-color: #adb5bd;
     background: #e9ecef;
@@ -1127,7 +1127,7 @@
     }
 }
 
-/* Pagination Styles */
+/*pagination*/
 .pagination-container {
     margin-top: 20px;
     display: flex;

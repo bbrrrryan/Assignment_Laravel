@@ -1,4 +1,7 @@
 <?php
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -85,14 +88,6 @@ class UserWebService
         }
     }
 
-    /**
-     * Get user IDs by criteria via Web Service only
-     * Throws exception if Web Service is unavailable
-     * 
-     * @param array $criteria Optional criteria: 'status', 'role', 'user_ids', 'personal_ids'
-     * @return array Returns ['user_ids' => array, 'count' => int]
-     * @throws \Exception
-     */
     public function getUserIds(array $criteria = []): array
     {
         $apiUrl = rtrim($this->baseUrl, '/') . '/api/users/service/get-ids';
@@ -322,12 +317,6 @@ class UserWebService
         }
     }
 
-    /**
-     * Set timeout for HTTP requests
-     * 
-     * @param int $timeout
-     * @return self
-     */
     public function setTimeout(int $timeout): self
     {
         $this->timeout = $timeout;

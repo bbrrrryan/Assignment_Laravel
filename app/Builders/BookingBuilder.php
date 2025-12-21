@@ -1,11 +1,6 @@
 <?php
 /**
  * Author: Low Kim Hong
- * Module: Booking Management Module
- * Design Pattern: Builder Pattern (Replacing Factory Pattern)
- * 
- * This builder provides a fluent interface for creating Booking objects
- * with improved readability and maintainability compared to the Factory pattern.
  */
 
 namespace App\Builders;

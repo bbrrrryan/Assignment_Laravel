@@ -1,7 +1,8 @@
-/* Booking Create Page Styles */
-/* Reuses styles from index.css for timetable and form elements */
+/**
+ * Author: Low Kim Hong
+ */
 
-/* Form Card Styling - matches facility create page */
+/*form card*/
 .form-card {
     background: #ffffff;
     padding: 30px;
@@ -170,7 +171,7 @@
     margin-bottom: 5px;
 }
 
-/* Attendee fields styling */
+/*attendee fields*/
 .attendee-field {
     margin-bottom: 15px;
 }
@@ -202,7 +203,7 @@
     border-left: none;
 }
 
-/* Button styling for add/remove attendee */
+/*addremove attendee*/
 .btn-outline-primary {
     border: 1px solid #cb2d3e;
     color: #cb2d3e;

@@ -11,13 +11,20 @@ use App\Factories\NotificationFactory;
 use App\Models\Announcement;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\UserWebService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
+    protected $userWebService;
+
+    public function __construct(UserWebService $userWebService)
+    {
+        $this->userWebService = $userWebService;
+    }
+
     /**
      * Display a listing of notifications (Admin only)
      */
@@ -368,11 +375,12 @@ class NotificationController extends Controller
             $role = strtolower($user->role ?? '');
             
             // Check if announcement should be visible to this user
+            // Staff and students have same privilege, so they see the same announcements
             if ($targetAudience === 'all') {
                 return true;
-            } elseif ($targetAudience === 'students' && $role === 'student') {
+            } elseif ($targetAudience === 'students' && ($role === 'student' || $role === 'staff')) {
                 return true;
-            } elseif ($targetAudience === 'staff' && $role === 'staff') {
+            } elseif ($targetAudience === 'staff' && ($role === 'student' || $role === 'staff')) {
                 return true;
             } elseif ($targetAudience === 'admins' && ($role === 'admin' || $role === 'administrator')) {
                 return true;
@@ -529,21 +537,15 @@ class NotificationController extends Controller
 
     /**
      * Get target users based on notification audience
-     * This method uses HTTP to call User Management Module's Web Service
+     * This method uses UserWebService to call User Management Module's Web Service
      * instead of directly querying the database (Inter-module communication)
      */
     private function getTargetUsers(Notification $notification): array
     {
         try {
-            // Get base URL for User Management Module
-            $baseUrl = config('app.url', 'http://localhost:8000');
-            $apiUrl = rtrim($baseUrl, '/') . '/api/users/service/get-ids';
-
-            // Prepare request parameters based on target audience
-            // IFA Standard: Include timestamp in request (mandatory requirement)
-            $params = [
+            // Prepare criteria based on target audience
+            $criteria = [
                 'status' => 'active',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
             ];
 
             switch ($notification->target_audience) {
@@ -552,15 +554,30 @@ class NotificationController extends Controller
                     break;
 
                 case 'students':
-                    $params['role'] = 'student';
-                    break;
+                    // Staff and students have same privilege, include both
+                    // Note: UserWebService may need to support multiple roles
+                    // For now, we'll get students and staff separately and merge
+                    $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
+                    $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
+                    $allUserIds = array_unique(array_merge(
+                        $studentResult['user_ids'] ?? [],
+                        $staffResult['user_ids'] ?? []
+                    ));
+                    return $allUserIds;
 
                 case 'staff':
-                    $params['role'] = 'staff';
-                    break;
+                    // Staff and students have same privilege, include both
+                    // Same as 'students' case
+                    $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
+                    $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
+                    $allUserIds = array_unique(array_merge(
+                        $studentResult['user_ids'] ?? [],
+                        $staffResult['user_ids'] ?? []
+                    ));
+                    return $allUserIds;
 
                 case 'admins':
-                    $params['role'] = 'admin';
+                    $criteria['role'] = 'admin';
                     break;
 
                 case 'specific':
@@ -569,71 +586,28 @@ class NotificationController extends Controller
                     if (empty($targetUserIds)) {
                         return [];
                     }
-                    $params['user_ids'] = $targetUserIds;
+                    $criteria['user_ids'] = $targetUserIds;
                     break;
 
                 default:
                     return [];
             }
 
-            // Make HTTP request to User Management Module (Inter-module Web Service call)
-            $response = Http::timeout(10)->post($apiUrl, $params);
-
-            if (!$response->successful()) {
-                // HTTP request failed
-                Log::error('Failed to get user IDs from User Management Module', [
-                    'status' => $response->status(),
-                    'response' => $response->body(),
-                    'notification_id' => $notification->id,
-                    'url' => $apiUrl,
-                ]);
-                
-                throw new \Exception(
-                    "User Web Service unavailable. HTTP Status: {$response->status()}. " .
-                    "Response: {$response->body()}"
-                );
-            }
+            // Use UserWebService to get user IDs via Web Service
+            $result = $this->userWebService->getUserIds($criteria);
             
-            $data = $response->json();
+            return $result['user_ids'] ?? [];
             
-            if (!isset($data['data']['user_ids']) || !is_array($data['data']['user_ids'])) {
-                Log::error('User Web Service returned invalid response', [
-                    'notification_id' => $notification->id,
-                    'response' => $data,
-                    'url' => $apiUrl,
-                ]);
-                
-                throw new \Exception("User Web Service returned invalid response format");
-            }
-            
-            return $data['data']['user_ids'];
-            
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            // Network/connection error
-            Log::error('User Web Service connection exception', [
-                'notification_id' => $notification->id,
-                'error' => $e->getMessage(),
-                'url' => $apiUrl,
-            ]);
-            
-            throw new \Exception(
-                "Unable to connect to User Web Service: {$e->getMessage()}"
-            );
         } catch (\Exception $e) {
-            // Re-throw if it's already our custom exception
-            if (strpos($e->getMessage(), 'User Web Service') !== false || 
-                strpos($e->getMessage(), 'Unable to connect') !== false) {
-                throw $e;
-            }
-            
-            // Other exceptions
-            Log::error('User Web Service exception', [
+            // Log error with notification context
+            Log::error('Failed to get target users for notification via Web Service', [
                 'notification_id' => $notification->id,
+                'target_audience' => $notification->target_audience,
                 'error' => $e->getMessage(),
-                'url' => $apiUrl ?? 'unknown',
             ]);
             
-            throw new \Exception("User Web Service error: {$e->getMessage()}");
+            // Re-throw the exception (UserWebService already handles error formatting)
+            throw $e;
         }
     }
 

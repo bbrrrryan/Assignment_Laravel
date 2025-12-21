@@ -1,5 +1,5 @@
+{{-- Author: [Low Kim Hong] --}}
 @extends('layouts.app')
-
 @section('title', 'Create Booking - TARUMT FMS')
 
 @section('content')
@@ -29,7 +29,6 @@
 
     <div class="form-card">
         <form id="bookingForm">
-            <!-- Basic Information Section -->
             <div class="form-section">
                 <h3><i class="fas fa-info-circle"></i> Basic Information</h3>
                 
@@ -42,7 +41,6 @@
                 </div>
             </div>
 
-            <!-- Time Information Section -->
             <div class="form-section">
                 <h3><i class="fas fa-clock"></i> Time Information</h3>
                 
@@ -59,7 +57,6 @@
                 </div>
             </div>
 
-            <!-- Additional Information Section -->
             <div class="form-section">
                 <h3><i class="fas fa-calendar-alt"></i> Additional Information</h3>
                 
@@ -72,7 +69,6 @@
                     <label>Attendees Passport <span class="required">*</span></label>
                     <small style="display: block; margin-bottom: 10px;">Enter passport numbers in format YYWMR##### (e.g., 25WMR00001)</small>
                     <div id="attendeesList">
-                        <!-- Attendee inputs will be dynamically added here -->
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addAttendeeBtn" onclick="addAttendeeField()" style="display: none;">
                         <i class="fas fa-plus me-1"></i> Add Attendee
@@ -80,7 +76,6 @@
                 </div>
             </div>
 
-            <!-- Form Actions -->
             <div class="form-actions">
                 <a href="{{ route('bookings.index') }}" class="btn-secondary">
                     <i class="fas fa-times"></i> Cancel

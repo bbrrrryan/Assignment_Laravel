@@ -1,4 +1,7 @@
-// Admin Notification Management
+/**
+ * Author: Liew Zi Li
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -11,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadNotifications(1);
     initSearch();
     
-    // Form submission handler
     const form = document.getElementById('notificationForm');
     if (form) {
         form.addEventListener('submit', handleFormSubmit);
@@ -95,7 +97,6 @@ async function loadNotifications(page = 1) {
         const result = await API.get(`/notifications?${params.toString()}`);
         
         if (result && result.success !== false && result.data) {
-            // API.get wraps response: result.data = { status, message, data: paginator }
             const paginator = result.data.data || result.data;
             const notifications = Array.isArray(paginator.data) ? paginator.data : [];
             const pagination = paginator;
@@ -175,7 +176,6 @@ function displayNotifications(notifications, pagination) {
         </table>
     `;
     
-    // Add pagination
     if (pagination && pagination.last_page > 1) {
         html += `<div class="pagination">`;
         if (pagination.current_page > 1) {
@@ -212,15 +212,12 @@ function getPriorityBadge(priority) {
     return badges[priority] || '<span class="badge">' + (priority || 'Medium') + '</span>';
 }
 
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 }
 
@@ -351,7 +348,6 @@ async function deleteNotification(id) {
     }
 }
 
-// Close modal when clicking outside
 window.onclick = function(event) {
     const modal = document.getElementById('notificationModal');
     if (event.target === modal) {

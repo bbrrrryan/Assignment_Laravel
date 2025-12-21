@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
@@ -13,18 +15,14 @@ class OtpVerificationMail extends Mailable
     public $otpCode;
     public $userName;
 
-    /**
-     * Create a new message instance.
-     */
+
     public function __construct($otpCode, $userName)
     {
         $this->otpCode = $otpCode;
         $this->userName = $userName;
     }
 
-    /**
-     * Build the message.
-     */
+
     public function build()
     {
         return $this->subject('Verify Your Account - TARUMT FMS')

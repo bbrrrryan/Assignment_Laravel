@@ -1,6 +1,6 @@
-/* public/css/app.css */
 
-/* 1. 基础样式与重置 */
+
+
 * { 
     margin: 0; 
     padding: 0; 
@@ -14,7 +14,7 @@ body {
     line-height: 1.6; 
 }
 
-/* 2. 导航栏样式 */
+
 header { 
     background: #ffffff; 
     padding: 1.2rem 10%; 
@@ -62,7 +62,6 @@ nav ul li a:hover {
     border-radius: 8px; 
 }
 
-/* 3. Hero 区域 (白底) */
 .hero { 
     padding: 100px 10% 80px; 
     text-align: center; 
@@ -84,7 +83,6 @@ nav ul li a:hover {
     margin: 0 auto; 
 }
 
-/* 4. 功能展示区 (色差间隔 - 浅灰) */
 .feature-section {
     background-color: #f8f9fa; 
     padding: 80px 10%;
@@ -111,7 +109,6 @@ nav ul li a:hover {
     gap: 30px;
 }
 
-/* 5. 白色功能卡片 */
 .card { 
     background: #ffffff; 
     padding: 40px; 
@@ -146,7 +143,6 @@ nav ul li a:hover {
     line-height: 1.8; 
 }
 
-/* 6. 页脚 */
 footer { 
     text-align: center; 
     padding: 50px 20px; 
@@ -155,7 +151,6 @@ footer {
     font-size: 0.85rem;
 }
 
-/* 7. 认证页面样式 */
 .auth-container {
     min-height: calc(100vh - 200px);
     display: flex;
@@ -271,7 +266,6 @@ footer {
     text-decoration: none;
 }
 
-/* 8. 仪表板样式 */
 .dashboard-container {
     padding: 40px 10%;
 }
@@ -350,7 +344,6 @@ footer {
     font-size: 1.5rem;
 }
 
-/* Module Section Styles */
 .module-section {
     margin-bottom: 40px;
     padding-bottom: 30px;
@@ -399,7 +392,6 @@ footer {
     color: #2d3436;
 }
 
-/* 9. 页面容器和表格 */
 .page-container {
     padding: 40px 10%;
 }
@@ -486,7 +478,6 @@ footer {
 .status-maintenance { background: #fff3cd; color: #856404; }
 .status-unavailable { background: #f8d7da; color: #721c24; }
 
-/* Badge Styles */
 .badge {
     display: inline-block;
     padding: 5px 12px;
@@ -584,7 +575,6 @@ footer {
     background: #5a6268;
 }
 
-/* 10. 模态框 */
 .modal {
     display: none;
     position: fixed;
@@ -629,7 +619,6 @@ footer {
     margin-top: 20px;
 }
 
-/* 11. 卡片网格 */
 .facilities-grid,
 .rewards-grid,
 .certificates-grid {
@@ -676,7 +665,6 @@ footer {
     gap: 10px;
 }
 
-/* 12. 通知和反馈样式 */
 .notifications-container,
 .feedbacks-container {
     display: flex;
@@ -749,7 +737,6 @@ footer {
 .type-error { background: #f8d7da; color: #721c24; }
 .type-reminder { background: #e7d4f8; color: #5a2d7a; }
 
-/* 13. 标签页 */
 .tabs,
 .loyalty-tabs {
     display: flex;
@@ -778,7 +765,6 @@ footer {
     color: #a31f37;
 }
 
-/* 14. 忠诚度页面 */
 .loyalty-dashboard {
     margin-top: 30px;
 }
@@ -819,7 +805,6 @@ footer {
     overflow-x: auto;
 }
 
-/* 16. Loading Spinner */
 .loading-spinner {
     text-align: center;
     padding: 40px;
@@ -832,7 +817,6 @@ footer {
     margin-right: 10px;
 }
 
-/* 15. 响应式设计 */
 @media (max-width: 768px) {
     .page-container,
     .dashboard-container {

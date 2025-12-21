@@ -45,8 +45,8 @@ return [
     */
 
     'facility_service' => [
-        'url' => env('FACILITY_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
-        'port' => env('FACILITY_SERVICE_PORT', null), // e.g., 8001
+        'url' => env('FACILITY_SERVICE_URL', null), 
+        'port' => env('FACILITY_SERVICE_PORT', null), 
         'timeout' => env('FACILITY_SERVICE_TIMEOUT', 5),
     ],
 
@@ -64,8 +64,8 @@ return [
     */
 
     'user_service' => [
-        'url' => env('USER_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
-        'port' => env('USER_SERVICE_PORT', null), // e.g., 8001
+        'url' => env('USER_SERVICE_URL', null), 
+        'port' => env('USER_SERVICE_PORT', null), 
         'timeout' => env('USER_SERVICE_TIMEOUT', 5),
     ],
 
@@ -83,8 +83,8 @@ return [
     */
 
     'announcement_service' => [
-        'url' => env('ANNOUNCEMENT_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
-        'port' => env('ANNOUNCEMENT_SERVICE_PORT', null), // e.g., 8001
+        'url' => env('ANNOUNCEMENT_SERVICE_URL', null), 
+        'port' => env('ANNOUNCEMENT_SERVICE_PORT', null), 
         'timeout' => env('ANNOUNCEMENT_SERVICE_TIMEOUT', 10),
     ],
 
@@ -102,8 +102,8 @@ return [
     */
 
     'booking_service' => [
-        'url' => env('BOOKING_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
-        'port' => env('BOOKING_SERVICE_PORT', null), // e.g., 8001
+        'url' => env('BOOKING_SERVICE_URL', null), 
+        'port' => env('BOOKING_SERVICE_PORT', null), 
         'timeout' => env('BOOKING_SERVICE_TIMEOUT', 10),
     ],
 

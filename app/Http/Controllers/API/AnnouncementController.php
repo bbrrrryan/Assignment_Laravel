@@ -9,18 +9,18 @@ use App\Http\Controllers\Controller;
 use App\Factories\AnnouncementFactory;
 use App\Models\Announcement;
 use App\Models\User;
-use App\Services\AnnouncementWebService;
+use App\Services\UserWebService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class AnnouncementController extends Controller
 {
-    protected $announcementWebService;
+    protected $userWebService;
 
-    public function __construct(AnnouncementWebService $announcementWebService)
+    public function __construct(UserWebService $userWebService)
     {
-        $this->announcementWebService = $announcementWebService;
+        $this->userWebService = $userWebService;
     }
     public function index(Request $request)
     {
@@ -80,12 +80,11 @@ class AnnouncementController extends Controller
         $targetUserIds = $validated['target_user_ids'] ?? null;
         if ($validated['target_audience'] === 'specific' && !empty($validated['target_personal_ids'])) {
             try {
-                $userIdsResult = $this->announcementWebService->getTargetUserIds(
-                    'specific',
-                    null,
-                    $validated['target_personal_ids']
-                );
-                $targetUserIds = $userIdsResult;
+                $result = $this->userWebService->getUserIds([
+                    'status' => 'active',
+                    'personal_ids' => $validated['target_personal_ids']
+                ]);
+                $targetUserIds = $result['user_ids'] ?? [];
             } catch (\Exception $e) {
                 Log::error('Failed to convert personal_ids to user_ids via Web Service', [
                     'personal_ids' => $validated['target_personal_ids'],
@@ -187,10 +186,9 @@ class AnnouncementController extends Controller
 
         try {
             // Get target user IDs via Web Service only (no database fallback)
-            $targetUsers = $this->announcementWebService->getTargetUserIds(
+            $targetUsers = $this->getTargetUsers(
                 $announcement->target_audience,
-                $announcement->target_user_ids,
-                null // personal_ids not stored, only user_ids
+                $announcement->target_user_ids
             );
         } catch (\Exception $e) {
             Log::error('Failed to get target users for announcement via Web Service', [
@@ -322,11 +320,12 @@ class AnnouncementController extends Controller
         $role = strtolower($user->role ?? '');
         $shouldSee = false;
 
+        // Staff and students have same privilege, so they see the same announcements
         if ($targetAudience === 'all') {
             $shouldSee = true;
-        } elseif ($targetAudience === 'students' && $role === 'student') {
+        } elseif ($targetAudience === 'students' && ($role === 'student' || $role === 'staff')) {
             $shouldSee = true;
-        } elseif ($targetAudience === 'staff' && $role === 'staff') {
+        } elseif ($targetAudience === 'staff' && ($role === 'student' || $role === 'staff')) {
             $shouldSee = true;
         } elseif ($targetAudience === 'admins' && ($role === 'admin' || $role === 'administrator')) {
             $shouldSee = true;
@@ -500,5 +499,66 @@ class AnnouncementController extends Controller
             'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
         ]);
         }
+
+    /**
+     * Get target users based on announcement audience
+     * This method uses UserWebService to call User Management Module's Web Service
+     * instead of directly querying the database (Inter-module communication)
+     */
+    private function getTargetUsers(string $targetAudience, ?array $targetUserIds = null): array
+    {
+        try {
+            // Prepare criteria based on target audience
+            $criteria = [
+                'status' => 'active',
+            ];
+
+            switch ($targetAudience) {
+                case 'all':
+                    // Get all active users
+                    break;
+
+                case 'students':
+                case 'staff':
+                    // Staff and students have same privilege, include both
+                    $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
+                    $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
+                    $allUserIds = array_unique(array_merge(
+                        $studentResult['user_ids'] ?? [],
+                        $staffResult['user_ids'] ?? []
+                    ));
+                    return $allUserIds;
+
+                case 'admins':
+                    $criteria['role'] = 'admin';
+                    break;
+
+                case 'specific':
+                    // For specific users, use the provided user IDs
+                    if (empty($targetUserIds)) {
+                        return [];
+                    }
+                    $criteria['user_ids'] = $targetUserIds;
+                    break;
+
+                default:
+                    return [];
+            }
+
+            // Use UserWebService to get user IDs via Web Service
+            $result = $this->userWebService->getUserIds($criteria);
+            
+            return $result['user_ids'] ?? [];
+            
+        } catch (\Exception $e) {
+            // Log error with announcement context
+            Log::error('Failed to get target users for announcement via UserWebService', [
+                'target_audience' => $targetAudience,
+                'error' => $e->getMessage(),
+            ]);
+            
+            throw new \Exception("Unable to retrieve target users. The user service is currently unavailable. Please try again later.");
+        }
+    }
 
 }

@@ -1,33 +1,29 @@
+/**
+ * Author: Low Kim Hong
+ */
+
 let bookings = [];
 let facilities = [];
-let sortOrder = null; // 'date-asc', 'date-desc', 'created-asc', 'created-desc', or null
+let sortOrder = null; 
 
-// Pagination state
 let currentPage = 1;
 let perPage = 15;
 let totalPages = 1;
 let totalBookings = 0;
 
 window.sortByDate = function() {
-    // Toggle sort order: asc -> desc -> asc (only two states)
-    // If currently sorting by date, toggle between asc and desc
-    // Otherwise, start with asc
     if (sortOrder === 'date-asc') {
         sortOrder = 'date-desc';
     } else if (sortOrder === 'date-desc') {
         sortOrder = 'date-asc';
     } else {
-        // First click or switching from other column - start with asc
         sortOrder = 'date-asc';
     }
     
-    // Re-apply filters and sorting
     filterBookings();
 };
 
 window.sortByCreatedDate = function() {
-    // Toggle sort order: desc -> asc -> desc (only two states)
-    // Start with desc on first click to show immediate change
     const previousSort = sortOrder;
     
     if (sortOrder === 'created-desc') {
@@ -35,20 +31,16 @@ window.sortByCreatedDate = function() {
     } else if (sortOrder === 'created-asc') {
         sortOrder = 'created-desc';
     } else {
-        // First click or switching from other column - start with desc to show change
         sortOrder = 'created-desc';
     }
     
     console.log('sortByCreatedDate: Changed from', previousSort, 'to', sortOrder);
     
-    // Re-apply filters and sorting
     filterBookings();
 };
 
 window.filterBookings = function() {
-    // Reset to page 1 when filtering
     currentPage = 1;
-    // Reload bookings from server with filters
     loadBookings(1);
 };
 
@@ -61,16 +53,13 @@ let currentBookingId = null;
 window.cancelBooking = function(id) {
     currentBookingId = id;
     
-    // Initialize listeners if not already done
     initCancelModalListeners();
     
-    // Reset modal
     document.getElementById('cancelReason').value = '';
     document.getElementById('customCancelReason').value = '';
     document.getElementById('customCancelReason').style.display = 'none';
     document.getElementById('confirmCancelBtn').disabled = true;
     
-    // Show modal
     document.getElementById('cancelBookingModal').style.display = 'flex';
 };
 
@@ -92,11 +81,9 @@ function handleReasonChange() {
         customReason.required = false;
     }
     
-    // Enable confirm button if reason is selected
     confirmBtn.disabled = !reasonSelect.value || (reasonSelect.value === 'other' && !customReason.value.trim());
 }
 
-// Enable confirm button when custom reason is typed
 function initCancelModalListeners() {
     const customReason = document.getElementById('customCancelReason');
     if (customReason && !customReason.hasAttribute('data-listener-added')) {
@@ -112,7 +99,6 @@ function initCancelModalListeners() {
 }
 
 async function confirmCancelBooking() {
-    // Save booking ID before closing modal
     const bookingId = currentBookingId;
     
     if (!bookingId) {
@@ -154,28 +140,23 @@ async function confirmCancelBooking() {
         return;
     }
     
-    // Build reason text
     const reasonText = reasonSelect.value === 'other' 
         ? customReason.value.trim()
         : reasonSelect.options[reasonSelect.selectedIndex].text;
     
-    // Disable confirm button
     const confirmBtn = document.getElementById('confirmCancelBtn');
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
     
-    // Close modal
     closeCancelModal();
     
     try {
         const result = await API.put(`/bookings/${bookingId}/cancel`, { reason: reasonText });
         
         if (result.success) {
-            // Reload bookings list (stay on current page)
             if (typeof loadBookings === 'function') {
                 loadBookings(currentPage || 1);
             }
-            // Show success message
             if (typeof showToast !== 'undefined') {
                 showToast('Booking cancelled successfully!', 'success');
             } else {
@@ -194,30 +175,23 @@ async function confirmCancelBooking() {
     }
 }
 
-// Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if API is loaded
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
         alert('Error: API functions not loaded. Please refresh the page.');
         return;
     }
 
-    // Check authentication
     if (!API.requireAuth()) return;
 
-    // Check if we're on the bookings index page
     const bookingsList = document.getElementById('bookingsList');
     
     if (bookingsList) {
-        // This is the bookings index page
         initBookings();
     }
 });
 
 function initBookings() {
-    // Student: My Bookings (only their own bookings)
-    // Only set these if the elements exist (not on admin page)
     const bookingsTitle = document.getElementById('bookingsTitle');
     const bookingsSubtitle = document.getElementById('bookingsSubtitle');
     if (bookingsTitle) {
@@ -226,7 +200,6 @@ function initBookings() {
     if (bookingsSubtitle) {
         bookingsSubtitle.textContent = 'Manage your facility bookings';
     }
-    // Show "New Booking" button for students
     const newBookingBtn = document.getElementById('newBookingBtn');
     if (newBookingBtn) {
         newBookingBtn.style.display = 'block';
@@ -240,7 +213,6 @@ async function loadBookings(page = 1) {
     showLoading(document.getElementById('bookingsList'));
     currentPage = page;
     
-    // Get filter values
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
     const facilityFilter = document.getElementById('facilityFilter');
@@ -249,7 +221,6 @@ async function loadBookings(page = 1) {
     const status = statusFilter ? statusFilter.value : '';
     const facilityId = facilityFilter ? facilityFilter.value : '';
     
-    // Build query parameters
     const params = new URLSearchParams({
         page: page,
         per_page: perPage
@@ -265,7 +236,6 @@ async function loadBookings(page = 1) {
         params.append('facility_id', facilityId);
     }
     
-    // Apply sorting if sortOrder is set
     if (sortOrder) {
         if (sortOrder.startsWith('date-')) {
             params.append('sort_by', 'date');
@@ -276,23 +246,19 @@ async function loadBookings(page = 1) {
         }
     }
     
-    // Students can only view their own bookings
     const endpoint = `/bookings/user/my-bookings?${params.toString()}`;
     const result = await API.get(endpoint);
     
     if (result.success) {
-        // Handle paginated response
         const responseData = result.data.data || result.data;
         
         if (responseData.data && Array.isArray(responseData.data)) {
-            // Paginated response
             bookings = responseData.data;
             currentPage = responseData.current_page || page;
             totalPages = responseData.last_page || 1;
             totalBookings = responseData.total || 0;
             perPage = responseData.per_page || perPage;
         } else if (Array.isArray(responseData)) {
-            // Non-paginated response (fallback)
             bookings = responseData;
             currentPage = 1;
             totalPages = 1;
@@ -312,13 +278,12 @@ async function loadBookings(page = 1) {
     } else {
         const errorMsg = result.error || result.data?.message || 'Failed to load bookings';
         showError(document.getElementById('bookingsList'), errorMsg);
-        console.error('Load bookings error:', result); // Debug
+        console.error('Load bookings error:', result); 
     }
 }
 
-// Load facilities for filter dropdown
 async function loadFacilitiesForFilter() {
-    const result = await API.get('/facilities?per_page=100'); // Load more facilities for filter
+    const result = await API.get('/facilities?per_page=100'); 
     
     if (result.success) {
         const facilitiesList = result.data.data?.data || result.data.data || [];
@@ -333,46 +298,36 @@ async function loadFacilitiesForFilter() {
     }
 }
 
-// Show loading state
 function showLoading(container) {
     if (container) {
         container.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
     }
 }
 
-// Show error message
 function showError(container, message) {
     if (container) {
         container.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i> ${message}</div>`;
     }
 }
 
-// Helper function to format date
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
-// Format Date object to 12-hour format without seconds
-// Handle timezone issues by extracting time directly from the datetime string
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
     
-    // Always use Date object to properly handle timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const hours = d.getHours();
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -380,15 +335,12 @@ function formatTimeNoSeconds(date) {
     return `${hour12}:${minutes} ${ampm}`;
 }
 
-// Format date and time
 function formatDateTime(dateTimeString) {
     if (!dateTimeString) return 'N/A';
     
     const d = new Date(dateTimeString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const date = formatDate(dateTimeString);
     const time = formatTimeNoSeconds(dateTimeString);
     return `${date} ${time}`;
@@ -457,7 +409,6 @@ function displayBookings(bookingsToShow) {
     `;
 }
 
-// Render pagination controls
 function renderPagination() {
     if (totalPages <= 1) {
         return '<div class="pagination-info" style="margin-top: 20px; text-align: center; color: #666;">Showing all bookings</div>';
@@ -468,15 +419,12 @@ function renderPagination() {
     
     let paginationHTML = '<div class="pagination-container" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
     
-    // Pagination info
     paginationHTML += `<div class="pagination-info" style="color: #666;">
         Showing ${startItem} to ${endItem} of ${totalBookings} bookings
     </div>`;
     
-    // Pagination controls
     paginationHTML += '<div class="pagination-controls" style="display: flex; gap: 5px; align-items: center;">';
     
-    // First page
     if (currentPage > 1) {
         paginationHTML += `<button onclick="loadBookings(1)" class="pagination-btn" title="First page">
             <i class="fas fa-angle-double-left"></i>
@@ -487,7 +435,6 @@ function renderPagination() {
         </button>`;
     }
     
-    // Previous page
     if (currentPage > 1) {
         paginationHTML += `<button onclick="loadBookings(${currentPage - 1})" class="pagination-btn" title="Previous page">
             <i class="fas fa-angle-left"></i>
@@ -498,7 +445,6 @@ function renderPagination() {
         </button>`;
     }
     
-    // Page numbers
     const maxVisiblePages = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -529,7 +475,6 @@ function renderPagination() {
         paginationHTML += `<button onclick="loadBookings(${totalPages})" class="pagination-btn">${totalPages}</button>`;
     }
     
-    // Next page
     if (currentPage < totalPages) {
         paginationHTML += `<button onclick="loadBookings(${currentPage + 1})" class="pagination-btn" title="Next page">
             <i class="fas fa-angle-right"></i>
@@ -540,7 +485,6 @@ function renderPagination() {
         </button>`;
     }
     
-    // Last page
     if (currentPage < totalPages) {
         paginationHTML += `<button onclick="loadBookings(${totalPages})" class="pagination-btn" title="Last page">
             <i class="fas fa-angle-double-right"></i>
