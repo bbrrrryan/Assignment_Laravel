@@ -7,6 +7,7 @@ class UserWebService
 {
     protected $baseUrl;
     protected $timeout = 5;
+
     public function __construct()
     {
         $userServiceConfig = config('services.user_service', []);
@@ -101,7 +102,6 @@ class UserWebService
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ];
             
-            // Add optional criteria
             if (isset($criteria['status'])) {
                 $requestData['status'] = $criteria['status'];
             }
@@ -121,7 +121,6 @@ class UserWebService
             $response = Http::timeout($this->timeout)->post($apiUrl, $requestData);
             
             if (!$response->successful()) {
-                // HTTP request failed
                 Log::error('User Web Service HTTP request failed (getUserIds)', [
                     'criteria' => $criteria,
                     'status' => $response->status(),
@@ -138,7 +137,6 @@ class UserWebService
             $data = $response->json();
             
             if (!isset($data['status']) || $data['status'] !== 'S' || !isset($data['data'])) {
-                // Web Service returned error status
                 $errorMessage = $data['message'] ?? 'User service returned an error.';
                 Log::error('User Web Service returned error status (getUserIds)', [
                     'criteria' => $criteria,
@@ -149,14 +147,12 @@ class UserWebService
                 throw new \Exception("User Web Service error: {$errorMessage}");
             }
             
-            // Return data directly from Web Service response
             return [
                 'user_ids' => $data['data']['user_ids'] ?? [],
                 'count' => $data['data']['count'] ?? 0,
             ];
             
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            // Network/connection error
             Log::error('User Web Service connection exception (getUserIds)', [
                 'criteria' => $criteria,
                 'error' => $e->getMessage(),
@@ -167,13 +163,11 @@ class UserWebService
                 "Unable to connect to User Web Service: {$e->getMessage()}"
             );
         } catch (\Exception $e) {
-            // Re-throw if it's already our custom exception
             if (strpos($e->getMessage(), 'User Web Service') !== false || 
                 strpos($e->getMessage(), 'Unable to connect') !== false) {
                 throw $e;
             }
             
-            // Other exceptions
             Log::error('User Web Service exception (getUserIds)', [
                 'criteria' => $criteria,
                 'error' => $e->getMessage(),
@@ -184,14 +178,6 @@ class UserWebService
         }
     }
 
-    /**
-     * Get user information by user_id via Web Service only
-     * Throws exception if Web Service is unavailable
-     * 
-     * @param int $userId
-     * @return array Returns user information array
-     * @throws \Exception
-     */
     public function getUserInfo(int $userId): array
     {
         $apiUrl = rtrim($this->baseUrl, '/') . '/api/users/service/get-info';
@@ -203,7 +189,6 @@ class UserWebService
             ]);
             
             if (!$response->successful()) {
-                // HTTP request failed
                 Log::error('User Web Service HTTP request failed (getUserInfo)', [
                     'user_id' => $userId,
                     'status' => $response->status(),
@@ -220,7 +205,6 @@ class UserWebService
             $data = $response->json();
             
             if (!isset($data['status']) || $data['status'] !== 'S' || !isset($data['data']['user'])) {
-                // Web Service returned error status
                 $errorMessage = $data['message'] ?? 'User service returned an error.';
                 Log::error('User Web Service returned error status (getUserInfo)', [
                     'user_id' => $userId,
@@ -231,11 +215,9 @@ class UserWebService
                 throw new \Exception("User Web Service error: {$errorMessage}");
             }
             
-            // Return user data directly from Web Service response
             return $data['data']['user'];
             
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            // Network/connection error
             Log::error('User Web Service connection exception (getUserInfo)', [
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
@@ -246,13 +228,11 @@ class UserWebService
                 "Unable to connect to User Web Service: {$e->getMessage()}"
             );
         } catch (\Exception $e) {
-            // Re-throw if it's already our custom exception
             if (strpos($e->getMessage(), 'User Web Service') !== false || 
                 strpos($e->getMessage(), 'Unable to connect') !== false) {
                 throw $e;
             }
             
-            // Other exceptions
             Log::error('User Web Service exception (getUserInfo)', [
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
@@ -263,24 +243,13 @@ class UserWebService
         }
     }
 
-    /**
-     * Get multiple users information by user_ids via Web Service only
-     * Throws exception if Web Service is unavailable
-     * Returns array with user_id as key for easy lookup
-     * 
-     * @param array $userIds
-     * @return array Returns associative array with user_id as key and user info as value
-     * @throws \Exception
-     */
     public function getUsersInfo(array $userIds): array
     {
         $apiUrl = rtrim($this->baseUrl, '/') . '/api/users/service/get-users-info';
         
         try {
-            // Remove duplicates and ensure integers
             $userIds = array_unique(array_map('intval', $userIds));
             
-            // If empty array, return empty result
             if (empty($userIds)) {
                 return [];
             }
@@ -291,7 +260,6 @@ class UserWebService
             ]);
             
             if (!$response->successful()) {
-                // HTTP request failed
                 Log::error('User Web Service HTTP request failed (getUsersInfo)', [
                     'user_ids' => $userIds,
                     'status' => $response->status(),
@@ -308,7 +276,6 @@ class UserWebService
             $data = $response->json();
             
             if (!isset($data['status']) || $data['status'] !== 'S' || !isset($data['data']['users'])) {
-                // Web Service returned error status
                 $errorMessage = $data['message'] ?? 'User service returned an error.';
                 Log::error('User Web Service returned error status (getUsersInfo)', [
                     'user_ids' => $userIds,
@@ -319,7 +286,6 @@ class UserWebService
                 throw new \Exception("User Web Service error: {$errorMessage}");
             }
             
-            // Convert array to associative array with user_id as key for easy lookup
             $usersArray = $data['data']['users'] ?? [];
             $usersMap = [];
             foreach ($usersArray as $user) {
@@ -331,7 +297,6 @@ class UserWebService
             return $usersMap;
             
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            // Network/connection error
             Log::error('User Web Service connection exception (getUsersInfo)', [
                 'user_ids' => $userIds,
                 'error' => $e->getMessage(),
@@ -342,13 +307,11 @@ class UserWebService
                 "Unable to connect to User Web Service: {$e->getMessage()}"
             );
         } catch (\Exception $e) {
-            // Re-throw if it's already our custom exception
             if (strpos($e->getMessage(), 'User Web Service') !== false || 
                 strpos($e->getMessage(), 'Unable to connect') !== false) {
                 throw $e;
             }
             
-            // Other exceptions
             Log::error('User Web Service exception (getUsersInfo)', [
                 'user_ids' => $userIds,
                 'error' => $e->getMessage(),
@@ -376,4 +339,3 @@ class UserWebService
         return $this->timeout;
     }
 }
-

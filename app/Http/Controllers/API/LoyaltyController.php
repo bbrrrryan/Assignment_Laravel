@@ -288,26 +288,8 @@ class LoyaltyController extends Controller
                 ]);
             }
             
-                $userData = $userResponse->json();
-            
-            if (!isset($userData['status']) || $userData['status'] !== 'S' || !isset($userData['data']['user_ids'])) {
-                Log::error('User Web Service returned invalid response', [
-                    'response' => $userData,
-                    'url' => $apiUrl,
-                ]);
-                
-                throw new \Exception("User Web Service returned invalid response format");
-            }
-            
-                    $userIds = $userData['data']['user_ids'];
-                    $query = User::with('loyaltyPoints')
-                        ->whereIn('id', $userIds);
-                
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('User Web Service connection exception', [
-                'error' => $e->getMessage(),
-                'url' => $apiUrl,
-            ]);
+            $query = User::with('loyaltyPoints')
+                ->whereIn('id', $userIds);
             
             if ($request->has('search') && $request->search) {
                 $search = $request->search;
