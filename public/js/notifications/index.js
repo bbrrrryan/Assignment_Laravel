@@ -356,10 +356,16 @@ function getNotificationIcon(type) {
     return icons[type] || 'bell';
 }
 
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    return d.toLocaleString();
 }
 
 async function handleRowClick(event, type, id, isRead, url) {

@@ -828,42 +828,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 // Format functions
+// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
+// Convert UTC timestamps to local time for display
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
     
-    if (typeof date === 'string') {
-        const timeMatch = date.match(/(\d{1,2}):(\d{2}):(\d{2})/);
-        if (timeMatch) {
-            let hours = parseInt(timeMatch[1]);
-            const minutes = timeMatch[2];
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const hour12 = hours % 12 || 12;
-            return `${hour12}:${minutes} ${ampm}`;
-        }
-    }
-    
+    // Always use Date object to properly handle timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
     
-    const isUTC = typeof date === 'string' && date.includes('Z');
-    const hours = isUTC ? d.getUTCHours() : d.getHours();
-    const minutes = String(isUTC ? d.getUTCMinutes() : d.getMinutes()).padStart(2, '0');
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes} ${ampm}`;
 }
 
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateTimeString) {
     if (!dateTimeString) return 'N/A';
     const d = new Date(dateTimeString);
     if (isNaN(d.getTime())) return 'N/A';
     
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
     const date = formatDate(dateTimeString);
     const time = formatTimeNoSeconds(dateTimeString);
     return `${date} ${time}`;

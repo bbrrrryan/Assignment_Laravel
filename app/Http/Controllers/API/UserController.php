@@ -623,21 +623,10 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Web Service API: Check if user exists by personal_id
-     * This endpoint is designed for inter-module communication
-     * Used by other modules (e.g., Booking Module) to verify attendee personal IDs
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+    
     public function checkByPersonalId(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
+
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -657,9 +646,8 @@ class UserController extends Controller
             ->where('status', 'active')
             ->first();
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S', 
             'message' => $user ? 'User found' : 'User not found',
             'data' => [
                 'exists' => $user !== null,
@@ -671,7 +659,7 @@ class UserController extends Controller
                     'role' => $user->role,
                 ] : null,
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'), 
         ]);
     }
 }

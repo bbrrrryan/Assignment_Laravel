@@ -900,10 +900,16 @@ window.exportReportsPdf = function() {
 };
 
 // Helper functions
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    return d.toLocaleString();
 }
 
 function formatActionType(actionType) {

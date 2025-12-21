@@ -213,11 +213,14 @@ function filterBookingsByFacilityType() {
     }
 }
 
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateTimeString) {
     if (!dateTimeString) return 'N/A';
     const d = new Date(dateTimeString);
     if (isNaN(d.getTime())) return 'N/A';
     
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
     const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     return `${date} ${time}`;

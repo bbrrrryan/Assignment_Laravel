@@ -474,10 +474,19 @@ window.showTab = function(tab) {
     else if (tab === 'certificates') loadCertificates();
 };
 
+// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function formatActionType(actionType) {

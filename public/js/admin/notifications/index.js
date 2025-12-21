@@ -212,10 +212,16 @@ function getPriorityBadge(priority) {
     return badges[priority] || '<span class="badge">' + (priority || 'Medium') + '</span>';
 }
 
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 }
 
 function escapeHtml(text) {

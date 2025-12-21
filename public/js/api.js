@@ -222,16 +222,31 @@ function showError(element, message) {
 }
 
 // Format date
+// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // Format datetime
+// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    return d.toLocaleString();
 }
 

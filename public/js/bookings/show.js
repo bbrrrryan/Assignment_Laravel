@@ -209,51 +209,33 @@ function displayBookingDetails(booking) {
     `;
 }
 
+// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
+// Convert UTC timestamps to local time for display
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
     
-    // If date is a string, extract time directly to avoid timezone conversion issues
-    if (typeof date === 'string') {
-        // Try to extract time from various formats:
-        // - "2025-12-15 08:00:00" (local format)
-        // - "2025-12-15T08:00:00.000000Z" (ISO format with Z)
-        // - "2025-12-15T08:00:00" (ISO format without timezone)
-        let timeStr = '';
-        if (date.includes('T')) {
-            const timeMatch = date.match(/T(\d{2}:\d{2}:\d{2})/);
-            if (timeMatch) {
-                timeStr = timeMatch[1];
-            }
-        } else if (date.includes(' ')) {
-            const parts = date.split(' ');
-            if (parts.length > 1) {
-                timeStr = parts[1];
-            }
-        }
-        
-        if (timeStr) {
-            const [hours, minutes] = timeStr.split(':');
-            const hour = parseInt(hours);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const hour12 = hour % 12 || 12;
-            return `${hour12}:${minutes} ${ampm}`;
-        }
-    }
-    
-    // Fallback to Date object parsing
+    // Always use Date object to properly handle timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // Check if the date string includes 'Z' (UTC indicator)
-    const isUTC = typeof date === 'string' && date.includes('Z');
-    const hours = isUTC ? d.getUTCHours() : d.getHours();
-    const minutes = String(isUTC ? d.getUTCMinutes() : d.getMinutes()).padStart(2, '0');
+    // JavaScript Date automatically converts UTC to local time
+    // Use local time methods to display in user's timezone
+    const hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes} ${ampm}`;
