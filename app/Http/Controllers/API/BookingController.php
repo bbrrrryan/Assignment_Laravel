@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Low Kim Hong
+ */
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
@@ -58,7 +60,7 @@ class BookingController extends Controller
                 });
             });
         
-        // Apply sorting
+
         $sortBy = $request->input('sort_by', 'created_at');
         $sortOrder = $request->input('sort_order', 'desc');
         
@@ -78,15 +80,12 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created booking
-     */
+  
     public function store(Request $request)
     {
         try {
         
             
-            // Get facility first to check enable_multi_attendees setting
             $facilityId = $request->input('facility_id');
             if (!$facilityId) {
                 return response()->json([
@@ -96,8 +95,6 @@ class BookingController extends Controller
                 ], 422);
             }
             
-
-            // Get facility via Web Service only (no database fallback)
             try {
                 $facility = $this->facilityWebService->getFacilityInfo($facilityId);
             } catch (\Exception $e) {
@@ -152,7 +149,6 @@ class BookingController extends Controller
                             ], 422);
                         }
                         
-                        // Calculate duration for this slot and add to total
                         $duration = $slotStart->diffInHours($slotEnd);
                         $totalDuration += $duration;
                         
@@ -175,7 +171,6 @@ class BookingController extends Controller
                     }
                 }
                 
-                // Validate available day for first slot
                 if ($error = $this->validationService->validateAvailableDay($bookingDate, $facility)) {
                     return response()->json([
                         'status' => 'F', 
@@ -184,7 +179,6 @@ class BookingController extends Controller
                     ], 422);
                 }
                 
-                // Validate each slot's available time
                 foreach ($parsedSlots as $slot) {
                     if ($error = $this->validationService->validateAvailableTime(
                         $slot['start_time'],
@@ -199,7 +193,6 @@ class BookingController extends Controller
                     }
                 }
                 
-                // Get validation rules based on facility settings
                 $expectedAttendeesRule = 'nullable|integer|min:1';
                 if ($facility->enable_multi_attendees) {
                     $expectedAttendeesRule = 'required|integer|min:1';
@@ -220,18 +213,15 @@ class BookingController extends Controller
                                 $user = auth()->user();
                                 $userPersonalId = $user->personal_id ?? null;
                                 
-                                // Filter out empty values and trim all passports
                                 $trimmedPassports = array_filter(array_map('trim', $value), function($passport) {
                                     return !empty($passport);
                                 });
                                 
-                                // Check for duplicate passports
                                 $uniquePassports = array_unique($trimmedPassports);
                                 if (count($trimmedPassports) !== count($uniquePassports)) {
                                     $fail('Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.');
                                 }
                                 
-                                // Check if user is trying to add their own student_id
                                 if (!empty($userPersonalId)) {
                                     foreach ($trimmedPassports as $passport) {
                                         if (strcasecmp($passport, $userPersonalId) === 0) {
@@ -262,10 +252,8 @@ class BookingController extends Controller
                 $validated['end_time'] = $parsedSlots[count($parsedSlots) - 1]['end_time'];
                 $validated['duration_hours'] = $totalDuration;
             } else {
-                // Old format: use existing validation
                 $validationRules = $this->validationService->getValidationRules($facility);
                 
-                // Add custom validation for attendees_passports array
                 $existingAttendeesRule = $validationRules['attendees_passports'] ?? ['nullable', 'array'];
                 if (!is_array($existingAttendeesRule)) {
                     $existingAttendeesRule = [$existingAttendeesRule];
@@ -279,18 +267,15 @@ class BookingController extends Controller
                                 $user = auth()->user();
                                 $userPersonalId = $user->personal_id ?? null;
                                 
-                                // Filter out empty values and trim all passports
                                 $trimmedPassports = array_filter(array_map('trim', $value), function($passport) {
                                     return !empty($passport);
                                 });
                                 
-                                // Check for duplicate passports
                                 $uniquePassports = array_unique($trimmedPassports);
                                 if (count($trimmedPassports) !== count($uniquePassports)) {
                                     $fail('Duplicate student passport numbers are not allowed. Each attendee must have a unique passport number.');
                                 }
                                 
-                                // Check if user is trying to add their own student_id
                                 if (!empty($userPersonalId)) {
                                     foreach ($trimmedPassports as $passport) {
                                         if (strcasecmp($passport, $userPersonalId) === 0) {
@@ -305,7 +290,6 @@ class BookingController extends Controller
                 
                 $validated = $request->validate($validationRules);
 
-                // Parse and normalize datetime formats
                 try {
                     $validated['start_time'] = $this->validationService->parseDateTime($validated['start_time']);
                     $validated['end_time'] = $this->validationService->parseDateTime($validated['end_time']);
@@ -318,7 +302,6 @@ class BookingController extends Controller
                     ], 422);
                 }
 
-                // Validate time range
                 if ($error = $this->validationService->validateTimeRange($validated['start_time'], $validated['end_time'])) {
                     return response()->json([
                         'status' => 'F', 
@@ -327,7 +310,6 @@ class BookingController extends Controller
                     ], 422);
                 }
 
-                // Validate available day
                 if ($error = $this->validationService->validateAvailableDay($validated['booking_date'], $facility)) {
                     return response()->json([
                         'status' => 'F', 
@@ -336,7 +318,6 @@ class BookingController extends Controller
                     ], 422);
                 }
 
-                // Validate available time
                 if ($error = $this->validationService->validateAvailableTime(
                     $validated['start_time'],
                     $validated['end_time'],
@@ -349,7 +330,6 @@ class BookingController extends Controller
                     ], 422);
                 }
                 
-                // Create single slot for old format
                 $parsedSlots = [[
                     'date' => $validated['booking_date'],
                     'start_time' => $validated['start_time'],
@@ -358,13 +338,11 @@ class BookingController extends Controller
                 ]];
             }
 
-            // Normalize expected_attendees
             $validated['expected_attendees'] = $this->validationService->normalizeExpectedAttendees(
                 $validated['expected_attendees'] ?? null,
                 $facility
             );
 
-            // Validate facility status
             if ($error = $this->validationService->validateFacilityStatus($facility)) {
                 return response()->json([
                     'status' => 'F', 
@@ -373,7 +351,6 @@ class BookingController extends Controller
                 ], 400);
             }
 
-        // Calculate total duration from slots
         $durationHours = $validated['duration_hours'] ?? 0;
         
         if ($durationHours <= 0) {
@@ -384,7 +361,6 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check max_booking_hours limit
         $maxBookingHours = $facility->max_booking_hours ?? 1;
         $maxHoursCheck = $this->capacityService->checkMaxBookingHours(
             auth()->id(),
@@ -402,10 +378,8 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check capacity and multi-attendees setting
         $expectedAttendees = $validated['expected_attendees'];
         
-        // Validate capacity
         if ($error = $this->validationService->validateCapacity($expectedAttendees, $facility)) {
             return response()->json([
                 'status' => 'F', 
@@ -414,12 +388,10 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Validate attendees_passports BEFORE creating booking (to prevent partial booking creation)
         if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
             $user = auth()->user();
             $userPersonalId = $user->personal_id;
             
-            // Filter out empty values and trim all passports, preserve original indices
             $trimmedPassports = [];
             foreach ($request->attendees_passports as $index => $passport) {
                 $trimmed = trim($passport);
@@ -428,7 +400,6 @@ class BookingController extends Controller
                 }
             }
             
-            // Validation 1: Check for duplicate passports in the array
             $uniquePassports = array_unique($trimmedPassports);
             if (count($trimmedPassports) !== count($uniquePassports)) {
                 return response()->json([
@@ -441,7 +412,6 @@ class BookingController extends Controller
                 ], 422);
             }
             
-            // Validation 2: Check if user is trying to add their own student_id as passport
             $passportErrors = [];
             if (!empty($userPersonalId)) {
                 foreach ($trimmedPassports as $index => $passport) {
@@ -493,13 +463,9 @@ class BookingController extends Controller
             }
         }
 
-        // Security: Use database transaction with row-level locking to prevent race conditions
-        // This ensures atomic capacity check and booking creation
         return DB::transaction(function () use ($parsedSlots, $validated, $facility, $expectedAttendees, $request) {
-            // Lock facility row to prevent concurrent modifications
             $facility = Facility::lockForUpdate()->findOrFail($validated['facility_id']);
             
-            // Re-check capacity for each slot within transaction (TOCTOU protection)
             foreach ($parsedSlots as $slot) {
                 $capacityCheck = $this->capacityService->checkCapacityByTimeSegments(
                     $facility,
@@ -519,7 +485,6 @@ class BookingController extends Controller
                 }
             }
 
-            // Only students and staff can create bookings (not admin)
             $user = auth()->user();
             
             if ($user->isAdmin()) {
@@ -530,8 +495,6 @@ class BookingController extends Controller
                 ], 403);
             }
             
-            // Only students are restricted to sports or library facilities
-            // Staff can book all facility types
             if ($user->isStudent() && !in_array($facility->type, ['sports', 'library'])) {
                 return response()->json([
                     'status' => 'F', 
@@ -540,24 +503,19 @@ class BookingController extends Controller
                 ], 403);
             }
             
-            // Students always create pending bookings that require admin/staff approval
             $bookingStatus = 'pending';
 
-            // Extract time portion from start_time and end_time if they are datetime strings
             $startTime = $validated['start_time'];
             $endTime = $validated['end_time'];
             
-            // If start_time is a datetime string, extract just the time portion (H:i)
             if (strlen($startTime) > 5 && strpos($startTime, ' ') !== false) {
                 $startTime = \Carbon\Carbon::parse($startTime)->format('H:i');
             }
             
-            // If end_time is a datetime string, extract just the time portion (H:i)
             if (strlen($endTime) > 5 && strpos($endTime, ' ') !== false) {
                 $endTime = \Carbon\Carbon::parse($endTime)->format('H:i');
             }
 
-            // Use BookingBuilder to create the booking with slots (Builder Pattern)
             $builder = BookingBuilder::create()
                 ->forUser(auth()->id())
                 ->forFacility($validated['facility_id'])
@@ -585,9 +543,7 @@ class BookingController extends Controller
                 Log::warning('Failed to create booking activity log: ' . $e->getMessage());
             }
 
-            // Create attendees (validation already done before transaction)
             if ($request->has('attendees_passports') && is_array($request->attendees_passports)) {
-                // Filter out empty values and trim all passports
                 $trimmedPassports = [];
                 foreach ($request->attendees_passports as $index => $passport) {
                     $trimmed = trim($passport);
@@ -596,7 +552,6 @@ class BookingController extends Controller
                     }
                 }
                 
-                // Create attendees after all validations pass
                 foreach ($trimmedPassports as $passport) {
                     $booking->attendees()->create([
                         'student_passport' => $passport,
@@ -673,9 +628,7 @@ class BookingController extends Controller
         }
     }
 
-    /**
-     * Approve a booking (Admin only)
-     */
+   
     public function approve(string $id)
     {
         $booking = Booking::findOrFail($id);
@@ -688,7 +641,6 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Check capacity before approving using hourly segment check
         $facility = $booking->facility;
         $expectedAttendees = $booking->expected_attendees ?? 1;
         
@@ -699,7 +651,7 @@ class BookingController extends Controller
             $booking->start_time->format('Y-m-d H:i:s'),
             $booking->end_time->format('Y-m-d H:i:s'),
             $expectedAttendees,
-            $booking->id // Exclude current booking from check
+            $booking->id 
         );
         
         if (!$capacityCheck['available']) {
@@ -716,7 +668,6 @@ class BookingController extends Controller
             'approved_at' => now(),
         ]);
 
-        // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'approved', 'Your booking has been approved!');
 
         return response()->json([
@@ -727,9 +678,7 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Reject a booking (Admin only)
-     */
+ 
     public function reject(Request $request, string $id)
     {
         $request->validate([
@@ -751,7 +700,6 @@ class BookingController extends Controller
             'rejection_reason' => $request->reason,
         ]);
 
-        // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'rejected', 'Your booking has been rejected. Reason: ' . $request->reason);
 
         return response()->json([
@@ -766,10 +714,8 @@ class BookingController extends Controller
     {
         $booking = Booking::findOrFail($id);
         
-        // Security: Authorization check - Users can only cancel their own bookings
-        // Admins and staff can cancel any booking
         $user = auth()->user();
-        if (!$user->isAdmin() && !$user->isStaff() && $booking->user_id !== $user->id) {
+        if (!$user->isAdmin() && $booking->user_id !== $user->id) {
             return response()->json([
                 'status' => 'F', 
                 'message' => 'Unauthorized. You can only cancel your own bookings.',
@@ -783,7 +729,6 @@ class BookingController extends Controller
             'cancellation_reason' => $request->reason ?? null,
         ]);
 
-        // Send notification to user (only if cancelled by admin, not by user themselves)
         if ($user->isAdmin()) {
             $this->notificationService->sendBookingNotification($booking, 'cancelled', 'Your booking has been cancelled' . ($request->reason ? '. Reason: ' . $request->reason : ''));
         }
@@ -795,16 +740,12 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Complete a booking (Admin/Staff only)
-     * 当预订完成时，Observer 会自动处理积分奖励
-     */
+ 
     public function complete(string $id)
     {
         $user = auth()->user();
 
-        // 只有管理员或员工可以完成预订
-        if (!$user->isAdmin() && !$user->isStaff()) {
+        if (!$user->isAdmin()) {
             return response()->json([
                 'status' => 'F', 
                 'message' => 'Only administrators and staff can complete bookings',
@@ -814,7 +755,6 @@ class BookingController extends Controller
 
         $booking = Booking::findOrFail($id);
 
-        // 只有已批准的预订可以完成
         if ($booking->status !== 'approved') {
             return response()->json([
                 'status' => 'F', 
@@ -823,13 +763,10 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // 更新状态为 completed
-        // Observer 会自动检测状态变化并奖励积分
         $booking->update([
             'status' => 'completed',
         ]);
 
-        // Send notification to user
         $this->notificationService->sendBookingNotification($booking, 'completed', 'Your booking has been completed! Points have been awarded to your account.');
 
         return response()->json([
@@ -856,7 +793,6 @@ class BookingController extends Controller
                 });
             });
         
-        // Apply sorting
         $sortBy = $request->input('sort_by', 'created_at');
         $sortOrder = $request->input('sort_order', 'desc');
         
@@ -915,7 +851,6 @@ class BookingController extends Controller
             ], 403);
         }
         
-        // Check if facility is available
         if ($facility->status !== 'available') {
             return response()->json([
                 'status' => 'F', 
@@ -926,12 +861,10 @@ class BookingController extends Controller
             ]);
         }
 
-        // Check if booking date is within facility's available days
         $bookingDate = \Carbon\Carbon::parse($request->date);
-        $dayOfWeek = strtolower($bookingDate->format('l')); // e.g., 'monday', 'tuesday'
+        $dayOfWeek = strtolower($bookingDate->format('l')); 
         
         if ($facility->available_day && is_array($facility->available_day) && !empty($facility->available_day)) {
-            // Check if the day of week is in the available days array
             if (!in_array($dayOfWeek, $facility->available_day)) {
                 $availableDaysStr = implode(', ', array_map('ucfirst', $facility->available_day));
                 return response()->json([
@@ -944,17 +877,12 @@ class BookingController extends Controller
             }
         }
 
-        // Check capacity for overlapping bookings
-        // Handle expected_attendees based on facility's enable_multi_attendees setting
         $expectedAttendees = $request->input('expected_attendees');
         if (!$facility->enable_multi_attendees) {
-            // If facility doesn't enable multi-attendees, always use 1
             $expectedAttendees = 1;
         } else {
-            // If multi-attendees is enabled, use provided value or default to 1
             $expectedAttendees = $expectedAttendees ?? 1;
             
-            // Check against max_attendees if set
             if ($facility->max_attendees && $expectedAttendees > $facility->max_attendees) {
                 return response()->json([
                     'status' => 'F', 
@@ -966,8 +894,6 @@ class BookingController extends Controller
             }
         }
         
-        // Find all pending and approved bookings that overlap with the requested time slot
-        // Include pending bookings in capacity count
         $overlappingBookings = Booking::where('facility_id', $facilityId)
             ->whereDate('booking_date', $request->date)
             ->whereIn('status', ['pending', 'approved']) 
@@ -981,27 +907,19 @@ class BookingController extends Controller
             })
             ->get();
 
-        // Check if facility type requires full capacity occupation
         $isFullCapacityType = in_array($facility->type, ['classroom', 'auditorium', 'laboratory']);
         
-        // Calculate total expected attendees for overlapping bookings
-        // If facility has enable_multi_attendees OR is classroom/auditorium/laboratory, each booking occupies the full capacity
         $totalAttendees = $overlappingBookings->sum(function($booking) use ($facility, $isFullCapacityType) {
-            // If this facility has enable_multi_attendees OR is full capacity type, each booking occupies full capacity
             if ($facility->enable_multi_attendees || $isFullCapacityType) {
                 return $facility->capacity;
             }
-            // Otherwise, use expected_attendees
             return $booking->expected_attendees ?? 1;
         });
 
-        // For the new booking, if facility has enable_multi_attendees OR is full capacity type, it occupies full capacity
         $newBookingAttendees = ($facility->enable_multi_attendees || $isFullCapacityType)
             ? $facility->capacity 
             : $expectedAttendees;
 
-        // Check if adding this booking would exceed capacity
-        // If multi_attendees is enabled OR is full capacity type, only one booking per time slot is allowed
         $requiresFullCapacity = $facility->enable_multi_attendees || $isFullCapacityType;
         if ($requiresFullCapacity) {
             $isAvailable = $overlappingBookings->count() === 0;
@@ -1044,9 +962,7 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Get pending bookings for admin dropdown
-     */
+  
     public function getPendingBookings(Request $request)
     {
         $limit = $request->get('limit', 10);
