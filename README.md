@@ -114,3 +114,18 @@ FEEDBACK_SERVICE_URL=http://127.0.0.1:8004
 
 ## FOR Database configuration, use this file path below
 sql\student_system.sql
+
+
+## To run
+composer install
+php artisan migrate
+php artisan serve
+
+cd ..\..\Assignment_Laravel
+
+C:..\..\Assignment_Laravel>php artisan serve --host=127.0.0.1 --port=800?
+
+
+## For library (need installed)
+php composer.phar require barryvdh/laravel-dompdf
+
