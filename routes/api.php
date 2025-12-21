@@ -180,6 +180,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [FacilityController::class, 'index']);
         Route::get('/{id}', [FacilityController::class, 'show']);
         Route::get('/{id}/availability', [FacilityController::class, 'availability']);
+        Route::get('/{id}/feedbacks', [FacilityController::class, 'getFacilityFeedbacks']);
         
         // Admin only routes - CRUD operations handled by Admin\FacilityController via web routes
         Route::middleware('admin')->group(function () {

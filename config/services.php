@@ -107,4 +107,23 @@ return [
         'timeout' => env('BOOKING_SERVICE_TIMEOUT', 10),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Feedback Management Module Web Service
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the Feedback Management Module Web Service API.
+    | This allows you to specify a different URL/port for testing purposes.
+    |
+    | If FEEDBACK_SERVICE_URL is not set, it will use APP_URL.
+    | If FEEDBACK_SERVICE_PORT is set, it will override the port in the URL.
+    |
+    */
+
+    'feedback_service' => [
+        'url' => env('FEEDBACK_SERVICE_URL', null), // e.g., 'http://127.0.0.1:8001'
+        'port' => env('FEEDBACK_SERVICE_PORT', null), // e.g., 8001
+        'timeout' => env('FEEDBACK_SERVICE_TIMEOUT', 5),
+    ],
+
 ];

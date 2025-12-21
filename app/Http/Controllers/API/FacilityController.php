@@ -4,10 +4,18 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Facility;
+use App\Services\FeedbackWebService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class FacilityController extends Controller
 {
+    protected $feedbackWebService;
+
+    public function __construct(FeedbackWebService $feedbackWebService)
+    {
+        $this->feedbackWebService = $feedbackWebService;
+    }
     public function index(Request $request)
     {
         $user = $request->user();
@@ -264,5 +272,43 @@ class FacilityController extends Controller
             'data' => $data['data'] ?? $data,
             'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
+    }
+
+    public function getFacilityFeedbacks(string $id, Request $request)
+    {
+        $facility = Facility::where('is_deleted', false)->findOrFail($id);
+        $userId = $request->user() ? $request->user()->id : null;
+        $limit = $request->input('limit', 10);
+        
+        try {
+            $feedbacks = $this->feedbackWebService->getFeedbacksByFacilityId(
+                $facility->id,
+                $userId,
+                $limit
+            );
+            
+            return response()->json([
+                'status' => 'S',
+                'message' => 'Feedbacks retrieved successfully',
+                'data' => [
+                    'feedbacks' => $feedbacks,
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get facility feedbacks via Web Service', [
+                'facility_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'status' => 'F',
+                'message' => 'Feedback service is currently unavailable',
+                'data' => [
+                    'feedbacks' => [],
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ], 503);
+        }
     }
 }

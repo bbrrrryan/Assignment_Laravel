@@ -570,8 +570,7 @@ class FeedbackController extends Controller
         // Get user_id from request (optional - for showing own pending feedbacks)
         $userId = $request->input('user_id');
 
-        $feedbacks = Feedback::with(['user'])
-            ->where('facility_id', $facilityId)
+        $feedbacks = Feedback::where('facility_id', $facilityId)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
             ->where(function($query) use ($userId) {
@@ -593,8 +592,12 @@ class FeedbackController extends Controller
                 return [
                     'id' => $feedback->id,
                     'user_id' => $feedback->user_id,
-                    'user_name' => $feedback->user->name ?? 'Anonymous',
-                    'user_email' => $feedback->user->email ?? null,
+                    'user' => [
+                        'name' => 'Anonymous',
+                        'email' => null,
+                    ],
+                    'user_name' => 'Anonymous',
+                    'user_email' => null,
                     'facility_id' => $feedback->facility_id,
                     'type' => $feedback->type,
                     'subject' => $feedback->subject,
