@@ -282,7 +282,7 @@ function displayFeedbacks(feedbacksToShow) {
                             </span>
                         </td>
                         <td style="white-space: nowrap;">${ratingStars}</td>
-                        ${!isAdmin ? `<td>${feedback.facility_name || 'N/A'}</td>` : ''}
+                        ${!isAdmin ? `<td>${feedback.facility_name ?? 'General'}</td>` : ''}
                         <td>
                             <span class="badge ${getStatusBadgeClass(feedback.status)}">
                                 ${formatStatus(feedback.status)}

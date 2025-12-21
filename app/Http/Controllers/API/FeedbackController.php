@@ -187,7 +187,7 @@ class FeedbackController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $feedback = Feedback::with(['user', 'reviewer'])->findOrFail($id);
+        $feedback = Feedback::with(['user', 'reviewer', 'booking.facility', 'facility'])->findOrFail($id);
         
         if (!$request->user()->isAdmin() && $feedback->user_id !== $request->user()->id) {
             return response()->json([
@@ -204,8 +204,16 @@ class FeedbackController extends Controller
                 'reviewed_at' => now(),
             ]);
             $feedback->refresh();
-            $feedback->load('reviewer');
+            $feedback->load(['reviewer', 'booking.facility', 'facility']);
         }
+        
+        $facilityName = null;
+        if ($feedback->booking && $feedback->booking->facility) {
+            $facilityName = $feedback->booking->facility->name;
+        } elseif ($feedback->facility) {
+            $facilityName = $feedback->facility->name;
+        }
+        $feedback->facility_name = $facilityName ?? 'General';
         
         return response()->json([
             'status' => 'S',
@@ -235,7 +243,7 @@ class FeedbackController extends Controller
                 $facilityName = $feedback->facility->name;
             }
             
-            $feedback->facility_name = $facilityName;
+            $feedback->facility_name = $facilityName ?? 'General';
             
             return $feedback;
         });
