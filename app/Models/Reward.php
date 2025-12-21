@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Boo Kai Jie
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,7 +25,6 @@ class Reward extends Model
         'is_active' => 'boolean',
     ];
 
-    // Relationships
     public function users()
     {
         return $this->belongsToMany(User::class, 'user_reward')

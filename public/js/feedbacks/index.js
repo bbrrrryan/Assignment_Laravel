@@ -1,13 +1,16 @@
+/**
+ * Author: Boo Kai Jie
+ */ 
+
 let feedbacks = [];
 let facilities = [];
-let allBookings = []; // Store all bookings for filtering
-let ratedBookingIds = []; // Store booking IDs that already have feedback
+let allBookings = [];
+let ratedBookingIds = [];
 let selectedImageBase64 = null;
 let paginationData = null;
 let currentPage = 1;
 
 function initFeedbacks() {
-    // Update title and button visibility based on user role
     const titleElement = document.getElementById('feedbacksTitle');
     const submitBtn = document.getElementById('submitFeedbackBtn');
 
@@ -15,7 +18,6 @@ function initFeedbacks() {
         if (titleElement) {
             titleElement.textContent = 'Feedback Management';
         }
-        // Hide submit button for admin - admin can only reply, not submit
         if (submitBtn) {
             submitBtn.style.display = 'none';
         }
@@ -23,14 +25,12 @@ function initFeedbacks() {
         if (titleElement) {
             titleElement.textContent = 'My Feedbacks';
         }
-        // Show submit button for students
         if (submitBtn) {
             submitBtn.style.display = 'block';
         }
     }
 
     loadFeedbacks();
-    // Load bookings first, then extract facility types from bookings
     loadBookings();
 }
 
@@ -38,7 +38,6 @@ async function loadFeedbacks(page = 1) {
     showLoading(document.getElementById('feedbacksList'));
     currentPage = page;
 
-    // Build query parameters
     const params = new URLSearchParams();
     params.append('page', page);
     
@@ -50,7 +49,6 @@ async function loadFeedbacks(page = 1) {
     if (type) params.append('type', type);
     if (status) params.append('status', status);
 
-    // Use appropriate endpoint based on user role
     const endpoint = API.isAdmin() ? '/feedbacks' : '/feedbacks/user/my-feedbacks';
     const url = `${endpoint}?${params.toString()}`;
     const result = await API.get(url);
@@ -75,15 +73,12 @@ async function loadFeedbacks(page = 1) {
 }
 
 function loadFacilityTypes() {
-    // Only load facility types for non-admin users (students/staff)
     if (typeof API !== 'undefined' && API.isAdmin()) {
-        return; // Admin doesn't need this filter
+        return;
     }
 
-    // Use already loaded bookings to extract facility types
     const select = document.getElementById('facilityTypeFilter');
     if (select && allBookings.length > 0) {
-        // Extract unique facility types from bookings
         const seenTypes = new Set();
         const typeOptions = [];
 
@@ -94,7 +89,6 @@ function loadFacilityTypes() {
                 if (!seenTypes.has(key)) {
                     seenTypes.add(key);
                     
-                    // Capitalize first letter of each word
                     const label = String(facilityType)
                         .toLowerCase()
                         .split(' ')
@@ -112,24 +106,19 @@ function loadFacilityTypes() {
 }
 
 async function loadBookings(facilityTypeFilter = null) {
-    // Only load bookings for non-admin users (students/staff)
     if (typeof API !== 'undefined' && API.isAdmin()) {
-        return; // Admin doesn't need to select bookings
+        return;
     }
 
-    // Load user's feedbacks first to get rated booking IDs
     await loadRatedBookingIds();
 
     const result = await API.get('/bookings/user/my-bookings');
 
     if (result.success) {
-        // Store all bookings for filtering
         allBookings = result.data.data?.data || result.data.data || [];
         
-        // Filter out bookings that already have feedback
         allBookings = allBookings.filter(booking => !ratedBookingIds.includes(booking.id));
         
-        // Filter bookings by facility type if filter is provided
         let filteredBookings = allBookings;
         if (facilityTypeFilter) {
             filteredBookings = allBookings.filter(booking => {
@@ -143,7 +132,6 @@ async function loadBookings(facilityTypeFilter = null) {
             const options = ['<option value="">None</option>'];
             
             filteredBookings.forEach(booking => {
-                // Format: "Booking #123 - Facility Name - 2024-01-20"
                 const facilityName = booking.facility?.name || 'Unknown Facility';
                 const bookingDate = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A';
                 const status = booking.status || 'unknown';
@@ -155,13 +143,11 @@ async function loadBookings(facilityTypeFilter = null) {
             select.innerHTML = options.join('');
         }
         
-        // After loading bookings, populate facility type filter
         loadFacilityTypes();
     }
 }
 
 async function loadRatedBookingIds() {
-    // Only load for non-admin users (students/staff)
     if (typeof API !== 'undefined' && API.isAdmin()) {
         return;
     }
@@ -170,7 +156,6 @@ async function loadRatedBookingIds() {
         const result = await API.get('/feedbacks/user/my-feedbacks');
         if (result.success) {
             const userFeedbacks = result.data.data?.data || result.data.data || [];
-            // Extract booking IDs that already have feedback
             ratedBookingIds = userFeedbacks
                 .filter(feedback => feedback.booking_id !== null && feedback.booking_id !== undefined)
                 .map(feedback => feedback.booking_id);
@@ -185,8 +170,6 @@ function filterBookingsByFacilityType() {
     const facilityTypeFilter = document.getElementById('facilityTypeFilter');
     const selectedType = facilityTypeFilter ? facilityTypeFilter.value : null;
     
-    // Filter existing bookings without reloading from API
-    // Note: allBookings already excludes rated bookings
     const select = document.getElementById('feedbackBooking');
     if (select && allBookings.length > 0) {
         let filteredBookings = allBookings;
@@ -200,7 +183,6 @@ function filterBookingsByFacilityType() {
         const options = ['<option value="">None</option>'];
         
         filteredBookings.forEach(booking => {
-            // Format: "Booking #123 - Facility Name - 2024-01-20"
             const facilityName = booking.facility?.name || 'Unknown Facility';
             const bookingDate = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A';
             const status = booking.status || 'unknown';
@@ -213,26 +195,21 @@ function filterBookingsByFacilityType() {
     }
 }
 
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateTimeString) {
     if (!dateTimeString) return 'N/A';
     const d = new Date(dateTimeString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     return `${date} ${time}`;
 }
 
-// Format type name (capitalize first letter)
 function formatTypeName(type) {
     if (!type) return 'General';
     return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 }
 
-// Format facility type name (capitalize first letter)
 function formatFacilityType(type) {
     if (!type) return 'N/A';
     return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
@@ -247,7 +224,6 @@ function displayFeedbacks(feedbacksToShow) {
 
     const isAdmin = typeof API !== 'undefined' && API.isAdmin();
 
-    // Data is already sorted by backend (orderBy created_at desc)
     container.innerHTML = `
         <table class="data-table">
             <thead>
@@ -264,7 +240,6 @@ function displayFeedbacks(feedbacksToShow) {
             </thead>
             <tbody>
                 ${feedbacksToShow.map(feedback => {
-                    // Format status for display
                     const formatStatus = (status) => {
                         const statusMap = {
                             'pending': 'Pending',
@@ -276,7 +251,6 @@ function displayFeedbacks(feedbacksToShow) {
                         return statusMap[status] || status;
                     };
 
-                    // Get status badge class
                     const getStatusBadgeClass = (status) => {
                         if (status === 'resolved') return 'badge-success';
                         if (status === 'pending') return 'badge-warning';
@@ -285,7 +259,6 @@ function displayFeedbacks(feedbacksToShow) {
                         return 'badge-secondary';
                     };
 
-                    // Get type badge class
                     const getTypeBadgeClass = (type) => {
                         if (type === 'complaint') return 'badge-danger';
                         if (type === 'suggestion') return 'badge-info';
@@ -293,7 +266,6 @@ function displayFeedbacks(feedbacksToShow) {
                         return 'badge-secondary';
                     };
 
-                    // Rating stars
                     const ratingStars = feedback.rating !== null && feedback.rating !== undefined 
                         ? Array.from({length: 5}, (_, i) => 
                             `<i class="fas fa-star ${i < feedback.rating ? 'text-warning' : 'text-muted'}" style="color: ${i < feedback.rating ? '#ffc107' : '#e0e0e0'}; font-size: 0.85rem;"></i>`
@@ -345,13 +317,10 @@ function displayFeedbacks(feedbacksToShow) {
     `;
 }
 
-// Make functions global
 window.filterFeedbacks = function() {
-    // Reload feedbacks with filters (server-side filtering)
     loadFeedbacks(1);
 };
 
-// Display pagination - Bootstrap 5 style (same as Facility Management)
 function displayPagination() {
     if (!paginationData || paginationData.last_page <= 1) {
         const paginationContainer = document.getElementById('paginationContainer');
@@ -368,7 +337,6 @@ function displayPagination() {
     
     let paginationHTML = '<ul class="pagination">';
 
-    // Previous button
     if (current_page > 1) {
         paginationHTML += `<li class="page-item">
             <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${current_page - 1}); return false;">
@@ -387,7 +355,8 @@ function displayPagination() {
         </li>`;
     }
 
-    // Page numbers
+
+
     const maxPagesToShow = 5;
     let startPage = Math.max(1, current_page - Math.floor(maxPagesToShow / 2));
     let endPage = Math.min(last_page, startPage + maxPagesToShow - 1);
@@ -426,7 +395,6 @@ function displayPagination() {
         </li>`;
     }
 
-    // Next button
     if (current_page < last_page) {
         paginationHTML += `<li class="page-item">
             <a class="page-link" href="#" onclick="event.preventDefault(); loadFeedbacks(${current_page + 1}); return false;">
@@ -450,8 +418,6 @@ function displayPagination() {
 }
 
 window.showCreateModal = function() {
-    // Facility types are already loaded during initialization
-    // No need to reload them when opening the modal
     const form = document.getElementById('feedbackForm');
     if (form) {
         form.reset();
@@ -467,7 +433,6 @@ window.closeModal = function() {
     if (modal) {
         modal.style.display = 'none';
     }
-    // Reset image selection
     selectedImageBase64 = null;
     const imageInput = document.getElementById('feedbackImage');
     if (imageInput) {
@@ -490,16 +455,13 @@ window.viewFeedback = function(id) {
     window.location.href = `${baseUrl}${basePath}/${id}`;
 };
 
-// Admin function to reply to feedback
 window.replyToFeedback = function(id) {
-    // Find the feedback data
     const feedback = feedbacks.find(f => f.id == id);
     if (!feedback) {
         alert('Feedback not found');
         return;
     }
 
-    // Display feedback info in modal
     const infoDiv = document.getElementById('replyFeedbackInfo');
     if (infoDiv) {
         infoDiv.innerHTML = `
@@ -518,7 +480,6 @@ window.replyToFeedback = function(id) {
         `;
     }
 
-    // Reset form
     const replyForm = document.getElementById('replyForm');
     if (replyForm) {
         replyForm.reset();
@@ -529,7 +490,6 @@ window.replyToFeedback = function(id) {
         replyForm.dataset.feedbackId = id;
     }
 
-    // Show modal
     const replyModal = document.getElementById('replyModal');
     if (replyModal) {
         replyModal.style.display = 'block';
@@ -551,23 +511,19 @@ window.closeReplyModal = function() {
             submitBtn.innerHTML = 'Send Response';
         }
     }
-    // Clear reply message
     const replyMessage = document.getElementById('replyMessage');
     if (replyMessage) {
         replyMessage.value = '';
     }
 };
 
-// Admin function to block feedback
 window.blockFeedback = function(id) {
-    // Find the feedback data
     const feedback = feedbacks.find(f => f.id == id);
     if (!feedback) {
         alert('Feedback not found');
         return;
     }
 
-    // Display feedback info in modal
     const infoDiv = document.getElementById('blockFeedbackInfo');
     if (infoDiv) {
         infoDiv.innerHTML = `
@@ -586,7 +542,6 @@ window.blockFeedback = function(id) {
         `;
     }
 
-    // Reset form
     const blockForm = document.getElementById('blockForm');
     if (blockForm) {
         blockForm.reset();
@@ -597,7 +552,6 @@ window.blockFeedback = function(id) {
         blockForm.dataset.feedbackId = id;
     }
 
-    // Show modal
     const blockModal = document.getElementById('blockModal');
     if (blockModal) {
         blockModal.style.display = 'block';
@@ -616,7 +570,6 @@ window.closeBlockModal = function() {
     }
 };
 
-// Admin function to reject feedback
 window.rejectFeedback = function(id) {
     if (!confirm('Are you sure you want to reject this feedback? This action cannot be undone.')) {
         return;
@@ -647,14 +600,12 @@ window.rejectFeedback = function(id) {
     });
 };
 
-// Handle image upload and convert to base64
 window.handleImageUpload = function(event) {
     const file = event.target.files[0];
     if (!file) {
         return;
     }
 
-    // Validate file type
     if (!file.type.match('image.*')) {
         if (typeof showToast === 'function') {
             showToast('Please select a valid image file', 'error');
@@ -665,8 +616,6 @@ window.handleImageUpload = function(event) {
         return;
     }
 
-    // Validate file size (max 1MB to avoid database packet size issues)
-    // Base64 encoding increases size by ~33%, so 1MB file becomes ~1.33MB base64
     if (file.size > 1 * 1024 * 1024) {
         if (typeof showToast === 'function') {
             showToast('Image size must be less than 1MB. Please compress your image before uploading.', 'error');
@@ -681,7 +630,6 @@ window.handleImageUpload = function(event) {
     reader.onload = function(e) {
         const base64 = e.target.result;
         
-        // Double check base64 size (should be less than ~1.5MB)
         if (base64.length > 1500000) {
             if (typeof showToast === 'function') {
                 showToast('Image is too large. Please use a smaller image (max 1MB).', 'error');
@@ -697,7 +645,6 @@ window.handleImageUpload = function(event) {
         }
 
         selectedImageBase64 = base64;
-        // Show preview
         const previewImg = document.getElementById('previewImg');
         const imagePreview = document.getElementById('imagePreview');
         if (previewImg) {
@@ -717,7 +664,6 @@ window.handleImageUpload = function(event) {
     reader.readAsDataURL(file);
 };
 
-// Remove selected image
 window.removeImage = function() {
     selectedImageBase64 = null;
     const imageInput = document.getElementById('feedbackImage');
@@ -734,7 +680,6 @@ window.removeImage = function() {
     }
 };
 
-// Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -746,7 +691,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initFeedbacks();
 
-    // Handle reply form submission
     const replyForm = document.getElementById('replyForm');
     if (replyForm) {
         const newReplyForm = replyForm.cloneNode(true);
@@ -775,7 +719,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Disable submit button
             const submitBtn = this.querySelector('button[type="submit"]');
             if (!submitBtn) return;
             
@@ -789,7 +732,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     closeReplyModal();
                     
-                    // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Response submitted successfully!', 'success');
                     } else {
@@ -821,7 +763,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Close modal when clicking outside
     const replyModal = document.getElementById('replyModal');
     if (replyModal) {
         replyModal.addEventListener('click', function(e) {
@@ -831,7 +772,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle block form submission
     const blockForm = document.getElementById('blockForm');
     if (blockForm) {
         blockForm.addEventListener('submit', async function(e) {
@@ -855,7 +795,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Disable submit button
             const submitBtn = this.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
@@ -867,7 +806,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     closeBlockModal();
                     loadFeedbacks(currentPage);
-                    // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Feedback blocked successfully!', 'success');
                     } else {
@@ -895,7 +833,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Close block modal when clicking outside
     const blockModal = document.getElementById('blockModal');
     if (blockModal) {
         blockModal.addEventListener('click', function(e) {
@@ -905,7 +842,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Bind form submit event
     const feedbackForm = document.getElementById('feedbackForm');
     if (feedbackForm) {
         feedbackForm.addEventListener('submit', async function(e) {
@@ -914,7 +850,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const bookingId = document.getElementById('feedbackBooking')?.value || null;
             let facilityId = null;
             
-            // If booking is selected, get facility_id from the booking
             if (bookingId) {
                 const selectedBooking = allBookings.find(booking => booking.id == bookingId);
                 if (selectedBooking && selectedBooking.facility_id) {
@@ -935,12 +870,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await API.post('/feedbacks', data);
 
             if (result.success) {
-                // If feedback is associated with a booking, add it to rated list
                 if (data.booking_id) {
                     ratedBookingIds.push(parseInt(data.booking_id));
-                    // Remove from allBookings if it exists
                     allBookings = allBookings.filter(booking => booking.id !== parseInt(data.booking_id));
-                    // Update the booking dropdown
                     const select = document.getElementById('feedbackBooking');
                     if (select) {
                         const options = ['<option value="">None</option>'];
@@ -955,7 +887,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Reset image selection
                 selectedImageBase64 = null;
                 const imageInput = document.getElementById('feedbackImage');
                 if (imageInput) {

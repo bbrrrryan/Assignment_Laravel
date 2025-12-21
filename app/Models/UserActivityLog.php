@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +18,7 @@ class UserActivityLog extends Model
         'description',
     ];
 
-    // Relationships
+
     public function user()
     {
         return $this->belongsTo(User::class);

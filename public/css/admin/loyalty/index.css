@@ -1,3 +1,6 @@
+/**
+ * Author: Boo Kai Jie
+ */ 
 
 .page-header {
     display: flex;
@@ -162,7 +165,7 @@
     margin-top: 20px;
 }
 
-/* Modal Styles - Override if needed */
+/*modal*/
 #ruleModal.modal, #rewardModal.modal, #deleteConfirmModal.modal, #awardPointsModal.modal, #deductPointsModal.modal, #viewUserPointsModal.modal, #issueCertificateModal.modal {
     display: none;
     position: fixed;
@@ -299,7 +302,7 @@
     box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
 
-/* Table Container Enhancement */
+/*table*/
 .table-container {
     background: #ffffff;
     border-radius: 12px;
@@ -474,7 +477,7 @@
     margin: 0;
 }
 
-/* Filters Section Styling */
+/*filters*/
 .filters-section {
     margin-bottom: 30px;
 }
@@ -565,7 +568,7 @@
     padding-right: 45px;
 }
 
-/* Responsive Design */
+/*responsive*/
 @media (max-width: 768px) {
     .filters-form {
         flex-direction: column;

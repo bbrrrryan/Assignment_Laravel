@@ -1,3 +1,6 @@
+/**
+ * Author: Boo Kai Jie
+ */ 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -29,11 +32,8 @@ let searchTimeout = null;
 
 function initAdminLoyalty() {
     loadAdminTab('rules');
-    // Don't setup form handler here - it will be set up when modal is first opened
-    // Note: Modals can only be closed via close button (X) or Cancel button, not by clicking outside
 }
 
-// Update header based on current tab
 function updateLoyaltyHeader(title, subtitle, buttonText, buttonAction) {
     const titleEl = document.getElementById('loyaltyPageTitle');
     const subtitleEl = document.getElementById('loyaltyPageSubtitle');
@@ -54,16 +54,13 @@ function updateLoyaltyHeader(title, subtitle, buttonText, buttonAction) {
     }
 }
 
-// Handle header button click
 function handleHeaderButtonClick() {
-    // This will be handled by the onclick attribute set in updateLoyaltyHeader
 }
 
 let ruleFormHandlerSetup = false;
 let rewardFormHandlerSetup = false;
 
 function setupRuleFormHandler() {
-    // Only setup once
     if (ruleFormHandlerSetup) return;
     
     const ruleForm = document.getElementById('ruleForm');
@@ -94,7 +91,6 @@ function setupRuleFormHandler() {
             return;
         }
         
-        // Save the editing state before async operations
         const isEditing = !!currentEditingRuleId;
         const editingId = currentEditingRuleId;
         
@@ -106,11 +102,9 @@ function setupRuleFormHandler() {
         try {
             let result;
             if (isEditing) {
-                // Update existing rule
                 console.log('Updating rule:', editingId, data);
                 result = await API.put(`/loyalty/rules/${editingId}`, data);
             } else {
-                // Create new rule
                 console.log('Creating rule:', data);
                 result = await API.post('/loyalty/rules', data);
             }
@@ -147,7 +141,6 @@ function setupRuleFormHandler() {
         }
     });
     
-    // Note: Modal cannot be closed by clicking outside - only via close button (X) or cancel button
 }
 
 window.showAdminTab = function(tab, clickedElement) {
@@ -186,7 +179,6 @@ function loadAdminTab(tab) {
     }
 }
 
-// Rules Management
 async function loadRulesManagement() {
     const container = document.getElementById('adminLoyaltyContent');
     if (!container) {
@@ -216,10 +208,8 @@ async function loadRulesManagement() {
 function displayRulesManagement(rules) {
     const container = document.getElementById('adminLoyaltyContent');
     
-    // Store data for search
     currentSearchData.rules = rules;
     
-    // Update header
     updateLoyaltyHeader('Point Earning Rules', 'Manage and configure point earning rules', 'Create Rule', 'showCreateRuleModal');
     
     container.innerHTML = `
@@ -279,7 +269,6 @@ function displayRulesManagement(rules) {
     `;
 }
 
-// Rewards Management
 async function loadRewardsManagement() {
     showLoading(document.getElementById('adminLoyaltyContent'));
     
@@ -297,10 +286,8 @@ async function loadRewardsManagement() {
 function displayRewardsManagement(rewards) {
     const container = document.getElementById('adminLoyaltyContent');
     
-    // Store data for search
     currentSearchData.rewards = rewards;
     
-    // Update header
     updateLoyaltyHeader('Rewards Management', 'Manage available rewards for redemption', 'Create Reward', 'showCreateRewardModal');
     
     container.innerHTML = `
@@ -365,7 +352,6 @@ function displayRewardsManagement(rewards) {
     `;
 }
 
-// Redemptions Management
 async function loadRedemptionsManagement() {
     showLoading(document.getElementById('adminLoyaltyContent'));
     
@@ -373,7 +359,6 @@ async function loadRedemptionsManagement() {
     
     if (result.success) {
         const redemptions = result.data.data?.data || result.data.data || [];
-        // Always store fresh data from server
         currentSearchData.redemptions = redemptions;
         displayRedemptionsManagement(redemptions);
     } else {
@@ -384,14 +369,11 @@ async function loadRedemptionsManagement() {
 function displayRedemptionsManagement(redemptions) {
     const container = document.getElementById('adminLoyaltyContent');
     
-    // Check if this is initial load (container has no filters section yet)
     const hasFilters = container.querySelector('.filters-section');
     
-    // Update header
     updateLoyaltyHeader('Redemption Approvals', 'Review and approve reward redemptions', '', '');
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
-    // If filters section doesn't exist, create it
     if (!hasFilters) {
         container.innerHTML = `
         <div class="filters-section" style="margin-bottom: 20px;">
@@ -425,7 +407,6 @@ function displayRedemptionsManagement(redemptions) {
         </div>
     `;
     } else {
-        // Filters already exist, just update the table
         const tableContainer = container.querySelector('.table-container');
         if (tableContainer) {
             tableContainer.innerHTML = generateRedemptionsTableHTML(redemptions).replace('<div class="table-container">', '').replace('</div>', '').trim();
@@ -433,7 +414,6 @@ function displayRedemptionsManagement(redemptions) {
     }
 }
 
-// Points Management
 async function loadPointsManagement() {
     showLoading(document.getElementById('adminLoyaltyContent'));
     
@@ -451,10 +431,8 @@ async function loadPointsManagement() {
 function displayPointsManagement(users) {
     const container = document.getElementById('adminLoyaltyContent');
     
-    // Store data for search
     currentSearchData.points = users;
     
-    // Update header
     updateLoyaltyHeader('Student Points Tracking', 'View and manage student loyalty points', '', '');
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
@@ -515,7 +493,6 @@ function displayPointsManagement(users) {
     `;
 }
 
-// Certificates Management
 async function loadCertificatesManagement() {
     showLoading(document.getElementById('adminLoyaltyContent'));
     
@@ -533,10 +510,8 @@ async function loadCertificatesManagement() {
 function displayCertificatesManagement(certificates) {
     const container = document.getElementById('adminLoyaltyContent');
     
-    // Store data for search
     currentSearchData.certificates = certificates;
     
-    // Update header
     updateLoyaltyHeader('Certificates Management', 'Issue and manage student certificates', 'Issue Certificate', 'showIssueCertificateModal');
     
     container.innerHTML = `
@@ -594,12 +569,10 @@ function displayCertificatesManagement(certificates) {
     `;
 }
 
-// Reports
 async function loadReports() {
     const container = document.getElementById('adminLoyaltyContent');
     showLoading(container);
 
-    // 默认日期范围：当前月份
     if (!reportStartDate || !reportEndDate) {
         const now = new Date();
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -630,7 +603,6 @@ function displayReports(data) {
     const participation = data.participation || {};
     const rewardsStats = data.rewardsStats || {};
     
-    // Update header
     updateLoyaltyHeader('Loyalty Program Reports', 'View statistics and analytics', '', '');
     document.getElementById('loyaltyHeaderBtn').style.display = 'none';
     
@@ -758,7 +730,6 @@ function displayReports(data) {
     }
 }
 
-// Charts instances
 let loyaltyPointsByActionChart = null;
 let loyaltyRedemptionsChart = null;
 
@@ -852,7 +823,6 @@ function renderLoyaltyRedemptionsChart(popularRewards) {
     });
 }
 
-// 报表：应用日期筛选
 window.applyReportsFilter = function() {
     const startInput = document.getElementById('reportStartDate');
     const endInput = document.getElementById('reportEndDate');
@@ -885,7 +855,6 @@ window.applyReportsFilter = function() {
     loadReports();
 };
 
-// 报表：导出 PDF
 window.exportReportsPdf = function() {
     if (!reportStartDate || !reportEndDate) {
         const now = new Date();
@@ -899,16 +868,12 @@ window.exportReportsPdf = function() {
     window.open(`/admin/loyalty/reports/export-pdf${query}`, '_blank');
 };
 
-// Helper functions
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     return d.toLocaleString();
 }
 
@@ -920,12 +885,10 @@ function formatActionType(actionType) {
         'reward_redemption': 'Reward redemption'
     };
     
-    // If we have a mapping, use it
     if (actionMap[actionType]) {
         return actionMap[actionType];
     }
     
-    // Otherwise, format by replacing underscores with spaces and capitalizing
     return actionType
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -933,12 +896,10 @@ function formatActionType(actionType) {
 }
 
 function formatDescription(actionType, description) {
-    // For redemption_refund, use specific description
     if (actionType === 'redemption_refund') {
         return 'Refunded for rejected redemption';
     }
     
-    // For other types, use the provided description or default
     return description || '-';
 }
 
@@ -954,12 +915,10 @@ function showError(element, message) {
     }
 }
 
-// Action functions
 window.showCreateRuleModal = function() {
     console.log('showCreateRuleModal called');
     currentEditingRuleId = null;
     
-    // Setup form handler if not already done
     setupRuleFormHandler();
     
     const modal = document.getElementById('ruleModal');
@@ -991,7 +950,6 @@ window.editRule = async function(id) {
     console.log('editRule called with id:', id);
     currentEditingRuleId = id;
     
-    // Setup form handler if not already done
     setupRuleFormHandler();
     
     const modal = document.getElementById('ruleModal');
@@ -1005,12 +963,10 @@ window.editRule = async function(id) {
     
     if (title) title.textContent = 'Edit Point Rule';
     
-    // Show loading state
     modal.style.display = 'block';
     modal.classList.add('show');
     
     try {
-        // Load rule data
         const result = await API.get('/loyalty/rules');
         
         if (result.success) {
@@ -1068,7 +1024,6 @@ window.closeRuleModal = function() {
     const form = document.getElementById('ruleForm');
     if (form) {
         form.reset();
-        // Reset submit button state - important to restore button functionality
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = false;
@@ -1082,7 +1037,6 @@ window.closeRuleModal = function() {
     currentEditingRuleId = null;
 };
 
-// Custom confirmation dialog
 let pendingDeleteId = null;
 
 function showDeleteConfirmModal(message, onConfirm) {
@@ -1097,7 +1051,6 @@ function showDeleteConfirmModal(message, onConfirm) {
         return;
     }
     
-    // Store the callback globally so onclick can access it
     window._deleteConfirmCallback = onConfirm;
     
     messageEl.textContent = message;
@@ -1111,7 +1064,6 @@ window.handleConfirmDelete = function() {
         const callback = window._deleteConfirmCallback;
         window._deleteConfirmCallback = null;
         closeDeleteConfirmModal();
-        // Call callback after a small delay to ensure modal is closed
         setTimeout(() => {
             callback();
         }, 100);
@@ -1126,7 +1078,6 @@ function closeDeleteConfirmModal() {
         modal.style.display = 'none';
         modal.classList.remove('show');
     }
-    // Don't reset pendingDeleteId here - it will be reset after deletion completes
     window._deleteConfirmCallback = null;
 }
 
@@ -1136,11 +1087,11 @@ window.deleteRule = function(id) {
     
     const deleteCallback = function() {
         console.log('Delete callback executed, pendingDeleteId:', pendingDeleteId);
-        const idToDelete = pendingDeleteId; // Save the ID before it might be cleared
+        const idToDelete = pendingDeleteId;
         if (idToDelete) {
             API.delete(`/loyalty/rules/${idToDelete}`).then(result => {
                 console.log('Delete API result:', result);
-                pendingDeleteId = null; // Clear after successful deletion
+                pendingDeleteId = null;
                 if (result.success) {
                     loadRulesManagement();
                     if (typeof showToast !== 'undefined') {
@@ -1157,7 +1108,7 @@ window.deleteRule = function(id) {
                 }
             }).catch(error => {
                 console.error('Error deleting rule:', error);
-                pendingDeleteId = null; // Clear on error too
+                pendingDeleteId = null;
                 if (typeof showToast !== 'undefined') {
                     showToast('An error occurred while deleting the rule', 'error');
                 } else {
@@ -1231,17 +1182,14 @@ function resetRewardFormButtonState(button, originalText) {
     }
 }
 
-// Reward image handling variables
 let rewardSelectedImageBase64 = null;
 
-// Handle reward image upload and convert to base64
 window.handleRewardImageUpload = function(event) {
     const file = event.target.files[0];
     if (!file) {
         return;
     }
 
-    // Validate file type
     if (!file.type.match('image.*')) {
         if (typeof showToast === 'function') {
             showToast('Please select a valid image file', 'error');
@@ -1252,7 +1200,6 @@ window.handleRewardImageUpload = function(event) {
         return;
     }
 
-    // Validate file size (max 1MB to avoid database packet size issues)
     if (file.size > 1 * 1024 * 1024) {
         if (typeof showToast === 'function') {
             showToast('Image size must be less than 1MB. Please compress your image before uploading.', 'error');
@@ -1267,7 +1214,6 @@ window.handleRewardImageUpload = function(event) {
     reader.onload = function(e) {
         const base64 = e.target.result;
         
-        // Double check base64 size (should be less than ~1.5MB)
         if (base64.length > 1500000) {
             if (typeof showToast === 'function') {
                 showToast('Image is too large. Please use a smaller image (max 1MB).', 'error');
@@ -1280,7 +1226,6 @@ window.handleRewardImageUpload = function(event) {
         }
 
         rewardSelectedImageBase64 = base64;
-        // Show preview
         document.getElementById('rewardPreviewImg').src = rewardSelectedImageBase64;
         document.getElementById('rewardImagePreview').style.display = 'block';
     };
@@ -1294,7 +1239,6 @@ window.handleRewardImageUpload = function(event) {
     reader.readAsDataURL(file);
 }
 
-// Remove selected reward image
 window.removeRewardImage = function() {
     rewardSelectedImageBase64 = null;
     document.getElementById('rewardImage').value = '';
@@ -1306,7 +1250,6 @@ window.showCreateRewardModal = function() {
     console.log('showCreateRewardModal called');
     currentEditingRewardId = null;
     
-    // Setup form handler if not already done
     setupRewardFormHandler();
     
     const modal = document.getElementById('rewardModal');
@@ -1333,7 +1276,6 @@ window.editReward = async function(id) {
     console.log('editReward called with id:', id);
     currentEditingRewardId = id;
     
-    // Setup form handler if not already done
     setupRewardFormHandler();
     
     const modal = document.getElementById('rewardModal');
@@ -1347,12 +1289,10 @@ window.editReward = async function(id) {
     
     if (title) title.textContent = 'Edit Reward';
     
-    // Show loading state
     modal.style.display = 'block';
     modal.classList.add('show');
     
     try {
-        // Load reward data
         const result = await API.get('/loyalty/rewards/all');
         
         if (result.success && result.data && result.data.data) {
@@ -1363,21 +1303,17 @@ window.editReward = async function(id) {
                 return;
             }
             
-            // Populate form
             document.getElementById('rewardName').value = reward.name || '';
             document.getElementById('rewardDescription').value = reward.description || '';
             document.getElementById('rewardPointsRequired').value = reward.points_required || '';
             document.getElementById('rewardType').value = reward.reward_type || '';
             
-            // Handle image - if it's a base64 string, show preview; if it's a URL, we can't preview it
             if (reward.image_url) {
                 if (reward.image_url.startsWith('data:image/')) {
-                    // It's a base64 image
                     rewardSelectedImageBase64 = reward.image_url;
                     document.getElementById('rewardPreviewImg').src = reward.image_url;
                     document.getElementById('rewardImagePreview').style.display = 'block';
                 } else {
-                    // It's a URL, clear the image input
                     rewardSelectedImageBase64 = null;
                     document.getElementById('rewardImagePreview').style.display = 'none';
                 }
@@ -1410,7 +1346,6 @@ window.closeRewardModal = function() {
     if (form) {
         form.reset();
     }
-    // Reset image selection
     rewardSelectedImageBase64 = null;
     const imageInput = document.getElementById('rewardImage');
     if (imageInput) {
@@ -1496,7 +1431,6 @@ window.viewUserPoints = async function(userId) {
         return;
     }
     
-    // Show modal with loading state
     modal.style.display = 'block';
     modal.classList.add('show');
     
@@ -1513,7 +1447,6 @@ window.viewUserPoints = async function(userId) {
         console.log('User points API response:', result);
         
         if (result.success && result.data) {
-            // Handle both response structures: { data: {...} } or direct {...}
             const data = result.data.data || result.data;
             console.log('Parsed data:', data);
             
@@ -1605,7 +1538,6 @@ window.closeViewUserPointsModal = function() {
     }
 };
 
-// Award Points Modal Functions
 let awardPointsFormHandlerSetup = false;
 
 function setupAwardPointsFormHandler() {
@@ -1651,7 +1583,7 @@ function setupAwardPointsFormHandler() {
             
             if (result.success) {
                 closeAwardPointsModal();
-                loadPointsManagement(); // Refresh the points tracking table
+                loadPointsManagement();
                 if (typeof showToast !== 'undefined') {
                     showToast('Points awarded successfully!', 'success');
                 } else {
@@ -1689,21 +1621,16 @@ async function loadUsersForAward() {
     try {
         const result = await API.get('/users?role=student');
         
-        // API.js returns {success: true, data: serverResponse}
-        // Server returns {status: 'S', data: {data: [...], ...}}
         let users = null;
         
         if (result.success && result.data) {
-            // Check if server response has status 'S' and paginated data
             if (result.data.status === 'S' && result.data.data) {
-                // Handle paginated response: result.data.data.data
                 if (result.data.data.data && Array.isArray(result.data.data.data)) {
                     users = result.data.data.data;
                 } else if (Array.isArray(result.data.data)) {
                     users = result.data.data;
                 }
             } else if (result.data.data) {
-                // Handle direct data response
                 if (Array.isArray(result.data.data)) {
                     users = result.data.data;
                 } else if (Array.isArray(result.data)) {
@@ -1725,7 +1652,7 @@ async function loadUsersForAward() {
             });
             
             select.disabled = false;
-            return users; // Return users array for use in awardPointsToUser
+            return users;
         } else {
             select.innerHTML = '<option value="">No students found</option>';
             console.error('No users found in response:', result);
@@ -1739,7 +1666,6 @@ async function loadUsersForAward() {
 }
 
 window.showAwardPointsModal = async function() {
-    // Setup form handler if not already done
     setupAwardPointsFormHandler();
     
     const modal = document.getElementById('awardPointsModal');
@@ -1751,24 +1677,20 @@ window.showAwardPointsModal = async function() {
         return;
     }
     
-    // Reset form
     form.reset();
     const select = document.getElementById('awardPointsUserId');
     if (select) {
         select.innerHTML = '<option value="">Loading users...</option>';
-        select.disabled = false; // Enable select when opening modal manually
+        select.disabled = false;
     }
     
-    // Load users
     await loadUsersForAward();
     
-    // Show modal
     modal.style.display = 'block';
     modal.classList.add('show');
 };
 
 window.awardPointsToUser = async function(userId) {
-    // Setup form handler if not already done
     setupAwardPointsFormHandler();
     
     const modal = document.getElementById('awardPointsModal');
@@ -1780,24 +1702,18 @@ window.awardPointsToUser = async function(userId) {
         return;
     }
     
-    // Show modal first (with loading state)
     modal.style.display = 'block';
     modal.classList.add('show');
     
-    // Reset form
     form.reset();
     
-    // Load users and wait for completion
     const users = await loadUsersForAward();
     
-    // Set the user ID after users are loaded
     const select = document.getElementById('awardPointsUserId');
     if (select && userId) {
-        // Check if the user ID exists in the loaded users
         const userExists = users && users.some(user => user.id == userId);
         if (userExists) {
             select.value = userId;
-            // Disable the select box since user is already selected
             select.disabled = true;
         } else {
             console.warn(`User ID ${userId} not found in loaded users`);
@@ -1814,13 +1730,11 @@ window.closeAwardPointsModal = function() {
     const form = document.getElementById('awardPointsForm');
     if (form) {
         form.reset();
-        // Reset submit button state
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Award Points';
         }
-        // Re-enable select box when closing modal
         const select = document.getElementById('awardPointsUserId');
         if (select) {
             select.disabled = false;
@@ -1828,7 +1742,6 @@ window.closeAwardPointsModal = function() {
     }
 }
 
-// Deduct Points Modal Functions
 let deductPointsFormHandlerSetup = false;
 
 function setupDeductPointsFormHandler() {
@@ -1876,7 +1789,7 @@ function setupDeductPointsFormHandler() {
             
             if (result.success) {
                 closeDeductPointsModal();
-                loadPointsManagement(); // Refresh the points tracking table
+                loadPointsManagement();
                 if (typeof showToast !== 'undefined') {
                     showToast('Points deducted successfully!', 'success');
                 } else {
@@ -1914,21 +1827,16 @@ async function loadUsersForDeduct() {
     try {
         const result = await API.get('/users?role=student');
         
-        // API.js returns {success: true, data: serverResponse}
-        // Server returns {status: 'S', data: {data: [...], ...}}
         let users = null;
         
         if (result.success && result.data) {
-            // Check if server response has status 'S' and paginated data
             if (result.data.status === 'S' && result.data.data) {
-                // Handle paginated response: result.data.data.data
                 if (result.data.data.data && Array.isArray(result.data.data.data)) {
                     users = result.data.data.data;
                 } else if (Array.isArray(result.data.data)) {
                     users = result.data.data;
                 }
             } else if (result.data.data) {
-                // Handle direct data response
                 if (Array.isArray(result.data.data)) {
                     users = result.data.data;
                 } else if (Array.isArray(result.data)) {
@@ -1950,7 +1858,7 @@ async function loadUsersForDeduct() {
             });
             
             select.disabled = false;
-            return users; // Return users array for use in deductPointsFromUser
+            return users;
         } else {
             select.innerHTML = '<option value="">No students found</option>';
             console.error('No users found in response:', result);
@@ -1975,7 +1883,6 @@ window.showDeductPointsModal = async function() {
         return;
     }
     
-    // Reset form
     form.reset();
     const select = document.getElementById('deductPointsUserId');
     if (select) {
@@ -1983,10 +1890,8 @@ window.showDeductPointsModal = async function() {
         select.disabled = false;
     }
     
-    // Load users
     await loadUsersForDeduct();
     
-    // Show modal
     modal.style.display = 'block';
     modal.classList.add('show');
 }
@@ -2003,24 +1908,18 @@ window.deductPointsFromUser = async function(userId) {
         return;
     }
     
-    // Show modal first (with loading state)
     modal.style.display = 'block';
     modal.classList.add('show');
     
-    // Reset form
     form.reset();
     
-    // Load users and wait for completion
     const users = await loadUsersForDeduct();
     
-    // Set the user ID if provided
     const select = document.getElementById('deductPointsUserId');
     if (select && userId) {
-        // Check if the user ID exists in the loaded users
         const userExists = users && users.some(user => user.id == userId);
         if (userExists) {
             select.value = userId;
-            // Disable the select box since user is already selected
             select.disabled = true;
         } else {
             console.warn(`User ID ${userId} not found in loaded users`);
@@ -2037,13 +1936,11 @@ window.closeDeductPointsModal = function() {
     const form = document.getElementById('deductPointsForm');
     if (form) {
         form.reset();
-        // Reset submit button state
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Deduct Points';
         }
-        // Re-enable select box when closing modal
         const select = document.getElementById('deductPointsUserId');
         if (select) {
             select.disabled = false;
@@ -2051,7 +1948,6 @@ window.closeDeductPointsModal = function() {
     }
 };
 
-// Issue Certificate Modal Functions
 let issueCertificateFormHandlerSetup = false;
 
 function setupIssueCertificateFormHandler() {
@@ -2101,7 +1997,7 @@ function setupIssueCertificateFormHandler() {
             
             if (result.success) {
                 closeIssueCertificateModal();
-                loadCertificatesManagement(); // Refresh the certificates table
+                loadCertificatesManagement();
                 if (typeof showToast !== 'undefined') {
                     showToast('Certificate issued successfully!', 'success');
                 } else {
@@ -2222,26 +2118,21 @@ window.showIssueCertificateModal = async function() {
         return;
     }
     
-    // Reset form
     const form = document.getElementById('issueCertificateForm');
     if (form) {
         form.reset();
     }
     
-    // Show modal
     modal.style.display = 'block';
     modal.classList.add('show');
     
-    // Setup form handler if not already done
     setupIssueCertificateFormHandler();
     
-    // Load users and rewards
     await Promise.all([
         loadUsersForCertificate(),
         loadRewardsForCertificate()
     ]);
     
-    // Set today's date as default for issued date
     const issuedDateInput = document.getElementById('issueCertificateIssuedDate');
     if (issuedDateInput) {
         const today = new Date().toISOString().split('T')[0];
@@ -2256,7 +2147,6 @@ window.closeIssueCertificateModal = function() {
         modal.classList.remove('show');
     }
     
-    // Reset form
     const form = document.getElementById('issueCertificateForm');
     if (form) {
         form.reset();
@@ -2267,21 +2157,17 @@ window.filterRedemptions = function() {
     const status = document.getElementById('redemptionStatusFilter')?.value || '';
     const searchTerm = document.getElementById('redemptionsSearchInput')?.value?.trim().toLowerCase() || '';
     
-    // Always start from original data stored in currentSearchData
     if (!currentSearchData.redemptions || currentSearchData.redemptions.length === 0) {
-        // If no original data, reload from server
         loadRedemptionsManagement();
         return;
     }
     
     let filtered = [...(currentSearchData.redemptions || [])];
     
-    // Apply status filter
     if (status) {
         filtered = filtered.filter(r => r.status === status);
     }
     
-    // Apply search filter
     if (searchTerm) {
         filtered = filtered.filter(r => 
             (r.reward_name && r.reward_name.toLowerCase().includes(searchTerm)) ||
@@ -2290,18 +2176,15 @@ window.filterRedemptions = function() {
         );
     }
     
-    // Only update the table HTML, preserve filters
     const container = document.getElementById('adminLoyaltyContent');
     const tableContainer = container.querySelector('.table-container');
     if (tableContainer) {
         tableContainer.innerHTML = generateRedemptionsTableHTML(filtered).trim();
     } else {
-        // If table container doesn't exist, re-render everything
         displayRedemptionsManagement(filtered);
     }
 };
 
-// Search functions
 function debounceSearch(func, wait) {
     return function executedFunction(...args) {
         const later = () => {
@@ -2327,7 +2210,6 @@ window.searchRules = debounceSearch(function(searchTerm) {
         (rule.description && rule.description.toLowerCase().includes(searchLower))
     );
     
-    // Re-render the table with filtered data
     const container = document.getElementById('adminLoyaltyContent');
     const searchSection = container.querySelector('.filters-section');
     const tableHTML = generateRulesTableHTML(filtered);
@@ -2482,7 +2364,6 @@ window.searchRedemptions = debounceSearch(function(searchTerm) {
         searchClearBtn.style.display = searchTerm ? 'flex' : 'none';
     }
     
-    // Use the same filtering logic as filterRedemptions
     window.filterRedemptions();
 }, 300);
 

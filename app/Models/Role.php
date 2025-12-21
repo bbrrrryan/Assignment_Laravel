@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +22,6 @@ class Role extends Model
         'is_active' => 'boolean',
     ];
 
-    // Relationships
     public function users()
     {
         return $this->hasMany(User::class);

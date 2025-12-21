@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -7,9 +9,6 @@ use Illuminate\Http\Request;
 
 class AdminBaseController extends Controller
 {
-    /**
-     * Constructor - Ensure only admin or staff can access
-     */
     public function __construct()
     {
         $this->middleware('auth');
@@ -25,7 +24,6 @@ class AdminBaseController extends Controller
 
             $user = auth()->user();
 
-            // Only allow admin and staff, block students
             if ($user->isStudent()) {
                 if ($request->expectsJson()) {
                     return response()->json([

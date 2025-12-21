@@ -26,7 +26,7 @@ class AdminMiddleware
 
         $user = auth()->user();
 
-        // Only admin can access management / admin routes
+        //admin can access management / admin routes
         if (!$user->isAdmin()) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -34,7 +34,7 @@ class AdminMiddleware
                 ], 403);
             }
 
-            // Redirect non-admin users (staff, students, others) back to user site
+            //redirect 
             return redirect()->route('home')
                 ->with('error', 'You do not have permission to access this page.');
         }

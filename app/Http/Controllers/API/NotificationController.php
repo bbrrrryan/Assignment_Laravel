@@ -1,7 +1,6 @@
 <?php
 /**
  * Author: Liew Zi Li
- * Module: Notification Management Module
  */
 
 namespace App\Http\Controllers\API;
@@ -25,9 +24,6 @@ class NotificationController extends Controller
         $this->userWebService = $userWebService;
     }
 
-    /**
-     * Display a listing of notifications (Admin only)
-     */
     public function index(Request $request)
     {
         $notifications = Notification::with('creator')
@@ -52,9 +48,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created notification
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -91,9 +84,6 @@ class NotificationController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified notification
-     */
     public function show(string $id)
     {
         $notification = Notification::with(['creator', 'users'])->findOrFail($id);
@@ -106,9 +96,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified notification
-     */
     public function update(Request $request, string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -136,9 +123,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified notification
-     */
     public function destroy(string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -151,9 +135,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Send notification to target users
-     */
     public function send(string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -167,7 +148,6 @@ class NotificationController extends Controller
         }
 
         try {
-        // Determine target users based on audience
         $targetUsers = $this->getTargetUsers($notification);
         } catch (\Exception $e) {
             Log::error('Failed to get target users for notification', [
@@ -183,7 +163,6 @@ class NotificationController extends Controller
             ], 503);
         }
 
-        // Attach notification to users
         $syncData = [];
         foreach ($targetUsers as $userId) {
             $syncData[$userId] = [
@@ -194,7 +173,6 @@ class NotificationController extends Controller
 
         $notification->users()->sync($syncData);
 
-        // Update scheduled_at if not set
         if (!$notification->scheduled_at) {
             $notification->update(['scheduled_at' => now()]);
         }
@@ -210,9 +188,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Get current user's notifications
-     */
     public function myNotifications(Request $request)
     {
         $user = auth()->user();
@@ -225,8 +200,6 @@ class NotificationController extends Controller
             })
             ->when($request->type, fn($q) => $q->where('type', $request->type));
 
-        // Order by notification created_at (when notification was created)
-        // or pivot created_at (when notification was sent to user)
         $notifications = $query->orderBy('notifications.created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 
@@ -238,9 +211,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Get unread notifications count for current user
-     */
     public function unreadCount()
     {
         $user = auth()->user();
@@ -259,9 +229,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Mark notification as read
-     */
     public function markAsRead(string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -287,9 +254,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Mark notification as unread
-     */
     public function markAsUnread(string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -315,9 +279,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Acknowledge notification
-     */
     public function acknowledge(string $id)
     {
         $notification = Notification::findOrFail($id);
@@ -343,25 +304,18 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Get user's announcements and notifications for dropdown (combined)
-     * Returns recent items from announcements and notifications tables directly
-     */
     public function getUnreadItems(Request $request)
     {
         $user = auth()->user();
         $perPage = $request->get('per_page', 10);
         $page = $request->get('page', 1);
         $search = $request->get('search', '');
-        // Handle both string and boolean values for only_unread
         $onlyUnreadParam = $request->get('only_unread', false);
         $onlyUnread = filter_var($onlyUnreadParam, FILTER_VALIDATE_BOOLEAN);
         
-        // Get announcements - Get all published announcements that match user's audience
-        // Then filter by checking if announcement should be visible to this user
         $announcementQuery = Announcement::with('creator')
             ->where('is_active', true)
-            ->whereNotNull('published_at') // Only published announcements
+            ->whereNotNull('published_at')
             ->where(function($q) {
                 $q->whereNull('expires_at')
                   ->orWhere('expires_at', '>', now());
@@ -369,13 +323,10 @@ class NotificationController extends Controller
         
         $allAnnouncements = $announcementQuery->get();
         
-        // Filter announcements based on target_audience
         $filteredAnnouncements = $allAnnouncements->filter(function($announcement) use ($user) {
             $targetAudience = $announcement->target_audience;
             $role = strtolower($user->role ?? '');
             
-            // Check if announcement should be visible to this user
-            // Staff and students have same privilege, so they see the same announcements
             if ($targetAudience === 'all') {
                 return true;
             } elseif ($targetAudience === 'students' && ($role === 'student' || $role === 'staff')) {
@@ -392,16 +343,13 @@ class NotificationController extends Controller
             return false;
         });
         
-        // Get read status from pivot table for each announcement
         $announcements = $filteredAnnouncements->map(function ($announcement) use ($user) {
-            // Get pivot data using DB query
             $pivotData = DB::table('user_announcement')
                 ->where('user_id', $user->id)
                 ->where('announcement_id', $announcement->id)
                 ->first();
             
             $pivotCreatedAt = $pivotData ? $pivotData->created_at : ($announcement->published_at ?? $announcement->created_at);
-            // Convert to string if it's a Carbon instance
             if ($pivotCreatedAt instanceof \Carbon\Carbon) {
                 $pivotCreatedAt = $pivotCreatedAt->toDateTimeString();
             }
@@ -424,8 +372,6 @@ class NotificationController extends Controller
             return true;
         });
 
-        // Get notifications - ONLY notifications that are sent to this specific user
-        // Use the user_notification pivot table to ensure we only get notifications for this user
         $notifications = $user->notifications()
             ->with('creator')
             ->where('is_active', true)
@@ -436,7 +382,6 @@ class NotificationController extends Controller
             ->get()
             ->map(function ($notification) {
                 $pivotCreatedAt = $notification->pivot->created_at ?? ($notification->scheduled_at ?? $notification->created_at);
-                // Convert to string if it's a Carbon instance
                 if ($pivotCreatedAt instanceof \Carbon\Carbon) {
                     $pivotCreatedAt = $pivotCreatedAt->toDateTimeString();
                 }
@@ -460,10 +405,8 @@ class NotificationController extends Controller
                 return true;
             });
 
-        // Combine and sort by created_at (unread items first, then starred, then by date)
         $combined = $announcements->concat($notifications);
         
-        // apply search filter if search term provided
         if (!empty($search)) {
             $searchLower = strtolower($search);
             $combined = $combined->filter(function($item) use ($searchLower) {
@@ -474,19 +417,15 @@ class NotificationController extends Controller
         }
         
         $sorted = $combined->sort(function ($a, $b) {
-                // Unread items first
                 if ($a['is_read'] !== $b['is_read']) {
                     return $a['is_read'] ? 1 : -1;
                 }
-                // Then starred items
                 if ($a['is_starred'] !== $b['is_starred']) {
                     return $a['is_starred'] ? -1 : 1;
                 }
-                // Then sort by date (most recent first)
                 $dateA = $a['pivot_created_at'] ?? $a['created_at'] ?? '';
                 $dateB = $b['pivot_created_at'] ?? $b['created_at'] ?? '';
                 
-                // Convert to timestamp for comparison
                 $timestampA = is_string($dateA) ? strtotime($dateA) : (is_object($dateA) ? $dateA->timestamp : 0);
                 $timestampB = is_string($dateB) ? strtotime($dateB) : (is_object($dateB) ? $dateB->timestamp : 0);
                 
@@ -494,12 +433,10 @@ class NotificationController extends Controller
             })
             ->values();
 
-        // Manual pagination using LengthAwarePaginator
         $total = $sorted->count();
         $offset = ($page - 1) * $perPage;
         $items = $sorted->slice($offset, $perPage)->values();
         
-        // Create pagination data structure similar to Laravel's paginator
         $lastPage = (int) ceil($total / $perPage);
         $paginationData = [
             'current_page' => (int) $page,
@@ -510,7 +447,6 @@ class NotificationController extends Controller
             'to' => min($offset + $perPage, $total),
         ];
 
-        // Get total unread counts for badge (count unread items)
         $announcementCount = $announcements->filter(function($item) {
             return !$item['is_read'];
         })->count();
@@ -535,28 +471,18 @@ class NotificationController extends Controller
         ]);
     }
 
-    /**
-     * Get target users based on notification audience
-     * This method uses UserWebService to call User Management Module's Web Service
-     * instead of directly querying the database (Inter-module communication)
-     */
     private function getTargetUsers(Notification $notification): array
     {
         try {
-            // Prepare criteria based on target audience
             $criteria = [
                 'status' => 'active',
             ];
 
             switch ($notification->target_audience) {
                 case 'all':
-                    // Get all active users
                     break;
 
                 case 'students':
-                    // Staff and students have same privilege, include both
-                    // Note: UserWebService may need to support multiple roles
-                    // For now, we'll get students and staff separately and merge
                     $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
                     $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
                     $allUserIds = array_unique(array_merge(
@@ -566,8 +492,6 @@ class NotificationController extends Controller
                     return $allUserIds;
 
                 case 'staff':
-                    // Staff and students have same privilege, include both
-                    // Same as 'students' case
                     $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
                     $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
                     $allUserIds = array_unique(array_merge(
@@ -581,7 +505,6 @@ class NotificationController extends Controller
                     break;
 
                 case 'specific':
-                    // For specific users, use the provided user IDs
                     $targetUserIds = $notification->target_user_ids ?? [];
                     if (empty($targetUserIds)) {
                         return [];
@@ -593,27 +516,21 @@ class NotificationController extends Controller
                     return [];
             }
 
-            // Use UserWebService to get user IDs via Web Service
             $result = $this->userWebService->getUserIds($criteria);
             
             return $result['user_ids'] ?? [];
             
         } catch (\Exception $e) {
-            // Log error with notification context
             Log::error('Failed to get target users for notification via Web Service', [
                 'notification_id' => $notification->id,
                 'target_audience' => $notification->target_audience,
                 'error' => $e->getMessage(),
             ]);
             
-            // Re-throw the exception (UserWebService already handles error formatting)
             throw $e;
         }
     }
 
-    /**
-     * Star/Unstar a notification or announcement
-     */
     public function toggleStar(Request $request, string $type, string $id)
     {
         $user = auth()->user();
@@ -660,14 +577,12 @@ class NotificationController extends Controller
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
         } else {
-            // announcement
             $announcement = Announcement::findOrFail($id);
             $pivot = DB::table('user_announcement')
                 ->where('user_id', $user->id)
                 ->where('announcement_id', $id)
                 ->first();
 
-            // If pivot doesn't exist, create it
             if (!$pivot) {
                 DB::table('user_announcement')->insert([
                     'user_id' => $user->id,

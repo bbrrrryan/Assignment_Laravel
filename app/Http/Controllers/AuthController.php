@@ -1,8 +1,6 @@
 <?php
 /**
  * Author: Liew Zi Li
- * Module: User Management Module
- * Web Authentication Controller
  */
 
 namespace App\Http\Controllers;
@@ -15,9 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    /**
-     * Handle login request
-     */
+   
     public function login(Request $request)
     {
         $request->validate([
@@ -35,67 +31,50 @@ class AuthController extends Controller
 
         if ($user->status !== 'active') {
             if ($user->otp_code) {
-                // Account not verified yet
                 return back()->withErrors([
                     'email' => 'Account not activated. Please verify OTP code from email.',
                 ])->withInput();
             } else {
-                // Account deactivated by admin
                 return back()->withErrors([
                     'email' => 'Account is not active. Please contact administrator.',
                 ]);
             }
         }
 
-        // Track last login time
         $user->update(['last_login_at' => now()]);
 
-        // Log the login activity
         $user->activityLogs()->create([
             'action' => 'login',
             'ip_address' => $request->ip(),
         ]);
 
-        // Authenticate user and create session
         Auth::login($user, $request->filled('remember'));
 
-        // Create Sanctum token for API calls (profile/settings pages need this)
         $token = $user->createToken('web_session')->plainTextToken;
         
-        // Store token in session so frontend can access it
         $request->session()->put('api_token', $token);
 
-        // Set toast message for welcome
         $request->session()->flash('toast_message', 'Welcome ' . $user->name);
         $request->session()->flash('toast_type', 'success');
 
-        // Redirect users based on their role
         $role = strtolower($user->role ?? '');
         
-        // Only admin can access admin dashboard
         if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
         } else {
-            // Staff, students, and other roles go to user site (home)
             return redirect()->route('home');
         }
     }
 
-    /**
-     * Handle logout request
-     */
     public function logout(Request $request)
     {
-        // Log the logout activity before destroying session
         if (Auth::check()) {
-            /** @var User $user */
             $user = Auth::user();
             $user->activityLogs()->create([
                 'action' => 'logout',
                 'ip_address' => $request->ip(),
             ]);
             
-            // Delete all Sanctum tokens for this user
             $user->tokens()->delete();
         }
 
@@ -103,16 +82,12 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         
-        // Set toast message for logout
         $request->session()->flash('toast_message', 'Success logout');
         $request->session()->flash('toast_type', 'success');
 
         return redirect()->route('login');
     }
 
-    /**
-     * Verify OTP and activate account
-     */
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -120,11 +95,9 @@ class AuthController extends Controller
             'otp_code' => 'required|string|size:6',
         ]);
 
-        // Get email from request - prioritize URL parameter for security (cannot be tampered)
         $emailFromUrl = $request->query('email');
         $emailFromForm = $request->input('email');
         
-        // Use URL email if available (more secure), otherwise use form email
         $emailToVerify = $emailFromUrl ?: $emailFromForm;
 
         $user = User::where('email', $emailToVerify)->first();
@@ -135,50 +108,42 @@ class AuthController extends Controller
             ])->withInput();
         }
         
-        // Security check: If form email is provided and differs from URL email or user's email,
-        // reject the request (prevents email tampering even if readonly is bypassed)
         if ($emailFromForm && $emailFromForm !== $user->email) {
             return back()->withErrors([
                 'email' => 'Email cannot be changed during verification.',
             ])->withInput();
         }
         
-        // Additional check: If URL email exists and form email exists, they must match
         if ($emailFromUrl && $emailFromForm && $emailFromUrl !== $emailFromForm) {
             return back()->withErrors([
                 'email' => 'Email mismatch detected. Please use the email from the verification link.',
             ])->withInput();
         }
 
-        // Check if OTP matches
         if ($user->otp_code !== $request->otp_code) {
             return back()->withErrors([
                 'otp_code' => 'OTP code wrong.',
             ])->withInput();
         }
 
-        // Check if OTP expired
         if ($user->otp_expires_at && $user->otp_expires_at->isPast()) {
             return back()->withErrors([
                 'otp_code' => 'OTP code already expired. Please resend OTP.',
             ])->withInput();
         }
 
-        // Check if already verified
         if ($user->status === 'active') {
             return redirect()->route('login')
                 ->with('toast_message', 'Account already activated. Please login.')
                 ->with('toast_type', 'info');
         }
 
-        // Activate account
         $user->update([
             'status' => 'active',
             'otp_code' => null,
             'otp_expires_at' => null,
         ]);
 
-        // Set toast message
         $request->session()->flash('toast_message', 'Account activated! Can login now');
         $request->session()->flash('toast_type', 'success');
 

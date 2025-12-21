@@ -1,7 +1,4 @@
 <?php
-/**
- * Author: Liew Zi Li
- */
 
 namespace App\Http\Controllers;
 

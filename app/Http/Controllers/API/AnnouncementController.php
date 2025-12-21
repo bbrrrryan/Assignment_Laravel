@@ -185,7 +185,6 @@ class AnnouncementController extends Controller
         }
 
         try {
-            // Get target user IDs via Web Service only (no database fallback)
             $targetUsers = $this->getTargetUsers(
                 $announcement->target_audience,
                 $announcement->target_user_ids
@@ -276,9 +275,9 @@ class AnnouncementController extends Controller
 
         if (!$user->announcements()->where('announcements.id', $id)->exists()) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Announcement not found for this user',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
@@ -320,7 +319,6 @@ class AnnouncementController extends Controller
         $role = strtolower($user->role ?? '');
         $shouldSee = false;
 
-        // Staff and students have same privilege, so they see the same announcements
         if ($targetAudience === 'all') {
             $shouldSee = true;
         } elseif ($targetAudience === 'students' && ($role === 'student' || $role === 'staff')) {
@@ -336,9 +334,9 @@ class AnnouncementController extends Controller
 
         if (!$shouldSee) {
             return response()->json([
-                'status' => 'F', // IFA Standard: F (Fail)
+                'status' => 'F',
                 'message' => 'Announcement not found for this user',
-                'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+                'timestamp' => now()->format('Y-m-d H:i:s'),
             ], 404);
         }
 
@@ -361,21 +359,8 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    /**
-     * Web Service API: Get announcement information by ID
-     * This endpoint is designed for inter-module communication
-     * Used by other modules to query announcement details
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function getAnnouncementInfo(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -394,9 +379,8 @@ class AnnouncementController extends Controller
         $announcement = Announcement::with(['creator', 'users'])
             ->findOrFail($request->announcement_id);
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',
             'message' => 'Announcement information retrieved successfully',
             'data' => [
                 'announcement' => $announcement,
@@ -406,25 +390,12 @@ class AnnouncementController extends Controller
                 'published_at' => $announcement->published_at,
                 'expires_at' => $announcement->expires_at,
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
-    /**
-     * Web Service API: Get announcement IDs by criteria
-     * This endpoint is designed for inter-module communication
-     * Used by other modules to query announcements by various criteria
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function getAnnouncementIds(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -438,32 +409,26 @@ class AnnouncementController extends Controller
 
         $query = Announcement::query();
 
-        // Filter by is_active
         if ($request->has('is_active')) {
             $query->where('is_active', $request->is_active);
             }
 
-        // Filter by type
         if ($request->has('type')) {
             $query->where('type', $request->type);
         }
 
-        // Filter by priority
         if ($request->has('priority')) {
             $query->where('priority', $request->priority);
         }
 
-        // Filter by target_audience
         if ($request->has('target_audience')) {
             $query->where('target_audience', $request->target_audience);
         }
 
-        // Filter by specific announcement IDs
         if ($request->has('announcement_ids') && is_array($request->announcement_ids)) {
             $query->whereIn('id', $request->announcement_ids);
         }
 
-        // Filter by published status
         if ($request->has('published')) {
             if ($request->published) {
                 $query->whereNotNull('published_at');
@@ -472,7 +437,6 @@ class AnnouncementController extends Controller
             }
         }
 
-        // Filter by expiration
         if ($request->has('expired')) {
             if ($request->expired) {
                 $query->whereNotNull('expires_at')
@@ -485,42 +449,32 @@ class AnnouncementController extends Controller
     }
         }
 
-        // Get only IDs
         $announcementIds = $query->pluck('id')->toArray();
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',
             'message' => 'Announcement IDs retrieved successfully',
             'data' => [
                 'announcement_ids' => $announcementIds,
                 'count' => count($announcementIds),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
         }
 
-    /**
-     * Get target users based on announcement audience
-     * This method uses UserWebService to call User Management Module's Web Service
-     * instead of directly querying the database (Inter-module communication)
-     */
     private function getTargetUsers(string $targetAudience, ?array $targetUserIds = null): array
     {
         try {
-            // Prepare criteria based on target audience
             $criteria = [
                 'status' => 'active',
             ];
 
             switch ($targetAudience) {
                 case 'all':
-                    // Get all active users
                     break;
 
                 case 'students':
                 case 'staff':
-                    // Staff and students have same privilege, include both
                     $studentResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'student']);
                     $staffResult = $this->userWebService->getUserIds(['status' => 'active', 'role' => 'staff']);
                     $allUserIds = array_unique(array_merge(
@@ -534,7 +488,6 @@ class AnnouncementController extends Controller
                     break;
 
                 case 'specific':
-                    // For specific users, use the provided user IDs
                     if (empty($targetUserIds)) {
                         return [];
                     }
@@ -545,13 +498,11 @@ class AnnouncementController extends Controller
                     return [];
             }
 
-            // Use UserWebService to get user IDs via Web Service
             $result = $this->userWebService->getUserIds($criteria);
             
             return $result['user_ids'] ?? [];
             
         } catch (\Exception $e) {
-            // Log error with announcement context
             Log::error('Failed to get target users for announcement via UserWebService', [
                 'target_audience' => $targetAudience,
                 'error' => $e->getMessage(),
