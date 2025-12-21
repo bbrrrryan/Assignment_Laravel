@@ -1,27 +1,22 @@
-// Facilities Page JavaScript (Index and Show combined)
-// ============================================
-// INDEX PAGE FUNCTIONS
-// ============================================
+/**
+ * Author: Ng Jhun Hou
+ */ 
 
-// Wait for DOM and API to be ready (for index page)
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if API is loaded
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
         alert('Error: API functions not loaded. Please refresh the page.');
         return;
     }
 
-    // Check authentication
     if (!API.requireAuth()) return;
 
-    // Only initialize index page if we're on the index page
     if (document.getElementById('facilitiesList')) {
         initFacilities();
     }
 });
 
-// Index page variables
+
 let facilities = [];
 let filteredFacilities = [];
 let currentPage = 1;
@@ -29,10 +24,8 @@ let totalPages = 1;
 let paginationData = null;
 
 function initFacilities() {
-    // Populate type filter based on user role
     populateTypeFilter();
     
-    // Load facilities
     loadFacilities();
 }
 
@@ -43,18 +36,14 @@ function populateTypeFilter() {
     const user = API.getUser();
     if (!user) return;
 
-    // Clear existing options except "All Types"
     typeFilter.innerHTML = '<option value="">All Types</option>';
 
-    // Check if user is student
     if (API.isStudent && API.isStudent()) {
-        // Students can only see sports and library
         typeFilter.innerHTML += `
             <option value="sports">Sports</option>
             <option value="library">Library</option>
         `;
     } else if (API.isStaff && API.isStaff()) {
-        // Staff can see all types
         typeFilter.innerHTML += `
             <option value="classroom">Classroom</option>
             <option value="laboratory">Laboratory</option>
@@ -63,7 +52,6 @@ function populateTypeFilter() {
             <option value="library">Library</option>
         `;
     } else {
-        // Default: show all types (for admin or unknown role)
         typeFilter.innerHTML += `
             <option value="classroom">Classroom</option>
             <option value="laboratory">Laboratory</option>
@@ -81,7 +69,6 @@ async function loadFacilities(page = 1) {
     showLoading(container);
     
     try {
-        // Build query parameters
         const params = new URLSearchParams();
         params.append('page', page);
         
@@ -102,7 +89,6 @@ async function loadFacilities(page = 1) {
             totalPages = data.last_page || 1;
             paginationData = data;
             
-            // Filter out unavailable and deleted facilities (should already be filtered by API, but double-check)
             facilities = facilities.filter(f => 
                 f.status !== 'unavailable' && 
                 !f.is_deleted
@@ -125,7 +111,6 @@ function displayFacilities(facilitiesToShow) {
 
     if (facilitiesToShow.length === 0) {
         container.innerHTML = '<p>No facilities found</p>';
-        // Remove pagination if no results
         const existingPagination = document.getElementById('paginationWrapper');
         if (existingPagination) {
             existingPagination.remove();
@@ -175,7 +160,6 @@ function displayFacilities(facilitiesToShow) {
 }
 
 function filterFacilities() {
-    // Reset to page 1 when filtering
     currentPage = 1;
     loadFacilities(1);
 }
@@ -197,23 +181,18 @@ function displayPagination() {
     const container = document.getElementById('facilitiesList');
     if (!container || !paginationData) return;
 
-    // Remove existing pagination if any
     const existingPagination = document.getElementById('paginationWrapper');
     if (existingPagination) {
         existingPagination.remove();
     }
-
-    // Don't show pagination if only one page
     if (totalPages <= 1) return;
 
-    // Create pagination wrapper
     const paginationWrapper = document.createElement('div');
     paginationWrapper.id = 'paginationWrapper';
     paginationWrapper.className = 'pagination-wrapper';
     
     let paginationHTML = '<div class="pagination">';
     
-    // Previous button
     if (currentPage > 1) {
         paginationHTML += `
             <span class="page-item">
@@ -236,7 +215,6 @@ function displayPagination() {
         `;
     }
     
-    // Page numbers
     const maxVisiblePages = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -291,7 +269,6 @@ function displayPagination() {
         `;
     }
     
-    // Next button
     if (currentPage < totalPages) {
         paginationHTML += `
             <span class="page-item">
@@ -325,7 +302,6 @@ function goToPage(page) {
     currentPage = page;
     loadFacilities(page);
     
-    // Scroll to top of facilities list
     const container = document.getElementById('facilitiesList');
     if (container) {
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -338,11 +314,6 @@ function showLoading(container) {
     }
 }
 
-// ============================================
-// SHOW PAGE FUNCTIONS
-// ============================================
-
-// Show page variables
 let showFacilityId = null;
 let feedbackImageBase64 = null;
 
@@ -371,24 +342,19 @@ function loadFacilityDetails(id) {
                 const facility = result.data.data;
                 displayFacilityDetails(facility);
                 
-                // Show action buttons
                 const actionButtons = document.getElementById('actionButtons');
                 if (actionButtons) {
                     actionButtons.style.display = 'block';
                 }
                 
-                // Set booking link and hide if maintenance
                 const addBookingBtn = document.getElementById('addBookingBtn');
                 if (addBookingBtn) {
                     if (facility.status === 'maintenance') {
-                        // Hide Add Booking button if facility is under maintenance
                         addBookingBtn.style.display = 'none';
                     } else {
-                        addBookingBtn.style.display = 'inline-flex';
-                        // Store facility_id in sessionStorage and navigate to create booking page
+                        addBookingBtn.style.display = 'inline-flex';            
                         addBookingBtn.onclick = function(e) {
                             e.preventDefault();
-                            // Store facility_id in sessionStorage for API-based approach
                             sessionStorage.setItem('selectedFacilityId', id);
                             window.location.href = '/bookings/create';
                         };
@@ -543,15 +509,13 @@ async function loadFacilityFeedbacks(id) {
     if (!container || !section) return;
     
     try {
-        // Use Web Service to get feedbacks by facility_id (IFA Standard)
         const user = API.getUser();
         const requestData = {
             facility_id: id,
-            timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '), // YYYY-MM-DD HH:MM:SS format
+            timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
             limit: 10
         };
         
-        // Include user_id if user is logged in (to show own pending feedbacks)
         if (user && user.id) {
             requestData.user_id = user.id;
         }
@@ -698,14 +662,12 @@ function handleImageUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Check file size (1MB max)
     if (file.size > 1024 * 1024) {
         alert('Image size must be less than 1MB');
         event.target.value = '';
         return;
     }
     
-    // Check file type
     if (!file.type.match('image.*')) {
         alert('Please select an image file');
         event.target.value = '';
@@ -734,10 +696,6 @@ function removeImage() {
     if (fileInput) fileInput.value = '';
     if (preview) preview.style.display = 'none';
 }
-
-// ============================================
-// SHARED UTILITY FUNCTIONS
-// ============================================
 
 function showError(container, message) {
     if (container) {
@@ -773,27 +731,21 @@ function capitalizeFirst(str) {
 function formatRulesAsBulletPoints(rules) {
     if (!rules) return '';
     
-    // Split rules by newlines, semicolons, or commas
     let rulesArray = [];
     
-    // First try splitting by newlines
     if (rules.includes('\n')) {
         rulesArray = rules.split('\n').map(r => r.trim()).filter(r => r.length > 0);
     }
-    // Then try splitting by semicolons
     else if (rules.includes(';')) {
         rulesArray = rules.split(';').map(r => r.trim()).filter(r => r.length > 0);
     }
-    // Then try splitting by commas (but only if there are multiple commas)
     else if (rules.split(',').length > 2) {
         rulesArray = rules.split(',').map(r => r.trim()).filter(r => r.length > 0);
     }
-    // Otherwise, treat as a single rule
     else {
         rulesArray = [rules.trim()];
     }
     
-    // Format as bullet points
     return rulesArray.map(rule => 
         `<div class="rule-item">
             <i class="fas fa-circle" style="font-size: 0.5rem; color: #cb2d3e; margin-right: 10px; margin-top: 8px;"></i>
@@ -802,11 +754,6 @@ function formatRulesAsBulletPoints(rules) {
     ).join('');
 }
 
-// ============================================
-// GLOBAL FUNCTION EXPORTS
-// ============================================
-
-// Make functions global for onclick handlers
 window.filterFacilities = filterFacilities;
 window.clearFilters = clearFilters;
 window.goToPage = goToPage;
@@ -815,8 +762,6 @@ window.closeFeedbackModal = closeFeedbackModal;
 window.handleImageUpload = handleImageUpload;
 window.removeImage = removeImage;
 window.initFacilityShow = initFacilityShow;
-
-// Close modal when clicking outside
 window.onclick = function(event) {
     const modal = document.getElementById('feedbackModal');
     if (event.target === modal) {

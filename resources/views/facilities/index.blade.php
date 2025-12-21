@@ -1,6 +1,10 @@
+/**
+ * Author: Ng Jhun Hou
+ */ 
 @extends('layouts.app')
 
 @section('title', 'Facilities - TARUMT FMS')
+
 
 @section('content')
 <div class="container">
@@ -11,7 +15,6 @@
         </div>
     </div>
 
-    <!-- Search and Filters -->
     <div class="filters-section">
         <div class="filters-card">
             <form class="filters-form" id="filterForm">
@@ -29,7 +32,6 @@
                     </div>
                     <select id="typeFilter" class="filter-select" onchange="filterFacilities()">
                         <option value="">All Types</option>
-                        <!-- Options will be populated based on user role -->
                     </select>
                 </div>
                 
@@ -57,12 +59,10 @@
         </div>
     </div>
 
-    <!-- Facilities Grid -->
     <div id="facilitiesList" class="facilities-grid">
         <p>Loading facilities...</p>
     </div>
     
-    <!-- Pagination will be inserted here by JavaScript -->
 </div>
 
 <link rel="stylesheet" href="{{ asset('css/facilities/index.css') }}">
