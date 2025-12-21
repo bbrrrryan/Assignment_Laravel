@@ -1,4 +1,8 @@
-/* Page Header Styling */
+/**
+ * Author: Liew Zi Li
+ */ 
+
+/*header*/
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -57,7 +61,7 @@ a.btn-header-white {
     color: #a01a2a;
 }
 
-/* Table Container */
+/*table*/
 .table-container {
     background: #ffffff;
     border-radius: 12px;
@@ -189,7 +193,7 @@ a.btn-header-white {
     color: #383d41;
 }
 
-/* Filters Section Styling */
+/*filters*/
 .filters-section {
     margin-bottom: 30px;
 }
@@ -287,7 +291,7 @@ a.btn-header-white {
     padding-right: 40px;
 }
 
-/* Search Button Styling */
+/*search button*/
 .btn-search {
     display: inline-flex;
     align-items: center;
@@ -320,7 +324,7 @@ a.btn-header-white {
     font-size: 0.9rem;
 }
 
-/* Clear Button Styling */
+/*clear button*/
 .btn-clear {
     display: inline-flex;
     align-items: center;
@@ -354,7 +358,7 @@ a.btn-header-white {
     font-size: 0.9rem;
 }
 
-/* Modal Styles */
+/*modal*/
 .modal {
     display: none;
     position: fixed;
@@ -451,7 +455,7 @@ a.btn-header-white {
     background: #5a6268;
 }
 
-/* Action buttons */
+/*action buttons*/
 .actions {
     display: flex;
     gap: 5px;
@@ -486,7 +490,7 @@ a.btn-header-white {
     background: #e0a800;
 }
 
-/* Pagination Styles */
+/*pagination*/
 .pagination-wrapper {
     margin-top: 30px;
     display: flex;
@@ -572,7 +576,7 @@ a.btn-header-white {
     }
 }
 
-/* Responsive Design */
+/*responsive*/
 @media (max-width: 768px) {
     .filters-form {
         flex-direction: column;

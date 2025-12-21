@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author:Ng Jhun Hou
+ */
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
@@ -87,9 +89,6 @@ class FacilityController extends Controller
         ]);
     }
 
-    /**
-     * Check facility availability for a date range
-     */
     public function availability(string $id, Request $request)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);

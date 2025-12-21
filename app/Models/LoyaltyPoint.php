@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Boo Kai Jie
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +20,6 @@ class LoyaltyPoint extends Model
         'description',
     ];
 
-    // Relationships
     public function user()
     {
         return $this->belongsTo(User::class);

@@ -1,17 +1,17 @@
-// Define getTotalPoints function early
+/**
+ * Author: Boo Kai Jie
+ */ 
 function getTotalPoints() {
     const element = document.getElementById('totalPoints');
     return element ? parseInt(element.textContent) || 0 : 0;
 }
 
-// Define redeemReward function early to ensure it's available
 window.redeemReward = async function(rewardId, pointsRequired) {
     console.log('redeemReward called with:', { rewardId, pointsRequired });
     
     const totalPoints = getTotalPoints();
     console.log('Total points:', totalPoints);
     
-    // Check points before confirming
     if (totalPoints < pointsRequired) {
         const errorMsg = `Insufficient points. Required: ${pointsRequired}, Available: ${totalPoints}`;
         console.log('Insufficient points, showing toast:', errorMsg);
@@ -62,7 +62,6 @@ window.redeemReward = async function(rewardId, pointsRequired) {
             loadPoints();
             loadRewards();
         } else {
-            // Show error message from API
             const errorMessage = result.error || result.message || result.data?.message || 'Error redeeming reward';
             console.log('Redemption error:', errorMessage);
             if (typeof showToast === 'function') {
@@ -97,7 +96,6 @@ async function loadPoints() {
     const result = await API.get('/loyalty/points');
     
     if (result.success) {
-        // API returns: { status, data: { total_points }, timestamp }
         const totalPoints = (result.data && result.data.data && typeof result.data.data.total_points !== 'undefined')
             ? result.data.data.total_points
             : 0;
@@ -462,7 +460,6 @@ async function loadCertificates() {
     }
 }
 
-// Make functions global
 window.showTab = function(tab) {
     currentTab = tab;
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -474,15 +471,12 @@ window.showTab = function(tab) {
     else if (tab === 'certificates') loadCertificates();
 };
 
-// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -497,12 +491,10 @@ function formatActionType(actionType) {
         'reward_redemption': 'Reward redemption'
     };
     
-    // If we have a mapping, use it
     if (actionMap[actionType]) {
         return actionMap[actionType];
     }
     
-    // Otherwise, format by replacing underscores with spaces and capitalizing
     return actionType
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -510,16 +502,13 @@ function formatActionType(actionType) {
 }
 
 function formatDescription(actionType, description) {
-    // For redemption_refund, use specific description
     if (actionType === 'redemption_refund') {
         return 'Refunded for rejected redemption';
     }
     
-    // For other types, use the provided description or default
     return description || '-';
 }
 
-// View reward detail function
 window.viewRewardDetail = async function(rewardId) {
     try {
         const result = await API.get(`/loyalty/rewards/${rewardId}`);
@@ -547,7 +536,6 @@ window.viewRewardDetail = async function(rewardId) {
 };
 
 function showRewardModal(reward) {
-    // Create modal if it doesn't exist
     let modal = document.getElementById('rewardDetailModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -562,7 +550,6 @@ function showRewardModal(reward) {
         `;
         document.body.appendChild(modal);
         
-        // Close modal when clicking outside
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 closeRewardModal();
@@ -570,7 +557,6 @@ function showRewardModal(reward) {
         });
     }
     
-    // Populate modal content
     const content = document.getElementById('rewardDetailContent');
     const rewardType = reward.reward_type ? reward.reward_type.charAt(0).toUpperCase() + reward.reward_type.slice(1) : 'Reward';
     const stockInfo = reward.stock_quantity !== null 
@@ -600,7 +586,6 @@ function showRewardModal(reward) {
         </div>
     `;
     
-    // Show modal
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 }
@@ -618,7 +603,6 @@ window.redeemRewardFromModal = function(rewardId, pointsRequired) {
     window.redeemReward(rewardId, pointsRequired);
 };
 
-// Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded fired');
     if (typeof API === 'undefined') {
@@ -631,14 +615,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log('Initializing loyalty...');
     
-    // Set up event delegation for redeem buttons (only once)
     const rewardsContainer = document.getElementById('loyaltyContent');
     if (rewardsContainer) {
-        // Remove any existing event listeners by cloning the element
         const newContainer = rewardsContainer.cloneNode(true);
         rewardsContainer.parentNode.replaceChild(newContainer, rewardsContainer);
         
-        // Add event delegation to the container
         document.getElementById('loyaltyContent').addEventListener('click', function(e) {
             const button = e.target.closest('button[data-reward-id]');
             if (button && !button.disabled) {

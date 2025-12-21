@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Ng Jhun Hou
+ */
 namespace App\Http\Controllers\Admin;
 
 use App\Models\Facility;
@@ -22,10 +24,6 @@ class FacilityController extends AdminBaseController
     {
         $this->userWebService = $userWebService;
     }
-
-    /**
-     * Display a listing of facilities
-     */
     public function index(Request $request)
     {
         $query = Facility::where('is_deleted', false);
@@ -66,17 +64,11 @@ class FacilityController extends AdminBaseController
         return view('admin.facilities.index', compact('facilities'));
     }
 
-    /**
-     * Show the form for creating a new facility
-     */
     public function create()
     {
         return view('admin.facilities.create');
     }
 
-    /**
-     * Store a newly created facility
-     */
     public function store(Request $request)
     {
         $basicValidated = $request->validate([
@@ -171,9 +163,6 @@ class FacilityController extends AdminBaseController
             ->with('success', 'Facility created successfully!');
     }
 
-    /**
-     * Display the specified facility
-     */
     public function show(string $id)
     {
         $facility = Facility::where('is_deleted', false)
@@ -214,18 +203,12 @@ class FacilityController extends AdminBaseController
         return view('admin.facilities.show', compact('facility', 'hasBookingsThisMonth', 'creatorInfo', 'updaterInfo'));
     }
 
-    /**
-     * Show the form for editing the specified facility
-     */
     public function edit(string $id)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
         return view('admin.facilities.edit', compact('facility'));
     }
 
-    /**
-     * Update the specified facility
-     */
     public function update(Request $request, string $id)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
@@ -335,9 +318,6 @@ class FacilityController extends AdminBaseController
             ->with('success', 'Facility updated successfully!');
     }
 
-    /**
-     * Remove the specified facility (Soft delete)
-     */
     public function destroy(string $id)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
@@ -348,9 +328,6 @@ class FacilityController extends AdminBaseController
             ->with('success', 'Facility deleted successfully!');
     }
 
-    /**
-     * Get facility utilization statistics
-     */
     public function utilization(string $id, Request $request)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
@@ -391,9 +368,6 @@ class FacilityController extends AdminBaseController
         ]);
     }
 
-    /**
-     * Export facility bookings for a period as CSV
-     */
     public function exportUtilizationCsv(string $id, Request $request)
     {
         $facility = Facility::where('is_deleted', false)->findOrFail($id);
@@ -496,14 +470,6 @@ class FacilityController extends AdminBaseController
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Shared internal logic to calculate utilization statistics
-     *
-     * @param  \App\Models\Facility  $facility
-     * @param  mixed  $startDate
-     * @param  mixed  $endDate
-     * @return array
-     */
     private function calculateUtilizationStats(Facility $facility, $startDate, $endDate): array
     {
         $start = $startDate instanceof Carbon ? $startDate : Carbon::parse($startDate);
@@ -541,12 +507,6 @@ class FacilityController extends AdminBaseController
         ];
     }
 
-    /**
-     * Create and publish announcement for facility events
-     * 
-     * @param Facility $facility
-     * @param string $eventType 'new', 'unavailable', 'maintenance', or 'available'
-     */
     private function createFacilityAnnouncement(Facility $facility, string $eventType)
     {
         try {
@@ -635,12 +595,7 @@ class FacilityController extends AdminBaseController
             ]);
         }
     }
-
-    /**
-     * Publish announcement to all active users
-     * 
-     * @param Announcement $announcement
-     */
+    
     private function publishAnnouncementToAllUsers(Announcement $announcement)
     {
         try {

@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
@@ -12,24 +14,18 @@ use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of users
-     */
     public function index(Request $request)
     {
         $query = User::query();
 
-        // Filter by status
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by role
         if ($request->has('role')) {
             $query->where('role', $request->role);
         }
 
-        // Search
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -38,11 +34,9 @@ class UserController extends Controller
             });
         }
 
-        // Sorting
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
         
-        // Validate sort_by to prevent SQL injection
         $allowedSortFields = ['id', 'name', 'email', 'role', 'status', 'created_at'];
         if (!in_array($sortBy, $allowedSortFields)) {
             $sortBy = 'created_at';
@@ -63,9 +57,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created user
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -105,7 +96,6 @@ class UserController extends Controller
         
         $user = User::create($userData);
 
-        // Log activity
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'create_user',
@@ -120,9 +110,6 @@ class UserController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified user
-     */
     public function show(string $id)
     {
         $user = User::with(['activityLogs' => function($query) {
@@ -137,9 +124,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified user
-     */
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
@@ -171,7 +155,6 @@ class UserController extends Controller
 
         $user->update($updateData);
 
-        // Log activity
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'update_user',
@@ -186,14 +169,10 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified user
-     */
     public function destroy(string $id)
     {
         $user = User::findOrFail($id);
         
-        // Log activity before deletion
         $currentUser = auth()->user();
         $currentUser->activityLogs()->create([
             'action' => 'delete_user',
@@ -209,9 +188,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Get user activity logs
-     */
     public function activityLogs(string $id, Request $request)
     {
         $user = User::findOrFail($id);
@@ -228,22 +204,18 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Upload CSV to create multiple users
-     */
     public function uploadCsv(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
+            'csv_file' => 'required|file|mimes:csv,txt|max:10240',
         ]);
 
         $file = $request->file('csv_file');
         $path = $file->getRealPath();
         
         $data = array_map('str_getcsv', file($path));
-        $header = array_shift($data); // Remove header row
+        $header = array_shift($data);
 
-        // Expected CSV format: name,email,password,role,phone_number,address,status
         $expectedHeaders = ['name', 'email', 'password', 'role'];
         $headerMap = [];
         
@@ -260,7 +232,6 @@ class UserController extends Controller
             $headerMap[$expected] = $index;
         }
 
-        // Optional headers
         $optionalHeaders = ['phone_number', 'address', 'status'];
         foreach ($optionalHeaders as $optional) {
             $index = array_search($optional, array_map('strtolower', $header));
@@ -286,13 +257,10 @@ class UserController extends Controller
                     $password = trim($row[$headerMap['password']]);
                     $phoneNumber = isset($headerMap['phone_number']) ? trim($row[$headerMap['phone_number']]) : null;
                     
-                    // If password is empty, use phone_number as password, otherwise use default password
                     if (empty($password)) {
                         if (!empty($phoneNumber)) {
-                            // Use phone_number as password
                             $password = $phoneNumber;
                         } else {
-                            // Use default password if phone_number is also empty
                             $password = '123456';
                         }
                     }
@@ -307,13 +275,11 @@ class UserController extends Controller
                         'status' => isset($headerMap['status']) ? trim($row[$headerMap['status']]) : 'active',
                     ];
 
-                    // Validate role - using simple if-else
                     $role = $userData['role'];
                     if ($role !== 'admin' && $role !== 'student' && $role !== 'staff') {
-                        $userData['role'] = 'student'; // Default to student
+                        $userData['role'] = 'student';
                     }
 
-                    // Validate user data
                     $validator = Validator::make($userData, [
                         'name' => 'required|string|max:255',
                         'email' => 'required|string|email|max:255|unique:users',
@@ -347,7 +313,6 @@ class UserController extends Controller
 
             DB::commit();
 
-            // Log activity
             $currentUser = auth()->user();
             $currentUser->activityLogs()->create([
                 'action' => 'bulk_upload_users',
@@ -377,9 +342,6 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Update user profile (for authenticated user)
-     */
     public function updateProfile(Request $request)
     {
         $user = auth()->user();
@@ -408,7 +370,6 @@ class UserController extends Controller
 
         $user->update($updateData);
 
-        // Log activity
         $user->activityLogs()->create([
             'action' => 'update_profile',
             'description' => 'Updated own profile',
@@ -422,33 +383,24 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Get current user's activity logs
-     * Limited to last 30 records only, paginated with 10 per page
-     */
     public function myActivityLogs(Request $request)
     {
         $user = auth()->user();
         
-        // Get total count
         $totalLogs = $user->activityLogs()->count();
         $maxRecords = 30;
         $perPage = 10;
         
-        // Calculate how many records to show (max 30)
         $totalToShow = min($totalLogs, $maxRecords);
         
-        // Calculate offset based on page
         $page = $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
         
-        // If offset exceeds max records, adjust
         if ($offset >= $maxRecords) {
             $offset = 0;
             $page = 1;
         }
         
-        // Get the records (latest first, limit to 30, then paginate)
         $logs = $user->activityLogs()
             ->latest()
             ->limit($maxRecords)
@@ -456,7 +408,6 @@ class UserController extends Controller
             ->take($perPage)
             ->get();
         
-        // Create pagination response manually
         $lastPage = ceil($totalToShow / $perPage);
         
         return response()->json([
@@ -475,21 +426,8 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Web Service API: Get user IDs by criteria
-     * This endpoint is designed for inter-module communication
-     * Used by other modules (e.g., Announcement Module) to query users
-     * 
-     * IFA Standard Compliance:
-     * - Request must include timestamp or requestID (mandatory)
-     * - Response includes status and timestamp (mandatory)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function getUserIds(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -503,46 +441,39 @@ class UserController extends Controller
 
         $query = User::query();
 
-        // Filter by status (default: active)
         $status = $request->get('status', 'active');
         if ($status) {
             $query->where('status', $status);
         }
 
-        // Filter by role
         if ($request->has('role')) {
             $query->where('role', $request->role);
         }
 
-        // Filter by specific user IDs
         if ($request->has('user_ids') && is_array($request->user_ids)) {
             $query->whereIn('id', $request->user_ids);
         }
 
-        // Filter by personal IDs (for specific user selection via personal_id)
         if ($request->has('personal_ids') && is_array($request->personal_ids)) {
             $query->whereIn('personal_id', $request->personal_ids);
         }
 
-        // Get only IDs
         $userIds = $query->pluck('id')->toArray();
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',
             'message' => 'User IDs retrieved successfully',
             'data' => [
                 'user_ids' => $userIds,
                 'count' => count($userIds),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
     
     public function getUserInfo(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -560,9 +491,8 @@ class UserController extends Controller
 
         $user = User::find($request->user_id);
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',
             'message' => 'User information retrieved successfully',
             'data' => [
                 'user' => [
@@ -574,13 +504,12 @@ class UserController extends Controller
                     'personal_id' => $user->personal_id,
                 ],
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
     public function getUsersInfo(Request $request)
     {
-        // IFA Standard: Validate mandatory fields (timestamp or requestID)
         if (!$request->has('timestamp') && !$request->has('requestID')) {
             return response()->json([
                 'status' => 'F',
@@ -599,7 +528,6 @@ class UserController extends Controller
 
         $users = User::whereIn('id', $request->user_ids)->get();
 
-        // Format users data
         $usersData = $users->map(function ($user) {
             return [
                 'id' => $user->id,
@@ -611,15 +539,15 @@ class UserController extends Controller
             ];
         })->toArray();
 
-        // IFA Standard Response Format
         return response()->json([
-            'status' => 'S', // S: Success, F: Fail, E: Error (IFA Standard)
+            'status' => 'S',
             'message' => 'Users information retrieved successfully',
             'data' => [
                 'users' => $usersData,
                 'count' => count($usersData),
             ],
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard: Mandatory timestamp
+            
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 

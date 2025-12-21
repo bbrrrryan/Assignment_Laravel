@@ -277,15 +277,13 @@ function displayAnnouncements(announcements, paginationData = null, pageRoot = n
     }
 }
 
-// Convert UTC timestamps to local time for display
+
 function formatDateTime(dateString) {
     if (!dateString) return '-';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     return d.toLocaleString('en-US', {
         year: 'numeric',
         month: '2-digit',

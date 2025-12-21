@@ -1,3 +1,7 @@
+/**
+ * Author: Ng Jhun Hou
+ */ 
+
 @extends('layouts.app')
 
 @section('title', 'Facility Details - TARUMT FMS')
@@ -20,7 +24,6 @@
         <p>Loading facility details...</p>
     </div>
 
-    <!-- Action Buttons Section -->
     <div id="actionButtons" class="action-buttons-section" style="display: none;">
         <div class="action-buttons-card">
             <a href="#" id="addBookingBtn" class="btn-action btn-booking">
@@ -34,7 +37,6 @@
         </div>
     </div>
 
-    <!-- Feedbacks Section -->
     <div id="feedbacksSection" class="feedbacks-section" style="display: none;">
         <div class="feedbacks-card">
             <h2><i class="fas fa-comments"></i> Facility Feedbacks</h2>
@@ -45,7 +47,6 @@
     </div>
 </div>
 
-<!-- Submit Feedback Modal -->
 <div id="feedbackModal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeFeedbackModal()">&times;</span>
@@ -104,7 +105,6 @@
 <link rel="stylesheet" href="{{ asset('css/facilities/index.css') }}">
 <script src="{{ asset('js/facilities/index.js') }}"></script>
 <script>
-// Initialize with facility ID
 document.addEventListener('DOMContentLoaded', function() {
     const facilityId = {{ $id }};
     if (typeof initFacilityShow === 'function') {

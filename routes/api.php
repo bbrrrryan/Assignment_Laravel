@@ -160,7 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [FeedbackController::class, 'store']);
         Route::get('/user/my-feedbacks', [FeedbackController::class, 'myFeedbacks']);
         Route::get('/facility/{facilityId}', [FeedbackController::class, 'getFacilityFeedbacks']);
-        Route::get('/{id}/booking-details', [FeedbackController::class, 'getBookingDetailsForFeedback']); // Must be before /{id}
+        Route::get('/{id}/booking-details', [FeedbackController::class, 'getBookingDetailsForFeedback']); 
         Route::get('/{id}', [FeedbackController::class, 'show']);
         
         // Admin only routes
@@ -199,7 +199,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin only routes - specific routes before parameterized routes
         Route::middleware('admin')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminBookingController::class, 'index']);
-            Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); // Must be before /{id}
+            Route::get('/pending', [\App\Http\Controllers\Admin\AdminBookingController::class, 'getPendingBookings']); 
             Route::get('/reports', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getBookingReports']);
             Route::get('/usage-statistics', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'getUsageStatistics']);
             Route::put('/{id}/approve', [\App\Http\Controllers\Admin\AdminBookingController::class, 'approve']);

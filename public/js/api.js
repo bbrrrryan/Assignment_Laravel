@@ -1,31 +1,26 @@
-// Global API Helper Functions
+
 const API = {
     baseURL: '/api',
     
-    // Get auth token from localStorage
     getToken() {
         return localStorage.getItem('auth_token');
     },
     
-    // Get user from localStorage
     getUser() {
         const user = localStorage.getItem('user');
         return user ? JSON.parse(user) : null;
     },
     
-    // Check if user is admin
     isAdmin() {
         const user = this.getUser();
         if (!user) {
             return false;
         }
         
-        // Check role_id first (most reliable)
         if (user.role_id === 1) {
             return true;
         }
         
-        // Check if role is an object and has name property
         if (user.role && typeof user.role === 'object' && user.role !== null) {
             const roleName = user.role.name;
             if (roleName === 'admin' || roleName === 'administrator') {
@@ -33,7 +28,6 @@ const API = {
             }
         }
         
-        // Check if role is a string (backward compatibility)
         if (typeof user.role === 'string') {
             const roleName = user.role.toLowerCase();
             if (roleName === 'admin' || roleName === 'administrator') {
@@ -44,7 +38,6 @@ const API = {
         return false;
     },
     
-    // Check if user is staff
     isStaff() {
         const user = this.getUser();
         if (!user) return false;
@@ -60,7 +53,6 @@ const API = {
         return false;
     },
     
-    // Check if user is student
     isStudent() {
         const user = this.getUser();
         if (!user) return false;
@@ -80,12 +72,10 @@ const API = {
         return this.isAdmin() || this.isStaff();
     },
     
-    // Check if user is authenticated
     isAuthenticated() {
         return !!this.getToken();
     },
     
-    // Make API request
     async request(endpoint, options = {}) {
         const token = this.getToken();
         const url = `${this.baseURL}${endpoint}`;
@@ -111,7 +101,6 @@ const API = {
             const response = await fetch(url, config);
             let data;
             
-            // Try to parse JSON, but handle non-JSON responses
             try {
                 const text = await response.text();
                 data = text ? JSON.parse(text) : {};
@@ -121,16 +110,13 @@ const API = {
             }
             
             if (!response.ok) {
-                // Handle validation errors
                 if (response.status === 422 && data.errors) {
                     const errorMessages = Object.values(data.errors).flat().join(', ');
                     return { success: false, error: errorMessages, data };
                 }
-                // Handle 400 Bad Request errors
                 if (response.status === 400) {
                     return { success: false, error: data.message || 'Bad Request', data };
                 }
-                // Handle 503 Service Unavailable errors
                 if (response.status === 503) {
                     return { success: false, error: data.message || 'Service Unavailable', data };
                 }
@@ -144,12 +130,10 @@ const API = {
         }
     },
     
-    // GET request
     async get(endpoint) {
         return this.request(endpoint, { method: 'GET' });
     },
     
-    // POST request
     async post(endpoint, body) {
         return this.request(endpoint, {
             method: 'POST',
@@ -157,7 +141,6 @@ const API = {
         });
     },
     
-    // PUT request
     async put(endpoint, body) {
         return this.request(endpoint, {
             method: 'PUT',
@@ -165,12 +148,10 @@ const API = {
         });
     },
     
-    // DELETE request
     async delete(endpoint) {
         return this.request(endpoint, { method: 'DELETE' });
     },
     
-    // Login
     async login(email, password) {
         const result = await this.post('/login', { email, password });
         if (result.success) {
@@ -180,7 +161,6 @@ const API = {
         return result;
     },
     
-    // Register
     async register(userData) {
         const result = await this.post('/register', userData);
         if (result.success) {
@@ -190,14 +170,12 @@ const API = {
         return result;
     },
     
-    // Logout
     logout() {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user');
         window.location.href = '/login';
     },
     
-    // Redirect to login if not authenticated
     requireAuth() {
         if (!this.isAuthenticated()) {
             window.location.href = '/login';
@@ -207,46 +185,36 @@ const API = {
     }
 };
 
-// Show loading spinner
 function showLoading(element) {
     if (element) {
         element.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
     }
 }
 
-// Show error message
 function showError(element, message) {
     if (element) {
         element.innerHTML = `<div class="error-message">${message}</div>`;
     }
 }
 
-// Format date
-// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return '-';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
-// Format datetime
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return '-';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     return d.toLocaleString();
 }
 

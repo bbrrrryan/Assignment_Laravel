@@ -1,5 +1,9 @@
+/**
+ * Author: Boo Kai Jie
+ */ 
+
 let currentFeedback = null;
-const feedbackId = window.feedbackId || null; // Should be set via data attribute in blade
+const feedbackId = window.feedbackId || null;
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -13,13 +17,11 @@ function escapeHtml(text) {
     return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Helper function to switch port from 8001 to 8000
 function switchToPort8000(url) {
     const currentPort = window.location.port;
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
     
-    // Handle relative URLs starting with /
     if (url.startsWith('/')) {
         if (currentPort === '8001') {
             return `${protocol}//${hostname}:8000${url}`;
@@ -27,15 +29,12 @@ function switchToPort8000(url) {
         return url;
     }
     
-    // Handle absolute URLs
     if (currentPort === '8001') {
         try {
-            // Use the origin (protocol + hostname) instead of full current URL to avoid path contamination
             const baseUrl = `${protocol}//${hostname}:8000`;
             const urlObj = new URL(url, baseUrl);
             return urlObj.href;
         } catch (e) {
-            // Fallback: simple replacement
             if (url.includes(':8001')) {
                 return url.replace(':8001', ':8000');
             }
@@ -245,21 +244,17 @@ function displayFeedbackDetails(feedback) {
     `;
 }
 
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     return d.toLocaleString();
 }
 
 function formatTimeOnly(timeString) {
     if (!timeString) return 'N/A';
-    // Handle both "YYYY-MM-DD HH:MM:SS" and "HH:MM:SS" formats
     const timePart = timeString.includes(' ') ? timeString.split(' ')[1] : 
                      timeString.includes('T') ? timeString.split('T')[1] : timeString;
     const time = timePart.split(':');
@@ -285,15 +280,13 @@ function formatStatus(status) {
     return statusMap[status] || status;
 }
 
-// Format facility type name (capitalize first letter)
+
 function formatFacilityType(type) {
     if (!type) return 'N/A';
     return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 }
 
-// Admin function to reply to feedback
 window.replyToFeedback = function(id) {
-    // Display feedback info in modal
     const infoDiv = document.getElementById('replyFeedbackInfo');
     const feedback = currentFeedback || {};
     
@@ -314,7 +307,6 @@ window.replyToFeedback = function(id) {
         `;
     }
     
-    // Reset form
     const replyForm = document.getElementById('replyForm');
     if (replyForm) {
         replyForm.reset();
@@ -325,7 +317,6 @@ window.replyToFeedback = function(id) {
         replyForm.dataset.feedbackId = feedbackId;
     }
     
-    // Show modal
     const replyModal = document.getElementById('replyModal');
     if (replyModal) {
         replyModal.style.display = 'block';
@@ -344,11 +335,9 @@ window.closeReplyModal = function() {
     }
 };
 
-// Admin function to block feedback
 window.blockFeedback = function(id) {
     const feedback = currentFeedback || {};
     
-    // Display feedback info in modal
     const infoDiv = document.getElementById('blockFeedbackInfo');
     if (infoDiv) {
         infoDiv.innerHTML = `
@@ -367,7 +356,6 @@ window.blockFeedback = function(id) {
         `;
     }
     
-    // Reset form
     const blockForm = document.getElementById('blockForm');
     if (blockForm) {
         blockForm.reset();
@@ -378,7 +366,6 @@ window.blockFeedback = function(id) {
         blockForm.dataset.feedbackId = feedbackId;
     }
     
-    // Show modal
     const blockModal = document.getElementById('blockModal');
     if (blockModal) {
         blockModal.style.display = 'block';
@@ -397,7 +384,6 @@ window.closeBlockModal = function() {
     }
 };
 
-// View feedback image in modal
 window.viewFeedbackImage = function(imageSrc) {
     const modal = document.getElementById('imageViewModal');
     const modalImg = document.getElementById('imageViewImg');
@@ -408,7 +394,6 @@ window.viewFeedbackImage = function(imageSrc) {
     }
 };
 
-// Close image view modal
 window.closeImageViewModal = function() {
     const modal = document.getElementById('imageViewModal');
     if (modal) {
@@ -417,31 +402,24 @@ window.closeImageViewModal = function() {
     }
 };
 
-// Load booking details for feedback using Web Service
 window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
     const container = document.getElementById('bookingDetailsContainer');
     const viewBtn = document.getElementById('viewBookingBtn');
     
     if (!container) return;
     
-    // Show container
     container.style.display = 'block';
     
-    // Disable button while loading
     if (viewBtn) {
         viewBtn.disabled = true;
         viewBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     }
     
     try {
-        // Call the new API endpoint that uses Booking Web Service
         const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const result = await API.get(`/feedbacks/${feedbackId}/booking-details?timestamp=${encodeURIComponent(timestamp)}`);
         
         if (result.success && result.data) {
-            // Response format from API.get():
-            // result.data = { status: 'S', data: { feedback: {...}, booking: {...} }, timestamp: '...' }
-            // So booking is at: result.data.data.booking
             const booking = result.data.data?.booking;
             
             if (booking) {
@@ -509,7 +487,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
                 </div>
                 `;
             } else {
-                // Handle error response
                 const errorMessage = result.error || result.data?.message || 'Failed to load booking details';
                 console.error('API Error:', result);
                 container.innerHTML = `
@@ -526,7 +503,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
                 `;
             }
         } else {
-            // API call failed
             const errorMessage = result.error || 'Failed to load booking details';
             console.error('API call failed:', result);
             container.innerHTML = `
@@ -550,7 +526,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
             </div>
         `;
     } finally {
-        // Re-enable button
         if (viewBtn) {
             viewBtn.disabled = false;
             viewBtn.innerHTML = '<i class="fas fa-calendar-check"></i> View Booking Details';
@@ -558,7 +533,6 @@ window.loadBookingDetailsForFeedback = async function(feedbackId, bookingId) {
     }
 };
 
-// Wait for DOM and API to be ready
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -570,7 +544,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadFeedbackDetails();
     
-    // Handle reply form submission
     const replyForm = document.getElementById('replyForm');
     if (replyForm) {
         replyForm.addEventListener('submit', async function(e) {
@@ -589,7 +562,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Disable submit button
             const submitBtn = this.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
@@ -600,9 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (result.success) {
                     closeReplyModal();
-                    // Reload feedback details to show the response
                     loadFeedbackDetails();
-                    // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Response submitted successfully!', 'success');
                     } else {
@@ -630,7 +600,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Close modal when clicking outside
     const replyModal = document.getElementById('replyModal');
     if (replyModal) {
         replyModal.addEventListener('click', function(e) {
@@ -640,7 +609,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Handle block form submission
     const blockForm = document.getElementById('blockForm');
     if (blockForm) {
         blockForm.addEventListener('submit', async function(e) {
@@ -663,7 +631,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Disable submit button
             const submitBtn = this.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
@@ -674,9 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (result.success) {
                     closeBlockModal();
-                    // Reload feedback details to show the blocked status
                     loadFeedbackDetails();
-                    // Show success message
                     if (typeof showToast === 'function') {
                         showToast('Feedback blocked successfully!', 'success');
                     } else {
@@ -704,7 +669,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Close block modal when clicking outside
     const blockModal = document.getElementById('blockModal');
     if (blockModal) {
         blockModal.addEventListener('click', function(e) {
@@ -714,7 +678,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Close image view modal when clicking outside
+
+    
     const imageModal = document.getElementById('imageViewModal');
     if (imageModal) {
         imageModal.addEventListener('click', function(e) {

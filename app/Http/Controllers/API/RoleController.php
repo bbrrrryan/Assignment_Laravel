@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Liew Zi Li
+ */
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
@@ -12,9 +14,9 @@ class RoleController extends Controller
     {
         $roles = Role::all();
         return response()->json([
-            'status' => 'S', // IFA Standard
+            'status' => 'S',
             'data' => $roles,
-            'timestamp' => now()->format('Y-m-d H:i:s'), // IFA Standard
+            'timestamp' => now()->format('Y-m-d H:i:s'),
         ]);
     }
 

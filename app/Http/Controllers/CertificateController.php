@@ -10,20 +10,15 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class CertificateController extends Controller
 {
-    /**
-     * Download a certificate as PDF for the authenticated user.
-     *
-     * NOTE: Requires barryvdh/laravel-dompdf:
-     *   composer require barryvdh/laravel-dompdf
-     */
+
     public function download($id)
     {
-        /** @var \App\Models\User $user */
+       
         $user = Auth::user();
 
         $certificate = Certificate::with(['user', 'reward'])->findOrFail($id);
 
-        // Only owner or admin can download
+        
         if ($certificate->user_id !== $user->id && !$user->isAdmin()) {
             abort(Response::HTTP_FORBIDDEN);
         }

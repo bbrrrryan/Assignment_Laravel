@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Boo Kai Jie
+ */
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
@@ -13,7 +15,6 @@ use App\Factories\LoyaltyFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-//sasasaasasas
 class FeedbackController extends Controller
 {
     public function index(Request $request)
@@ -227,7 +228,6 @@ class FeedbackController extends Controller
             ->paginate(10)->withQueryString();
         
         $feedbacks->getCollection()->transform(function ($feedback) {
-            // Check facility name from booking relationship first, then direct facility relationship
             $facilityName = null;
             if ($feedback->booking && $feedback->booking->facility) {
                 $facilityName = $feedback->booking->facility->name;
@@ -567,17 +567,14 @@ class FeedbackController extends Controller
         $facilityId = $request->input('facility_id');
         $limit = $request->input('limit', 10);
         
-        // Get user_id from request (optional - for showing own pending feedbacks)
         $userId = $request->input('user_id');
 
         $feedbacks = Feedback::where('facility_id', $facilityId)
             ->where('is_blocked', false)
             ->where('status', '!=', 'rejected')
             ->where(function($query) use ($userId) {
-                // Show resolved feedbacks to everyone
                 $query->where('status', 'resolved');
                 
-                // Show pending/under_review feedbacks only to the creator
                 if ($userId) {
                     $query->orWhere(function($q) use ($userId) {
                         $q->whereIn('status', ['pending', 'under_review'])
