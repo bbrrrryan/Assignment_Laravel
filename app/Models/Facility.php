@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author:Ng Jhun Hou
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;

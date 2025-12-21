@@ -1,3 +1,6 @@
+/**
+ * Author: Ng Jhun Hou
+ */ 
 @extends('layouts.app')
 
 @section('title', 'Edit Facility - TARUMT FMS')
@@ -101,7 +104,6 @@
                                     $equipmentArray = $oldEquipment;
                                 }
                             } else {
-                                // Use existing facility equipment
                                 $equipmentArray = $facility->equipment ?? [];
                             }
                         @endphp
@@ -273,12 +275,10 @@ function removeEquipmentItem(button) {
     if (container.children.length > 1) {
         button.closest('.equipment-item').remove();
     } else {
-        // If it's the last item, just clear the input
         button.closest('.equipment-item').querySelector('input').value = '';
     }
 }
 
-// Convert equipment array to JSON before form submission
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     if (form) {
