@@ -1,4 +1,8 @@
-﻿document.addEventListener('DOMContentLoaded', function() {
+﻿/**
+ * Author: Low Kim Hong
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
         alert('Error: API functions not loaded. Please refresh the page.');
@@ -30,7 +34,6 @@ async function loadBookingDetails() {
             const booking = result.data.data;
             displayBookingDetails(booking);
         } else {
-            // Handle case where booking is not found
             const errorMsg = result.error || result.data?.message || 'Booking not found';
             document.getElementById('bookingDetails').innerHTML = `
                 <div class="error-message">
@@ -80,9 +83,7 @@ function displayBookingDetails(booking) {
                     <span class="detail-value">
                         <div class="booking-slots-list">
                             ${booking.slots.map((slot, index) => {
-                                // Format slot date
                                 const slotDate = formatDate(slot.slot_date);
-                                // Format slot time (slot.start_time and slot.end_time are time strings like "08:00:00")
                                 const startTime = formatSlotTime(slot.start_time);
                                 const endTime = formatSlotTime(slot.end_time);
                                 return `
@@ -209,31 +210,24 @@ function displayBookingDetails(booking) {
     `;
 }
 
-// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
-// Convert UTC timestamps to local time for display
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
     
-    // Always use Date object to properly handle timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const hours = d.getHours();
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -248,7 +242,6 @@ function formatTime(dateString) {
 function formatSlotTime(timeString) {
     if (!timeString) return 'N/A';
     
-    // timeString is in format "HH:mm:ss" or "HH:mm"
     const timeParts = timeString.split(':');
     if (timeParts.length < 2) return timeString;
     
@@ -267,16 +260,13 @@ function cancelBooking(id, buttonElement) {
     currentBookingId = id;
     currentCancelButton = buttonElement || document.querySelector('.btn-cancel-booking');
     
-    // Initialize listeners if not already done
     initCancelModalListeners();
     
-    // Reset modal
     document.getElementById('cancelReason').value = '';
     document.getElementById('customCancelReason').value = '';
     document.getElementById('customCancelReason').style.display = 'none';
     document.getElementById('confirmCancelBtn').disabled = true;
     
-    // Show modal
     document.getElementById('cancelBookingModal').style.display = 'flex';
 }
 
@@ -299,11 +289,9 @@ function handleReasonChange() {
         customReason.required = false;
     }
     
-    // Enable confirm button if reason is selected
     confirmBtn.disabled = !reasonSelect.value || (reasonSelect.value === 'other' && !customReason.value.trim());
 }
 
-// Enable confirm button when custom reason is typed
 function initCancelModalListeners() {
     const customReason = document.getElementById('customCancelReason');
     if (customReason && !customReason.hasAttribute('data-listener-added')) {
@@ -319,7 +307,6 @@ function initCancelModalListeners() {
 }
 
 async function confirmCancelBooking() {
-    // Save booking ID before closing modal (closeCancelModal sets currentBookingId to null)
     const bookingId = currentBookingId;
     
     if (!bookingId) {
@@ -352,12 +339,10 @@ async function confirmCancelBooking() {
         return;
     }
     
-    // Build reason text
     const reasonText = reasonSelect.value === 'other' 
         ? customReason.value.trim()
         : reasonSelect.options[reasonSelect.selectedIndex].text;
     
-    // Get the button element
     const button = currentCancelButton;
     
     let originalHTML = '';
@@ -367,19 +352,16 @@ async function confirmCancelBooking() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Cancelling...</span>';
     }
     
-    // Disable confirm button
     const confirmBtn = document.getElementById('confirmCancelBtn');
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
     
-    // Close modal (this will set currentBookingId to null, but we've saved it above)
     closeCancelModal();
     
     try {
         const result = await API.put(`/bookings/${bookingId}/cancel`, { reason: reasonText });
 
         if (result.success) {
-            // Show success message
             const successMessage = document.createElement('div');
             successMessage.className = 'success-message';
             successMessage.innerHTML = `
@@ -401,7 +383,6 @@ async function confirmCancelBooking() {
                 container.appendChild(successMessage);
             }
             
-            // Redirect to bookings list after a short delay
             setTimeout(() => {
                 window.location.href = window.bookingsIndexUrl;
             }, 2000);
@@ -426,19 +407,16 @@ async function confirmCancelBooking() {
     }
 }
 
-// Admin cancel booking functions
 let currentAdminCancelBookingId = null;
 
 function adminCancelBooking(id, buttonElement) {
     currentAdminCancelBookingId = id;
     
-    // Reset modal
     document.getElementById('adminCancelReason').value = '';
     document.getElementById('customAdminCancelReason').value = '';
     document.getElementById('customAdminCancelReason').style.display = 'none';
     document.getElementById('confirmAdminCancelBtn').disabled = true;
     
-    // Show modal
     document.getElementById('adminCancelBookingModal').style.display = 'flex';
 }
 
@@ -471,7 +449,6 @@ function handleAdminCancelReasonChange() {
     }
 }
 
-// Add event listener for custom admin cancel reason input
 document.addEventListener('DOMContentLoaded', function() {
     const customAdminCancelReason = document.getElementById('customAdminCancelReason');
     if (customAdminCancelReason) {
@@ -538,7 +515,6 @@ async function confirmAdminCancelBooking() {
             } else {
                 alert('Booking cancelled successfully!');
             }
-            // Reload booking details to show updated status
             loadBookingDetails();
         } else {
             if (typeof showToast === 'function') {

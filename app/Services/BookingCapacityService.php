@@ -1,4 +1,7 @@
 <?php
+/**
+ * Author: Low Kim Hong
+ */
 
 namespace App\Services;
 
@@ -9,19 +12,7 @@ use Carbon\Carbon;
 
 class BookingCapacityService
 {
-    /**
-     * Check capacity by time segments (hourly) to ensure accurate capacity checking
-     * for 1-hour and 2-hour bookings
-     * 
-     * @param Facility $facility
-     * @param int $facilityId
-     * @param string $bookingDate
-     * @param string $startTime
-     * @param string $endTime
-     * @param int $expectedAttendees
-     * @param int|null $excludeBookingId Exclude this booking ID from the check (for updates)
-     * @return array ['available' => bool, 'message' => string]
-     */
+    
     public function checkCapacityByTimeSegments(
         Facility $facility,
         int $facilityId,
@@ -31,7 +22,6 @@ class BookingCapacityService
         int $expectedAttendees,
         ?int $excludeBookingId = null
     ): array {
-        // Get all pending and approved bookings for this facility on this date
         $query = Booking::where('facility_id', $facilityId)
             ->whereDate('booking_date', $bookingDate)
             ->whereIn('status', ['pending', 'approved']);
@@ -42,32 +32,25 @@ class BookingCapacityService
         
         $bookings = $query->get();
 
-        // Parse the requested time range
         $requestStart = Carbon::parse($startTime);
         $requestEnd = Carbon::parse($endTime);
         
-        // Create hourly time segments for the requested time range
         $timeSegments = $this->createTimeSegments($requestStart, $requestEnd);
         
-        // Check each time segment
         foreach ($timeSegments as $segment) {
             $segmentStart = $segment['start'];
             $segmentEnd = $segment['end'];
             
-            // Find all bookings that overlap with this segment
             $overlappingBookings = $this->getOverlappingBookings($bookings, $segmentStart, $segmentEnd);
             
-            // Calculate total attendees in this segment
             $totalAttendees = $this->calculateTotalAttendees($overlappingBookings, $facility);
             
-            // For the new booking, if facility has enable_multi_attendees OR is classroom/auditorium/laboratory, it occupies full capacity
             $newBookingAttendees = ($facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type))
                 ? $facility->capacity 
                 : $expectedAttendees;
             
             $totalAttendees += $newBookingAttendees;
             
-            // Check if this segment would exceed capacity
             $capacityCheck = $this->checkSegmentCapacity(
                 $facility,
                 $overlappingBookings,
@@ -87,9 +70,6 @@ class BookingCapacityService
         ];
     }
 
-    /**
-     * Create hourly time segments for the requested time range
-     */
     private function createTimeSegments(Carbon $requestStart, Carbon $requestEnd): array
     {
         $timeSegments = [];
@@ -99,7 +79,6 @@ class BookingCapacityService
             $segmentStart = $current->copy();
             $segmentEnd = $current->copy()->addHour();
             
-            // Don't go beyond the requested end time
             if ($segmentEnd > $requestEnd) {
                 $segmentEnd = $requestEnd->copy();
             }
@@ -115,38 +94,26 @@ class BookingCapacityService
         return $timeSegments;
     }
 
-    /**
-     * Get bookings that overlap with a time segment
-     */
     private function getOverlappingBookings($bookings, Carbon $segmentStart, Carbon $segmentEnd)
     {
         return $bookings->filter(function($booking) use ($segmentStart, $segmentEnd) {
             $bookingStart = Carbon::parse($booking->start_time);
             $bookingEnd = Carbon::parse($booking->end_time);
             
-            // Check if booking overlaps with this segment
             return $bookingStart < $segmentEnd && $bookingEnd > $segmentStart;
         });
     }
 
-    /**
-     * Calculate total attendees from overlapping bookings
-     */
     private function calculateTotalAttendees($overlappingBookings, Facility $facility): int
     {
         return $overlappingBookings->sum(function($booking) use ($facility) {
-            // If this facility has enable_multi_attendees OR is classroom/auditorium/laboratory, each booking occupies full capacity
             if ($facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type)) {
                 return $facility->capacity;
             }
-            // Otherwise, use expected_attendees
             return $booking->expected_attendees ?? 1;
         });
     }
 
-    /**
-     * Check if a segment would exceed capacity
-     */
     private function checkSegmentCapacity(
         Facility $facility,
         $overlappingBookings,
@@ -156,12 +123,9 @@ class BookingCapacityService
     ): array {
         $segmentTimeStr = $segmentStart->format('H:i') . ' - ' . $segmentEnd->format('H:i');
         
-        // Check if facility type requires full capacity occupation
         $requiresFullCapacity = $facility->enable_multi_attendees || $this->isFullCapacityFacilityType($facility->type);
         
         if ($requiresFullCapacity) {
-            // If multi_attendees is enabled OR facility type is classroom/auditorium/laboratory, 
-            // check if there's already a booking in this segment
             if ($overlappingBookings->count() > 0) {
                 $facilityTypeMsg = $this->isFullCapacityFacilityType($facility->type) 
                     ? "This facility type ({$facility->type}) requires the entire capacity to be occupied per booking."
@@ -172,7 +136,6 @@ class BookingCapacityService
                 ];
             }
         } else {
-            // Normal capacity check for non-multi-attendees facilities
             if ($totalAttendees > $facility->capacity) {
                 $existingAttendees = $totalAttendees - ($facility->enable_multi_attendees ? $facility->capacity : 1);
                 
@@ -189,19 +152,11 @@ class BookingCapacityService
         return ['available' => true];
     }
 
-    /**
-     * Check if facility type requires full capacity occupation
-     * Classroom, auditorium, and laboratory types always occupy full capacity
-     */
     private function isFullCapacityFacilityType(string $type): bool
     {
         return in_array($type, ['classroom', 'auditorium', 'laboratory']);
     }
 
-    /**
-     * Check max booking hours limit for user on a specific date
-     * This method calculates total hours from booking_slots table to ensure accuracy
-     */
     public function checkMaxBookingHours(
         int $userId,
         int $facilityId,
@@ -210,7 +165,7 @@ class BookingCapacityService
         int $maxBookingHours,
         ?int $excludeBookingId = null
     ): array {
-        // Get all bookings for this user, facility, and date
+
         $bookingsQuery = Booking::where('user_id', $userId)
             ->where('facility_id', $facilityId)
             ->whereDate('booking_date', $bookingDate)
@@ -221,9 +176,7 @@ class BookingCapacityService
         }
         
         $userBookingsOnDate = $bookingsQuery->pluck('id');
-        
-        // Calculate total hours from booking_slots table for accurate calculation
-        // This ensures we count all slots, not just the duration_hours field
+
         $totalUserBookingHours = BookingSlot::whereIn('booking_id', $userBookingsOnDate)
             ->whereDate('slot_date', $bookingDate)
             ->sum('duration_hours');

@@ -1,4 +1,8 @@
-﻿.details-container {
+﻿/**
+ * Author: Low Kim Hong
+ */
+ 
+.details-container {
     max-width: 900px;
     margin: 0 auto;
 }
@@ -165,7 +169,7 @@
     animation: fadeIn 0.5s ease;
 }
 
-/* Simple Modal Styles (matching delete confirmation) */
+/*modal*/
 .modal {
     position: fixed;
     z-index: 1000;
@@ -307,7 +311,7 @@
     transform: none;
 }
 
-/* Cancel Booking Modal Styles (keeping old styles for backward compatibility) */
+/*cancel booking modal*/
 .cancel-modal {
     display: none;
     position: fixed;
@@ -539,7 +543,7 @@
     transform: none;
 }
 
-/* Close modal when clicking outside */
+/*close modal*/
 .cancel-modal-content {
     position: relative;
 }
@@ -566,7 +570,7 @@
     }
 }
 
-/* Attendees List Styles */
+/*attendees list*/
 .attendees-list {
     display: flex;
     flex-direction: column;
@@ -605,7 +609,7 @@
     letter-spacing: 0.5px;
 }
 
-/* Booking Slots List Styles */
+/*booking slots list*/
 .booking-slots-list {
     display: flex;
     flex-direction: column;

@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Low Kim Hong
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,11 +21,9 @@ class BookingSlot extends Model
 
     protected $casts = [
         'slot_date' => 'date',
-        // start_time and end_time are stored as time (HH:mm:ss) in database
-        // Keep them as strings to avoid datetime conversion issues
+
     ];
 
-    // Relationships
     public function booking()
     {
         return $this->belongsTo(Booking::class);

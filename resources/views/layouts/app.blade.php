@@ -696,24 +696,32 @@
                 const isStudent = API.isStudent();
                 
                 if (isAdmin) {
-                    // For admin only: get pending bookings count
-                    const result = await API.get('/bookings/pending?limit=0');
-                    let count = 0;
-                    if (result && result.success && result.data) {
-                        // Check if result.data has items array (pending bookings) or count property
-                        if (result.data.items && Array.isArray(result.data.items)) {
-                            count = result.data.items.length;
-                        } else if (result.data.count !== undefined) {
-                            count = result.data.count;
-                        } else if (result.data.bookings && Array.isArray(result.data.bookings)) {
-                            count = result.data.bookings.length;
+                    // For admin: get unread notifications count + pending bookings count
+                    const notificationsResult = await API.get('/notifications/user/unread-count');
+                    const bookingsResult = await API.get('/bookings/pending?limit=0');
+                    
+                    let notificationCount = 0;
+                    if (notificationsResult && notificationsResult.success && notificationsResult.data) {
+                        notificationCount = notificationsResult.data.count || 0;
+                    }
+                    
+                    let bookingCount = 0;
+                    if (bookingsResult && bookingsResult.success && bookingsResult.data) {
+                        if (bookingsResult.data.items && Array.isArray(bookingsResult.data.items)) {
+                            bookingCount = bookingsResult.data.items.length;
+                        } else if (bookingsResult.data.count !== undefined) {
+                            bookingCount = bookingsResult.data.count;
+                        } else if (bookingsResult.data.bookings && Array.isArray(bookingsResult.data.bookings)) {
+                            bookingCount = bookingsResult.data.bookings.length;
                         }
                     }
                     
+                    const totalCount = notificationCount + bookingCount;
+                    
                     const badge = document.getElementById('notificationNavBadge');
                     if (badge) {
-                        if (count > 0) {
-                            badge.textContent = count > 99 ? '99+' : count;
+                        if (totalCount > 0) {
+                            badge.textContent = totalCount > 99 ? '99+' : totalCount;
                             badge.style.display = 'flex';
                         } else {
                             badge.style.display = 'none';
@@ -869,7 +877,7 @@
                         `;
                     }).join('');
                 } else if (isAdmin) {
-                    // For admin only: ONLY show pending bookings (no announcements)
+                    // For admin: show notifications sent to admin + pending bookings
                     if (titleElement) {
                         titleElement.textContent = 'Notifications';
                     }
@@ -878,24 +886,55 @@
                         viewAllLink.href = '/admin/bookings';
                     }
                     
-                    // Admin bell only displays user booking requests
-                    const result = await API.get('/bookings/pending?limit=10');
-                    console.log('Pending bookings API result:', result);
+                    // Get notifications sent to admin
+                    const notificationsResult = await API.get('/notifications/user/unread-items?limit=10&only_unread=true');
+                    console.log('Admin notifications API result:', notificationsResult);
                     
-                    // Extract items from response
-                    let items = [];
-                    if (result && result.success) {
-                        // Direct access to result.data.items
-                        if (result.data && Array.isArray(result.data.items)) {
-                            items = result.data.items;
-                        } else if (result.data && result.data.data && Array.isArray(result.data.data.items)) {
-                            items = result.data.data.items;
+                    // Get pending bookings
+                    const bookingsResult = await API.get('/bookings/pending?limit=10');
+                    console.log('Pending bookings API result:', bookingsResult);
+                    
+                    // Extract notifications from response
+                    let notificationItems = [];
+                    if (notificationsResult && notificationsResult.success) {
+                        if (notificationsResult.data && Array.isArray(notificationsResult.data.items)) {
+                            notificationItems = notificationsResult.data.items;
+                        } else if (notificationsResult.data && notificationsResult.data.data && Array.isArray(notificationsResult.data.data.items)) {
+                            notificationItems = notificationsResult.data.data.items;
                         }
-                        
-                        console.log('Items extracted:', items.length, 'items');
-                    } else {
-                        console.error('API call failed:', result);
                     }
+                    
+                    // Extract bookings from response
+                    let bookingItems = [];
+                    if (bookingsResult && bookingsResult.success) {
+                        if (bookingsResult.data && Array.isArray(bookingsResult.data.items)) {
+                            bookingItems = bookingsResult.data.items;
+                        } else if (bookingsResult.data && bookingsResult.data.data && Array.isArray(bookingsResult.data.data.items)) {
+                            bookingItems = bookingsResult.data.data.items;
+                        } else if (bookingsResult.data && bookingsResult.data.bookings && Array.isArray(bookingsResult.data.bookings)) {
+                            // Convert bookings to notification-like format
+                            bookingItems = bookingsResult.data.bookings.map(booking => ({
+                                id: booking.id,
+                                type: 'booking',
+                                title: `Booking Request - ${booking.facility_name || booking.facility?.name || 'Facility'}`,
+                                content: `Booking ${booking.id} from ${booking.user_name || booking.user?.name || 'User'} for ${booking.booking_date || booking.booking_date} ${booking.start_time || ''} - ${booking.end_time || ''}`,
+                                created_at: booking.created_at,
+                                booking: booking,
+                                is_read: false
+                            }));
+                        }
+                    }
+                    
+                    // Combine notifications and bookings, sort by date (most recent first)
+                    let items = [...notificationItems, ...bookingItems].sort((a, b) => {
+                        const dateA = a.created_at || a.pivot_created_at || '';
+                        const dateB = b.created_at || b.pivot_created_at || '';
+                        const timestampA = typeof dateA === 'string' ? new Date(dateA).getTime() : (dateA && dateA.getTime ? dateA.getTime() : 0);
+                        const timestampB = typeof dateB === 'string' ? new Date(dateB).getTime() : (dateB && dateB.getTime ? dateB.getTime() : 0);
+                        return timestampB - timestampA;
+                    }).slice(0, 10); // Limit to 10 items
+                    
+                    console.log('Combined items:', items.length, 'items');
                     
                     if (!items || items.length === 0) {
                         listContainer.innerHTML = '<div class="notification-empty">No new notifications</div>';

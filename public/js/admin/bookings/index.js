@@ -1,13 +1,15 @@
-// Use window object to avoid conflicts with bookings/index.js
-// Initialize admin-specific variables only if they don't exist
+/**
+ * Author: Low Kim Hong
+ */
+
 if (typeof window.adminBookingsData === 'undefined') {
     window.adminBookingsData = [];
 }
 if (typeof window.adminSortOrderData === 'undefined') {
-    window.adminSortOrderData = null; // 'date-asc', 'date-desc', 'created-asc', 'created-desc', or null
+    window.adminSortOrderData = null; 
 }
 
-// Admin pagination state
+
 if (typeof window.adminCurrentPage === 'undefined') {
     window.adminCurrentPage = 1;
 }
@@ -21,7 +23,6 @@ if (typeof window.adminTotalBookings === 'undefined') {
     window.adminTotalBookings = 0;
 }
 
-// Admin facility pagination state (for filter dropdown)
 if (typeof window.adminFacilityCurrentPage === 'undefined') {
     window.adminFacilityCurrentPage = 1;
 }
@@ -35,7 +36,6 @@ if (typeof window.adminAllFacilities === 'undefined') {
     window.adminAllFacilities = [];
 }
 
-// Sorting functions - reload with sort applied
 window.sortByDate = function() {
     if (window.adminSortOrderData === 'date-asc') {
         window.adminSortOrderData = 'date-desc';
@@ -44,7 +44,6 @@ window.sortByDate = function() {
     } else {
         window.adminSortOrderData = 'date-asc';
     }
-    // Reset to first page when sorting
     window.adminCurrentPage = 1;
     loadBookings(1);
 };
@@ -57,24 +56,19 @@ window.sortByCreatedDate = function() {
     } else {
         window.adminSortOrderData = 'created-desc';
     }
-    // Reset to first page when sorting
     window.adminCurrentPage = 1;
     loadBookings(1);
 };
 
-// Filter bookings - reload with filters applied
 window.filterBookings = function() {
-    // Reset to first page when filtering
     window.adminCurrentPage = 1;
     loadBookings(1);
 };
 
-// View booking
 window.viewBooking = function(id) {
     window.location.href = `/bookings/${id}`;
 };
 
-// Dropdown toggle
 document.addEventListener('click', function(event) {
     if (event.target.closest('.user-dropdown')) {
         return;
@@ -131,12 +125,10 @@ window.toggleBookingDropdown = function(id) {
     }
 };
 
-// Store current booking ID for approve/reject/cancel actions
 let currentApproveBookingId = null;
 let currentRejectBookingId = null;
 let currentCancelBookingId = null;
 
-// Approve booking - show modal
 window.approveBooking = function(id) {
     const dropdown = document.getElementById(`booking-dropdown-${id}`);
     if (dropdown) dropdown.classList.remove('show');
@@ -145,13 +137,11 @@ window.approveBooking = function(id) {
     document.getElementById('approveBookingModal').style.display = 'flex';
 };
 
-// Close approve modal
 function closeApproveModal() {
     document.getElementById('approveBookingModal').style.display = 'none';
     currentApproveBookingId = null;
 }
 
-// Confirm approve booking
 window.confirmApproveBooking = async function() {
     if (!currentApproveBookingId) {
         if (typeof showToast !== 'undefined') {
@@ -210,13 +200,11 @@ window.confirmApproveBooking = async function() {
     }
 };
 
-// Reject booking - show modal
 window.rejectBooking = function(id) {
     const dropdown = document.getElementById(`booking-dropdown-${id}`);
     if (dropdown) dropdown.classList.remove('show');
     
     currentRejectBookingId = id;
-    // Reset form
     document.getElementById('rejectReason').value = '';
     document.getElementById('customRejectReason').value = '';
     document.getElementById('customRejectReason').style.display = 'none';
@@ -225,18 +213,15 @@ window.rejectBooking = function(id) {
     document.getElementById('rejectBookingModal').style.display = 'flex';
 };
 
-// Close reject modal
 function closeRejectModal() {
     document.getElementById('rejectBookingModal').style.display = 'none';
     currentRejectBookingId = null;
-    // Reset form
     document.getElementById('rejectReason').value = '';
     document.getElementById('customRejectReason').value = '';
     document.getElementById('customRejectReason').style.display = 'none';
     document.getElementById('confirmRejectBtn').disabled = true;
 }
 
-// Handle reject reason change
 window.handleRejectReasonChange = function() {
     const reasonSelect = document.getElementById('rejectReason');
     const customReason = document.getElementById('customRejectReason');
@@ -253,7 +238,6 @@ window.handleRejectReasonChange = function() {
     }
 };
 
-// Listen to custom reason input
 document.addEventListener('DOMContentLoaded', function() {
     const customRejectReason = document.getElementById('customRejectReason');
     if (customRejectReason) {
@@ -267,7 +251,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Confirm reject booking
 window.confirmRejectBooking = async function() {
     if (!currentRejectBookingId) {
         if (typeof showToast !== 'undefined') {
@@ -308,7 +291,6 @@ window.confirmRejectBooking = async function() {
         return;
     }
     
-    // Build reason text
     let reasonText = reasonSelect.options[reasonSelect.selectedIndex].text;
     if (reasonSelect.value === 'other' && customReason.value.trim()) {
         reasonText = customReason.value.trim();
@@ -353,7 +335,6 @@ window.confirmRejectBooking = async function() {
     }
 };
 
-// Cancel approved booking - show modal
 window.cancelBooking = function(id) {
     const dropdown = document.getElementById(`booking-dropdown-${id}`);
     if (dropdown) dropdown.classList.remove('show');
@@ -366,7 +347,6 @@ window.cancelBooking = function(id) {
     document.getElementById('cancelBookingModal').style.display = 'flex';
 };
 
-// Close cancel modal
 function closeCancelModal() {
     document.getElementById('cancelBookingModal').style.display = 'none';
     currentCancelBookingId = null;
@@ -376,7 +356,6 @@ function closeCancelModal() {
     document.getElementById('confirmCancelBtn').disabled = true;
 }
 
-// Handle cancel reason change
 window.handleCancelReasonChange = function() {
     const reasonSelect = document.getElementById('cancelReason');
     const customReason = document.getElementById('customCancelReason');
@@ -397,7 +376,6 @@ window.handleCancelReasonChange = function() {
     }
 };
 
-// Add event listener for custom cancel reason input
 document.addEventListener('DOMContentLoaded', function() {
     const customCancelReason = document.getElementById('customCancelReason');
     if (customCancelReason) {
@@ -411,7 +389,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Confirm cancel booking
 window.confirmCancelBooking = async function() {
     if (!currentCancelBookingId) {
         return;
@@ -482,10 +459,8 @@ window.confirmCancelBooking = async function() {
     }
 };
 
-// Store current booking ID for mark complete
 let currentMarkCompleteBookingId = null;
 
-// Mark booking as complete - show modal
 window.markComplete = function(id) {
     const dropdown = document.getElementById(`booking-dropdown-${id}`);
     if (dropdown) dropdown.classList.remove('show');
@@ -494,13 +469,11 @@ window.markComplete = function(id) {
     document.getElementById('markCompleteModal').style.display = 'flex';
 };
 
-// Close mark complete modal
 function closeMarkCompleteModal() {
     document.getElementById('markCompleteModal').style.display = 'none';
     currentMarkCompleteBookingId = null;
 }
 
-// Confirm mark complete booking
 window.confirmMarkComplete = async function() {
     if (!currentMarkCompleteBookingId) {
         return;
@@ -551,9 +524,7 @@ window.confirmMarkComplete = async function() {
     }
 };
 
-// Edit booking function removed
 window.editBooking = async function(id) {
-    // Function removed - edit booking functionality has been disabled
     if (typeof showToast !== 'undefined') {
         showToast('Edit booking functionality has been disabled', 'info');
     } else {
@@ -562,22 +533,18 @@ window.editBooking = async function(id) {
     return;
 };
 
-// Removed edit booking implementation code below - all edit functionality has been removed
 
-// Override form submit handler for admin booking updates
 document.addEventListener('DOMContentLoaded', function() {
     const bookingForm = document.getElementById('bookingForm');
     if (bookingForm) {
-        // Remove existing event listener if any (from bookings/index.js)
         const newForm = bookingForm.cloneNode(true);
         bookingForm.parentNode.replaceChild(newForm, bookingForm);
         
         document.getElementById('bookingForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const bookingId = this.dataset.bookingId; // Check if editing
+            const bookingId = this.dataset.bookingId;
             
-            // If editing, use admin update API
             if (bookingId) {
                 const submitBtn = e.target.querySelector('button[type="submit"]');
                 if (!submitBtn) {
@@ -592,16 +559,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Updating...';
                 
-                // Get form data
                 const facilityId = document.getElementById('bookingFacility')?.value;
                 let startTime = document.getElementById('bookingStartTime')?.value;
                 let endTime = document.getElementById('bookingEndTime')?.value;
                 let bookingDate = document.getElementById('selectedBookingDate')?.value;
                 
-                // Normalize time format - ensure it's YYYY-MM-DD HH:mm:ss
-                // Handle case where value might be ISO format or incorrectly formatted
                 if (startTime) {
-                    // If it's an ISO format string, parse and reformat
                     if (startTime.includes('T') || startTime.includes('Z')) {
                         const dateObj = new Date(startTime);
                         if (!isNaN(dateObj.getTime())) {
@@ -614,9 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             startTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                         }
                     }
-                    // If it doesn't match expected format, try to fix it
                     if (!startTime.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
-                        // Try to extract date and time parts
                         const dateMatch = startTime.match(/(\d{4}-\d{2}-\d{2})/);
                         const timeMatch = startTime.match(/(\d{2}:\d{2}:\d{2})/);
                         if (dateMatch && timeMatch) {
@@ -628,7 +589,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 if (endTime) {
-                    // If it's an ISO format string, parse and reformat
                     if (endTime.includes('T') || endTime.includes('Z')) {
                         const dateObj = new Date(endTime);
                         if (!isNaN(dateObj.getTime())) {
@@ -641,9 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             endTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                         }
                     }
-                    // If it doesn't match expected format, try to fix it
                     if (!endTime.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
-                        // Try to extract date and time parts
                         const dateMatch = endTime.match(/(\d{4}-\d{2}-\d{2})/);
                         const timeMatch = endTime.match(/(\d{2}:\d{2}:\d{2})/);
                         if (dateMatch && timeMatch) {
@@ -653,11 +611,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
-                // Get purpose value
                 const purposeInput = document.getElementById('bookingPurpose');
                 const purpose = purposeInput?.value || '';
                 
-                // Validate required fields
                 if (!facilityId || !startTime || !endTime || !bookingDate || !purpose) {
                     const missingFields = [];
                     if (!facilityId) missingFields.push('Facility');
@@ -675,7 +631,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Validate time format (should be YYYY-MM-DD HH:mm:ss)
                 if (!startTime.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
                     if (typeof showToast !== 'undefined') {
                         showToast('Invalid start time format. Expected: YYYY-MM-DD HH:mm:ss', 'error');
@@ -698,7 +653,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Validate date format (should be YYYY-MM-DD)
                 if (!bookingDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
                     if (typeof showToast !== 'undefined') {
                         showToast('Invalid booking date format. Expected: YYYY-MM-DD', 'error');
@@ -710,9 +664,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Get attendees passports if multi-attendees is enabled
                 let attendeesPassports = [];
-                let expectedAttendees = 1; // Default to 1
+                let expectedAttendees = 1;
                 const enableMultiAttendees = window.currentFacilityEnableMultiAttendees || false;
                 
                 if (enableMultiAttendees) {
@@ -723,14 +676,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             attendeesPassports.push(passport);
                         }
                     });
-                    // Calculate expected_attendees from passport count
                     expectedAttendees = attendeesPassports.length > 0 ? attendeesPassports.length : 1;
                 }
                 
-                // Build time_slots array from selectedTimeSlots
                 const timeSlots = [];
                 if (typeof selectedTimeSlots !== 'undefined' && selectedTimeSlots.length > 0) {
-                    // Filter slots for the same date
                     const sameDateSlots = selectedTimeSlots.filter(s => s.date === bookingDate);
                     sameDateSlots.forEach(slot => {
                         timeSlots.push({
@@ -748,33 +698,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     attendees_passports: enableMultiAttendees ? attendeesPassports : []
                 };
                 
-                // Use time_slots if available, otherwise use old format
                 if (timeSlots.length > 0) {
                     data.time_slots = timeSlots;
                 } else {
-                    // Fallback to old format
                     data.booking_date = bookingDate;
                     data.start_time = startTime;
                     data.end_time = endTime;
                 }
                 
-                // Debug: log the data being sent
                 console.log('Submitting booking update data:', data);
                 
                 try {
                     const result = await API.put(`/bookings/${bookingId}`, data);
                     if (result.success) {
-                        // Close modal
                         const modal = document.getElementById('bookingModal');
                         if (modal) {
                             modal.style.display = 'none';
                         }
                         
-                        // Reset form
                         bookingForm.reset();
                         delete bookingForm.dataset.bookingId;
                         
-                        // Reset modal title and button
                         const modalTitle = document.getElementById('modalTitle');
                         const modalIcon = document.getElementById('modalIcon');
                         const submitButtonText = document.getElementById('submitButtonText');
@@ -789,7 +733,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             submitButtonText.textContent = 'Submit Booking';
                         }
                         
-                        // Reload bookings (stay on current page)
                         loadBookings(window.adminCurrentPage || 1);
                         if (typeof showToast !== 'undefined') {
                             showToast('Booking updated successfully!', 'success');
@@ -802,7 +745,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             const validationErrors = Object.values(result.data.errors).flat().join(', ');
                             errorMsg = validationErrors || errorMsg;
                         }
-                        // Show detailed error message
                         console.error('Booking update error:', result);
                         if (typeof showToast !== 'undefined') {
                             showToast('Error updating booking: ' + errorMsg, 'error');
@@ -827,32 +769,24 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-// Format functions
-// Convert UTC timestamps to local time for display
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
-// Convert UTC timestamps to local time for display
 function formatTimeNoSeconds(date) {
     if (!date) return 'N/A';
     
-    // Always use Date object to properly handle timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const hours = d.getHours();
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -860,20 +794,16 @@ function formatTimeNoSeconds(date) {
     return `${hour12}:${minutes} ${ampm}`;
 }
 
-// Convert UTC timestamps to local time for display
 function formatDateTime(dateTimeString) {
     if (!dateTimeString) return 'N/A';
     const d = new Date(dateTimeString);
     if (isNaN(d.getTime())) return 'N/A';
     
-    // JavaScript Date automatically converts UTC to local time
-    // Use local time methods to display in user's timezone
     const date = formatDate(dateTimeString);
     const time = formatTimeNoSeconds(dateTimeString);
     return `${date} ${time}`;
 }
 
-// Helper functions for loading and error states
 function showLoading(container) {
     if (!container) return;
     container.innerHTML = '<p>Loading bookings...</p>';
@@ -884,7 +814,6 @@ function showError(container, message) {
     container.innerHTML = `<div class="error-message"><p>${message || 'An error occurred'}</p></div>`;
 }
 
-// Initialize admin bookings page
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof API === 'undefined') {
         console.error('API.js not loaded!');
@@ -898,14 +827,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!API.requireAuth()) return;
 
-    // Wait a bit to ensure all DOM elements are ready
     setTimeout(function() {
         initAdminBookings();
     }, 100);
 });
 
 function initAdminBookings() {
-    // Check if required elements exist before proceeding
     const bookingsList = document.getElementById('bookingsList');
     if (!bookingsList) {
         console.error('bookingsList element not found in DOM');
@@ -916,7 +843,6 @@ function initAdminBookings() {
     loadFacilitiesForFilter();
 }
 
-// Load all bookings (admin endpoint) with pagination
 async function loadBookings(page = 1) {
     const bookingsListContainer = document.getElementById('bookingsList');
     if (bookingsListContainer) {
@@ -925,12 +851,10 @@ async function loadBookings(page = 1) {
     
     window.adminCurrentPage = page;
     
-    // Get filter values
     const search = document.getElementById('searchInput')?.value || '';
     const statusFilter = document.getElementById('statusFilter')?.value || '';
     const facilityFilter = document.getElementById('facilityFilter')?.value || '';
     
-    // Build query parameters
     let queryParams = `page=${page}&per_page=${window.adminPerPage}`;
     if (statusFilter) {
         queryParams += `&status=${encodeURIComponent(statusFilter)}`;
@@ -942,7 +866,6 @@ async function loadBookings(page = 1) {
         queryParams += `&facility_id=${encodeURIComponent(facilityFilter)}`;
     }
     
-    // Add sorting parameters
     if (window.adminSortOrderData) {
         if (window.adminSortOrderData.startsWith('date-')) {
             queryParams += `&sort_by=date&sort_order=${window.adminSortOrderData === 'date-asc' ? 'asc' : 'desc'}`;
@@ -951,22 +874,18 @@ async function loadBookings(page = 1) {
         }
     }
     
-    // Request bookings with pagination and filters
     const result = await API.get(`/bookings?${queryParams}`);
     
     if (result.success) {
-        // Handle paginated response structure
         const responseData = result.data.data || result.data;
         
         if (responseData.data && Array.isArray(responseData.data)) {
-            // Paginated response
             window.adminBookingsData = responseData.data;
             window.adminCurrentPage = responseData.current_page || page;
             window.adminTotalPages = responseData.last_page || 1;
             window.adminTotalBookings = responseData.total || 0;
             window.adminPerPage = responseData.per_page || window.adminPerPage;
         } else if (Array.isArray(responseData)) {
-            // Non-paginated response (fallback)
             window.adminBookingsData = responseData;
             window.adminCurrentPage = 1;
             window.adminTotalPages = 1;
@@ -1001,13 +920,11 @@ async function loadBookings(page = 1) {
     }
 }
 
-// Load facilities for filter
 async function loadFacilitiesForFilter(page = 1, append = false) {
-    if (window.adminFacilityLoading) return; // Prevent multiple simultaneous requests
+    if (window.adminFacilityLoading) return;
     
     window.adminFacilityLoading = true;
     let url = `/facilities?per_page=50&page=${page}`;
-    // Note: API.get() automatically adds '/api' prefix, so '/facilities' becomes '/api/facilities'
     
     const result = await API.get(url);
     
@@ -1016,15 +933,12 @@ async function loadFacilitiesForFilter(page = 1, append = false) {
         const newFacilities = paginationData?.data || paginationData || [];
         
         if (append) {
-            // Append to existing facilities
             window.adminAllFacilities = [...window.adminAllFacilities, ...newFacilities];
         } else {
-            // Replace facilities
             window.adminAllFacilities = newFacilities;
             window.adminFacilityCurrentPage = 1;
         }
         
-        // Check if there are more pages
         window.adminFacilityHasMore = paginationData?.next_page_url ? true : false;
         window.adminFacilityCurrentPage = page;
         
@@ -1036,36 +950,29 @@ async function loadFacilitiesForFilter(page = 1, append = false) {
                 filterSelect.disabled = true;
             } else {
                 filterSelect.disabled = false;
-                const currentValue = filterSelect.value; // Preserve current selection if any
+                const currentValue = filterSelect.value;
                 
-                // Build options HTML
                 let optionsHTML = '<option value="">All Facilities</option>';
                 optionsHTML += window.adminAllFacilities.map(f => {
                     const selectedAttr = (currentValue == f.id) ? 'selected' : '';
                     return `<option value="${f.id}" ${selectedAttr}>${f.name}</option>`;
                 }).join('');
                 
-                // Add "Load More" option if there are more pages
                 if (window.adminFacilityHasMore) {
                     optionsHTML += `<option value="__load_more__" disabled style="font-style: italic; color: #666;">--- Scroll to load more ---</option>`;
                 }
                 
                 filterSelect.innerHTML = optionsHTML;
                 
-                // Restore selection
                 if (currentValue) {
                     filterSelect.value = currentValue;
                 }
                 
-                // Add scroll event listener for loading more (works in most modern browsers)
                 if (window.adminFacilityHasMore && !filterSelect.dataset.scrollListenerAdded) {
                     filterSelect.dataset.scrollListenerAdded = 'true';
-                    // Use both scroll and mousewheel events for better compatibility
                     filterSelect.addEventListener('scroll', handleAdminFacilitySelectScroll);
                     filterSelect.addEventListener('wheel', handleAdminFacilitySelectScroll);
-                    // Also listen for when dropdown is opened
                     filterSelect.addEventListener('focus', function() {
-                        // Check if we need to load more when dropdown opens
                         setTimeout(() => {
                             if (window.adminFacilityHasMore && !window.adminFacilityLoading) {
                                 const scrollTop = filterSelect.scrollTop;
@@ -1092,21 +999,17 @@ async function loadFacilitiesForFilter(page = 1, append = false) {
     window.adminFacilityLoading = false;
 }
 
-// Handle scroll event on admin facility filter select dropdown
 function handleAdminFacilitySelectScroll(e) {
     const select = e.target;
-    // Check if scrolled near bottom (within 50px)
     const scrollTop = select.scrollTop;
     const scrollHeight = select.scrollHeight;
     const clientHeight = select.clientHeight;
     
     if (scrollHeight - scrollTop - clientHeight < 50 && window.adminFacilityHasMore && !window.adminFacilityLoading) {
-        // Load next page
         loadFacilitiesForFilter(window.adminFacilityCurrentPage + 1, true);
     }
 }
 
-// Display bookings table
 function displayBookings(bookingsToShow) {
     const container = document.getElementById('bookingsList');
     if (!container) {
@@ -1205,7 +1108,6 @@ function displayBookings(bookingsToShow) {
     `;
 }
 
-// Render pagination controls for admin
 function renderAdminPagination() {
     if (window.adminTotalPages <= 1) {
         return '<div class="pagination-info" style="margin-top: 20px; text-align: center; color: #666;">Showing all bookings</div>';
@@ -1216,15 +1118,12 @@ function renderAdminPagination() {
     
     let paginationHTML = '<div class="pagination-container" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
     
-    // Pagination info
     paginationHTML += `<div class="pagination-info" style="color: #666;">
         Showing ${startItem} to ${endItem} of ${window.adminTotalBookings} bookings
     </div>`;
     
-    // Pagination controls
     paginationHTML += '<div class="pagination-controls" style="display: flex; gap: 5px; align-items: center;">';
     
-    // First page
     if (window.adminCurrentPage > 1) {
         paginationHTML += `<button onclick="loadBookings(1)" class="pagination-btn" title="First page">
             <i class="fas fa-angle-double-left"></i>
@@ -1235,7 +1134,6 @@ function renderAdminPagination() {
         </button>`;
     }
     
-    // Previous page
     if (window.adminCurrentPage > 1) {
         paginationHTML += `<button onclick="loadBookings(${window.adminCurrentPage - 1})" class="pagination-btn" title="Previous page">
             <i class="fas fa-angle-left"></i>
@@ -1246,7 +1144,6 @@ function renderAdminPagination() {
         </button>`;
     }
     
-    // Page numbers
     const maxVisiblePages = 5;
     let startPage = Math.max(1, window.adminCurrentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(window.adminTotalPages, startPage + maxVisiblePages - 1);
@@ -1277,7 +1174,6 @@ function renderAdminPagination() {
         paginationHTML += `<button onclick="loadBookings(${window.adminTotalPages})" class="pagination-btn">${window.adminTotalPages}</button>`;
     }
     
-    // Next page
     if (window.adminCurrentPage < window.adminTotalPages) {
         paginationHTML += `<button onclick="loadBookings(${window.adminCurrentPage + 1})" class="pagination-btn" title="Next page">
             <i class="fas fa-angle-right"></i>
@@ -1288,7 +1184,6 @@ function renderAdminPagination() {
         </button>`;
     }
     
-    // Last page
     if (window.adminCurrentPage < window.adminTotalPages) {
         paginationHTML += `<button onclick="loadBookings(${window.adminTotalPages})" class="pagination-btn" title="Last page">
             <i class="fas fa-angle-double-right"></i>

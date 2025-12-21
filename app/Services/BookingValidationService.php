@@ -7,9 +7,6 @@ use Carbon\Carbon;
 
 class BookingValidationService
 {
-    /**
-     * Get validation rules for booking based on facility settings
-     */
     public function getValidationRules(Facility $facility): array
     {
         $expectedAttendeesRule = 'nullable|integer|min:1';
@@ -54,9 +51,6 @@ class BookingValidationService
         ];
     }
 
-    /**
-     * Normalize expected attendees based on facility settings
-     */
     public function normalizeExpectedAttendees(?int $expectedAttendees, Facility $facility): int
     {
         if ($expectedAttendees === null || $expectedAttendees === 0) {
@@ -65,17 +59,11 @@ class BookingValidationService
         return $expectedAttendees;
     }
 
-    /**
-     * Parse and normalize datetime formats
-     */
     public function parseDateTime(string $dateTime): string
     {
         return Carbon::parse($dateTime)->format('Y-m-d H:i:s');
     }
 
-    /**
-     * Validate time range
-     */
     public function validateTimeRange(string $startTime, string $endTime): ?string
     {
         $start = Carbon::parse($startTime);
@@ -88,9 +76,6 @@ class BookingValidationService
         return null;
     }
 
-    /**
-     * Validate booking date is within facility's available days
-     */
     public function validateAvailableDay(string $bookingDate, Facility $facility): ?string
     {
         $bookingDateCarbon = Carbon::createFromFormat('Y-m-d', $bookingDate, config('app.timezone'))
@@ -108,9 +93,6 @@ class BookingValidationService
         return null;
     }
 
-    /**
-     * Validate time is within facility's available time range
-     */
     public function validateAvailableTime(string $startTime, string $endTime, Facility $facility): ?string
     {
         $minTime = '08:00';
@@ -139,9 +121,6 @@ class BookingValidationService
         return null;
     }
 
-    /**
-     * Validate facility status
-     */
     public function validateFacilityStatus(Facility $facility): ?string
     {
         if ($facility->status !== 'available') {
@@ -151,9 +130,6 @@ class BookingValidationService
         return null;
     }
 
-    /**
-     * Validate expected attendees against facility capacity
-     */
     public function validateCapacity(int $expectedAttendees, Facility $facility): ?string
     {
         if ($expectedAttendees > $facility->capacity) {
@@ -167,16 +143,8 @@ class BookingValidationService
         return null;
     }
 
-    /**
-     * Validate student ID format
-     * Format: YYWMR##### (e.g., 25WMR00001)
-     * YY: 2-digit year
-     * WMR: Fixed prefix
-     * #####: 5-digit sequential number
-     */
     public function validateStudentIdFormat(string $studentId): bool
     {
-        // Pattern: 2 digits, WMR, 5 digits
         $pattern = '/^\d{2}WMR\d{5}$/';
         return preg_match($pattern, $studentId) === 1;
     }

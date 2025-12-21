@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * Author: Low Kim Hong
+ */
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,7 +36,6 @@ class Booking extends Model
         'cancelled_at' => 'datetime',
     ];
 
-    // Relationships
     public function user()
     {
         return $this->belongsTo(User::class);

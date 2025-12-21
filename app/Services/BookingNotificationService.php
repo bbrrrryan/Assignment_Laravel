@@ -7,27 +7,19 @@ use App\Models\Notification;
 
 class BookingNotificationService
 {
-    /**
-     * Send notification to user about booking status change
-     */
     public function sendBookingNotification(Booking $booking, string $status, string $message): void
     {
         try {
-            // Don't send "Booking Submitted" notification to students
             if ($status === 'pending') {
-                // Only notify admins about pending bookings, not the student
                 $this->notifyAdminsAboutPendingBooking($booking);
                 return;
             }
 
-            // Determine notification type based on status
             $type = $this->getNotificationType($status);
             $title = $this->getNotificationTitle($status);
 
-            // Create detailed message
             $detailedMessage = $this->buildNotificationMessage($booking, $message);
 
-            // Create notification
             $notification = Notification::create([
                 'title' => $title,
                 'message' => $detailedMessage,
@@ -39,7 +31,6 @@ class BookingNotificationService
                 'is_active' => true,
             ]);
 
-            // Send notification to user
             $notification->users()->sync([
                 $booking->user_id => [
                     'is_read' => false,
@@ -47,18 +38,13 @@ class BookingNotificationService
                 ]
             ]);
 
-            // Update scheduled_at
             $notification->update(['scheduled_at' => now()]);
 
         } catch (\Exception $e) {
-            // Log error but don't fail the booking operation
             \Log::warning('Failed to send booking notification: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Notify admins about new pending booking
-     */
     private function notifyAdminsAboutPendingBooking(Booking $booking): void
     {
         try {
@@ -76,7 +62,6 @@ class BookingNotificationService
             $message .= "Time: {$startTime} - {$endTime}\n";
             $message .= "Booking ID: #{$booking->id}";
             
-            // Get all admin user IDs
             $adminUserIds = \App\Models\User::where('status', 'active')
                 ->where(function($query) {
                     $query->where('role', 'admin')
@@ -102,7 +87,6 @@ class BookingNotificationService
                 'scheduled_at' => now(),
             ]);
             
-            // Sync notification to all admin users
             $syncData = [];
             foreach ($adminUserIds as $adminId) {
                 $syncData[$adminId] = [
@@ -126,9 +110,6 @@ class BookingNotificationService
         }
     }
 
-    /**
-     * Get notification type based on status
-     */
     private function getNotificationType(string $status): string
     {
         return match($status) {
@@ -139,9 +120,6 @@ class BookingNotificationService
         };
     }
 
-    /**
-     * Get notification title based on status
-     */
     private function getNotificationTitle(string $status): string
     {
         return match($status) {
@@ -153,9 +131,6 @@ class BookingNotificationService
         };
     }
 
-    /**
-     * Build detailed notification message
-     */
     private function buildNotificationMessage(Booking $booking, string $baseMessage): string
     {
         $facilityName = $booking->facility->name ?? 'Facility';

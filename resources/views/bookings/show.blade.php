@@ -1,3 +1,4 @@
+{{-- Author: [Low Kim Hong] --}}
 @extends('layouts.app')
 
 @section('title', 'Booking Details - TARUMT FMS')
@@ -17,7 +18,6 @@
 </div>
 
 @if(!auth()->user()->isAdmin())
-<!-- Cancel Booking Confirmation Modal (User) -->
 <div id="cancelBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -62,7 +62,6 @@
 @endif
 
 @if(auth()->user()->isAdmin())
-<!-- Cancel Approved Booking Confirmation Modal (Admin) -->
 <div id="adminCancelBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeAdminCancelModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">

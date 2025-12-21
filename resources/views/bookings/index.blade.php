@@ -1,4 +1,6 @@
-﻿@extends('layouts.app')
+﻿{{-- Author: [Low Kim Hong] --}}
+
+@extends('layouts.app')
 
 @section('title', 'Bookings - TARUMT FMS')
 
@@ -16,7 +18,6 @@
         </div>
     </div>
 
-    <!-- Search and Filters -->
     <div class="filters-section">
         <div class="filters-card">
             <div class="filters-form">
@@ -53,13 +54,11 @@
         </div>
     </div>
 
-    <!-- Bookings Table -->
     <div id="bookingsList" class="table-container">
         <p>Loading bookings...</p>
     </div>
 </div>
 
-<!-- Cancel Booking Confirmation Modal -->
 <div id="cancelBookingModal" class="modal" style="display: none;" onclick="if(event.target === this) closeCancelModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -102,12 +101,10 @@
     </div>
 </div>
 
-<!-- Create/Edit Booking Modal -->
 <div id="bookingModal" class="modal" style="display: none;">
     <div class="modal-content modal-large">
         <span class="close" onclick="closeModal()">&times;</span>
         
-        <!-- Form Card -->
         <div class="card shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0 fw-semibold">
@@ -116,7 +113,6 @@
             </div>
             <div class="card-body">
                 <form id="bookingForm">
-                    <!-- Basic Information Section -->
                     <div class="mb-4">
                         <h5 class="text-primary mb-3 border-bottom pb-2">
                             <i class="fas fa-info-circle me-2"></i>Basic Information
@@ -133,14 +129,12 @@
                         </div>
                     </div>
 
-                    <!-- Time Information Section -->
                     <div class="mb-4">
                         <h5 class="text-primary mb-3 border-bottom pb-2">
                             <i class="fas fa-clock me-2"></i>Time Information
                         </h5>
                         
 
-                        <!-- Visual Timetable -->
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label">Select Time Slot <span class="text-danger">*</span></label>
@@ -158,7 +152,6 @@
                         </div>
                     </div>
 
-                    <!-- Additional Information Section -->
                     <div class="mb-4">
                         <h5 class="text-primary mb-3 border-bottom pb-2">
                             <i class="fas fa-calendar-alt me-2"></i>Additional Information
@@ -174,7 +167,6 @@
                                 <label class="form-label">Attendees Passport <span class="text-danger">*</span></label>
                                 <small class="form-text text-muted d-block mb-2">Enter passport numbers for each attendee</small>
                                 <div id="attendeesList">
-                                    <!-- Attendee inputs will be dynamically added here -->
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addAttendeeBtn" onclick="addAttendeeField()" style="display: none;">
                                     <i class="fas fa-plus me-1"></i> Add Attendee
@@ -183,7 +175,6 @@
                         </div>
                     </div>
 
-                    <!-- Form Actions -->
                     <div class="d-flex justify-content-end gap-2 pt-3 border-top">
                         <button type="button" class="btn btn-outline-secondary" onclick="closeModal()">
                             <i class="fas fa-times me-2"></i> Cancel
