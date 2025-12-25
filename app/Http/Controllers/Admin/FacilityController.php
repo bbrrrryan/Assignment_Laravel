@@ -78,6 +78,11 @@ class FacilityController extends AdminBaseController
 
         $context = new FacilityValidationContext($basicValidated['type']);
         $data = $request->all();
+        
+        if (isset($data['equipment']) && is_array($data['equipment'])) {
+            unset($data['equipment']);
+        }
+        
         $validation = $context->validate($data);
         
         if (!$validation['valid']) {
@@ -86,6 +91,9 @@ class FacilityController extends AdminBaseController
 
         $defaults = $context->getDefaultValues();
         $validated = array_merge($defaults, $data);
+        
+        $validated['enable_multi_attendees'] = $request->has('enable_multi_attendees') && $request->input('enable_multi_attendees') == '1';
+        
         $validated = $context->processBeforeSave($validated);
 
         if ($request->hasFile('image')) {
@@ -115,28 +123,27 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
-            $equipmentJson = json_decode($request->equipment_json, true);
+        $equipmentJsonValue = $request->input('equipment_json');
+        if (!empty($equipmentJsonValue)) {
+            $equipmentJson = json_decode($equipmentJsonValue, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
-                $validated['equipment'] = array_filter($equipmentJson);
-            }
-        } elseif (isset($validated['equipment'])) {
-            if (is_string($validated['equipment'])) {
-                $decoded = json_decode($validated['equipment'], true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $validated['equipment'] = array_filter($decoded);
-                } else {
-                    $validated['equipment'] = null;
-                }
-            } elseif (is_array($validated['equipment'])) {
-                $validated['equipment'] = array_filter($validated['equipment']);
+                $filtered = array_filter($equipmentJson, function($item) {
+                    return !empty(trim($item));
+                });
+                $validated['equipment'] = !empty($filtered) ? array_values($filtered) : null;
+            } else {
+                $validated['equipment'] = null;
             }
         } else {
-            $validated['equipment'] = null;
-        }
-        
-        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
-            $validated['equipment'] = null;
+            $equipmentArray = $request->input('equipment', []);
+            if (is_array($equipmentArray) && !empty($equipmentArray)) {
+                $filtered = array_filter($equipmentArray, function($item) {
+                    return !empty(trim($item));
+                });
+                $validated['equipment'] = !empty($filtered) ? array_values($filtered) : null;
+            } else {
+                $validated['equipment'] = null;
+            }
         }
 
         $validated['status'] = $validated['status'] ?? 'available';
@@ -227,7 +234,11 @@ class FacilityController extends AdminBaseController
             return back()->withErrors($validation['errors'])->withInput();
         }
 
-        $validated = $context->processBeforeSave($data);
+        $validated = $data;
+        
+        $validated['enable_multi_attendees'] = $request->has('enable_multi_attendees') && $request->input('enable_multi_attendees') == '1';
+        
+        $validated = $context->processBeforeSave($validated);
 
         if ($request->hasFile('image')) {
             if ($facility->image_url) {
@@ -263,28 +274,27 @@ class FacilityController extends AdminBaseController
             $validated['available_time'] = null;
         }
 
-        if ($request->has('equipment_json') && !empty($request->equipment_json)) {
-            $equipmentJson = json_decode($request->equipment_json, true);
+        $equipmentJsonValue = $request->input('equipment_json');
+        if (!empty($equipmentJsonValue)) {
+            $equipmentJson = json_decode($equipmentJsonValue, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($equipmentJson)) {
-                $validated['equipment'] = array_filter($equipmentJson);
-            }
-        } elseif (isset($validated['equipment'])) {
-            if (is_string($validated['equipment'])) {
-                $decoded = json_decode($validated['equipment'], true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $validated['equipment'] = array_filter($decoded);
-                } else {
-                    $validated['equipment'] = null;
-                }
-            } elseif (is_array($validated['equipment'])) {
-                $validated['equipment'] = array_filter($validated['equipment']);
+                $filtered = array_filter($equipmentJson, function($item) {
+                    return !empty(trim($item));
+                });
+                $validated['equipment'] = !empty($filtered) ? array_values($filtered) : null;
+            } else {
+                $validated['equipment'] = null;
             }
         } else {
-            $validated['equipment'] = null;
-        }
-        
-        if (isset($validated['equipment']) && (empty($validated['equipment']) || (is_array($validated['equipment']) && count(array_filter($validated['equipment'])) === 0))) {
-            $validated['equipment'] = null;
+            $equipmentArray = $request->input('equipment', []);
+            if (is_array($equipmentArray) && !empty($equipmentArray)) {
+                $filtered = array_filter($equipmentArray, function($item) {
+                    return !empty(trim($item));
+                });
+                $validated['equipment'] = !empty($filtered) ? array_values($filtered) : null;
+            } else {
+                $validated['equipment'] = null;
+            }
         }
 
         $oldStatus = $facility->status;

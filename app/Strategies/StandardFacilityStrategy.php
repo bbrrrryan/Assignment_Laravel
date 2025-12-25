@@ -31,7 +31,9 @@ class StandardFacilityStrategy implements FacilityValidationStrategy
             'available_time' => 'nullable|array',
             'available_time.start' => 'nullable|string|date_format:H:i',
             'available_time.end' => 'nullable|string|date_format:H:i|after:available_time.start',
-            'equipment' => 'nullable|string',
+            'equipment' => 'nullable',
+            'equipment_json' => 'nullable|string',
+            'equipment.*' => 'nullable|string',
             'rules' => 'nullable|string',
         ];
 

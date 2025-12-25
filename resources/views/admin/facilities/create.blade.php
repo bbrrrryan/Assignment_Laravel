@@ -126,7 +126,7 @@
                     <button type="button" onclick="addEquipmentItem()" style="margin-top: 10px; background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
                         <i class="fas fa-plus"></i> Add Equipment
                     </button>
-                    <input type="hidden" id="equipment_json" name="equipment">
+                    <input type="hidden" id="equipment_json" name="equipment_json">
                 </div>
 
                 <div class="form-group">
@@ -261,12 +261,10 @@ function removeEquipmentItem(button) {
     if (container.children.length > 1) {
         button.closest('.equipment-item').remove();
     } else {
-        // If it's the last item, just clear the input
         button.closest('.equipment-item').querySelector('input').value = '';
     }
 }
 
-// Convert equipment array to JSON before form submission
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     if (form) {
@@ -276,7 +274,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 .map(input => input.value.trim())
                 .filter(value => value !== '');
             
-            document.getElementById('equipment_json').value = JSON.stringify(equipmentArray);
+            const equipmentJsonField = document.getElementById('equipment_json');
+            if (equipmentJsonField) {
+                equipmentJsonField.value = JSON.stringify(equipmentArray);
+            }
         });
     }
 });
